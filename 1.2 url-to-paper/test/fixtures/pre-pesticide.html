@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Orchard fixture</title>
+</head>
+<body>
+  <x-paper-prepesticide id="x-paper-prepesticide">HUD must not count</x-paper-prepesticide>
+  <header data-framer-name="Nav Bar" width="1600" height="72">
+    <nav>
+      <a href="/">Home</a>
+      <a href="/about">About</a>
+    </nav>
+  </header>
+  <main>
+    <section id="content-01" data-framer-name="Hero" width="1600" height="640">
+      <h1>Yearning orchard</h1>
+      <img src="hero.jpg" alt="Grove at dusk" width="1200" height="640" />
+      <img src="leaf.svg" alt="" width="24" height="24" />
+      <div data-framer-name="Grove fill" style="background-image: url(grove.jpg); width: 800px; height: 400px" width="800" height="400"></div>
+      <button type="button">Join the waitlist</button>
+    </section>
+    <section data-framer-name="Contact" width="1600" height="320">
+      <h2>Write us</h2>
+      <form action="/join" method="post">
+        <input type="email" name="email" />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+  <footer data-framer-name="Footer" width="1600" height="120">
+    <a href="/contact">Contact</a>
+  </footer>
+</body>
+</html>

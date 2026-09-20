@@ -1,0 +1,4 @@
+interface:
+  display_name: "Web2HTML"
+  short_description: "Convert a URL to HTML"
+  default_prompt: "Convert (URL) to HTML"

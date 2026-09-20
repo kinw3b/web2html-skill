@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper Capture Tool</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@100..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
+      <div>
+        <p class="eyebrow">PAPER</p>
+        <h1>Capture Tool</h1>
+      </div>
+      <span class="connection" id="connection"><i></i> Offline</span>
+    </header>
+
+    <section class="setup" id="setup">
+      <div class="setup-copy">
+        <p class="step-kicker">CONNECT</p>
+        <h2>Send live states straight to Paper.</h2>
+        <p>Keep Paper Desktop open on the target file. Every green check below is a confirmed Paper node.</p>
+      </div>
+      <label>
+        <span>Paper file ID</span>
+        <input id="paperFileId" autocomplete="off" placeholder="Filled from this pipeline run">
+      </label>
+      <label>
+        <span>Project folder</span>
+        <input id="projectRoot" autocomplete="off" placeholder="Filled from this pipeline run">
+      </label>
+      <details>
+        <summary>Connection settings</summary>
+        <label>
+          <span>Paper MCP endpoint</span>
+          <input id="paperEndpoint" value="http://127.0.0.1:29979/mcp" autocomplete="off">
+        </label>
+      </details>
+      <p class="error" id="setupError" role="alert"></p>
+      <button class="primary" id="startButton">Start capture</button>
+      <p class="install-hint">Bridge unavailable? Run <code>install-native-host.command</code> from the extension folder, then reopen Chrome.</p>
+    </section>
+
+    <section class="workspace" id="workspace" hidden>
+      <nav class="stage-rail" aria-label="Capture stages" id="stageRail"></nav>
+
+      <div class="stage-heading">
+        <div>
+          <p class="step-kicker" id="stepKicker">STEP 1 OF 4</p>
+          <h2 id="stageTitle">Navbar + Dropdowns</h2>
+        </div>
+        <label class="auto-toggle" data-tooltip="Scans your entire page on all steps." title="Scans your entire page on all steps.">
+          <input type="checkbox" id="autoMode">
+          <span>Auto</span>
+        </label>
+      </div>
+
+      <p class="stage-copy" id="stageCopy"></p>
+
+      <div class="kind-picker" id="navKindPicker" hidden>
+        <button class="kind active" data-kind="navbar">Navbar</button>
+        <button class="kind" data-kind="dropdown">Dropdown</button>
+      </div>
+
+      <section class="nav-progress" id="navProgress" aria-labelledby="navProgressLabel">
+        <div class="nav-progress-head">
+          <span class="nav-progress-spinner" aria-hidden="true"></span>
+          <strong id="navProgressLabel">Waiting for Navbar capture</strong>
+          <span id="navProgressCount">0/3</span>
+        </div>
+        <div class="nav-progress-track" id="navProgressBar" role="progressbar" aria-label="Navbar Paper confirmations" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">
+          <span id="navProgressFill"></span>
+        </div>
+        <div class="nav-progress-steps">
+          <div data-breakpoint="desktop"><i></i><span>Desktop<small>Waiting</small></span></div>
+          <div data-breakpoint="tablet"><i></i><span>Tablet<small>Waiting</small></span></div>
+          <div data-breakpoint="mobile"><i></i><span>Mobile<small>Waiting</small></span></div>
+        </div>
+        <p id="navProgressHelp">Continue unlocks automatically after Paper confirms all three.</p>
+      </section>
+
+      <div class="record-card">
+        <div class="record-state">
+          <span class="record-lamp"></span>
+          <div>
+            <strong id="recordTitle">Ready to record</strong>
+            <p id="recordHelp">Click Record, then click the exact element on the page.</p>
+          </div>
+        </div>
+        <button class="record-button" id="recordButton"><span></span>Record</button>
+      </div>
+
+      <div class="activity" id="activity" aria-live="polite"></div>
+      <div class="takes" id="takes"></div>
+      <p class="error" id="captureError" role="alert"></p>
+
+      <footer class="stage-actions">
+        <button class="quiet" id="backButton">Back</button>
+        <button class="primary" id="continueButton">Continue</button>
+        <button class="done" id="doneButton" hidden>Done</button>
+      </footer>
+    </section>
+
+    <section class="complete" id="complete" hidden>
+      <div class="complete-check">✓</div>
+      <p class="step-kicker">CAPTURE COMPLETE</p>
+      <h2>Capture is ready for review.</h2>
+      <p class="complete-copy">Paper has the session. Return to the agent chat and type Continue when you are ready to start Design Library + Tokens.</p>
+      <div class="agent-cue" role="status">
+        <p class="step-kicker">AGENT</p>
+        <p class="agent-prompt">Waiting</p>
+        <p>Ready for your Continue.</p>
+        <p class="ping-path">source-site/components/human-hover-done.json</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

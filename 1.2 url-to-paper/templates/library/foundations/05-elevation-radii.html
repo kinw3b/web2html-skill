@@ -1,0 +1,35 @@
+<div style="display:flex; flex-direction:column; align-items:flex-start; gap:var(--spacing-7); width:100%;">
+  <div style="display:flex; align-items:baseline; gap:var(--spacing-4); width:100%; padding-bottom:var(--spacing-4); border-bottom:1px solid {{theme.border}};">
+    <div style="font-family:{{theme.display}}; font-size:var(--text-4xl); font-weight:600; line-height:1.1; color:{{theme.ink}};">Elevation &amp; Radii</div>
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:600; letter-spacing:0.14em; color:{{theme.muted}};">TAILWIND DEFAULT</div>
+  </div>
+
+  {{#if shadows}}
+  {{#each shadows}}
+  <div style="display:flex; align-items:flex-start; gap:var(--spacing-8); width:1072px;">
+    <div style="width:420px; padding:var(--spacing-9); background:{{theme.surfaceAlt}}; flex:none;">
+      <div style="width:340px; padding:var(--spacing-6); background:{{theme.surface}}; box-shadow:{{.cssVar}};">
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-base); font-weight:700; color:{{theme.ink}};">{{.name}}</div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-sm); line-height:1.5; color:{{theme.muted}};">Default Tailwind shadow specimen.</div>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:var(--spacing-2);">
+      <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}};">{{.name}}</div>
+      <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.body}}; width:300px;">{{.value}}</div>
+    </div>
+  </div>
+  {{/each}}
+  {{/if}}
+
+  {{#if radii}}
+  <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+    {{#each radii}}
+    <div style="display:flex; flex-direction:column; gap:var(--spacing-2-5); width:220px;">
+      <div style="width:220px; height:96px; background:{{theme.surfaceAlt}}; border:1px solid {{theme.border}}; border-radius:{{.cssVar}};"></div>
+      <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}};">{{.name}}</div>
+      <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); color:{{theme.muted}};">{{.value}}</div>
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+</div>

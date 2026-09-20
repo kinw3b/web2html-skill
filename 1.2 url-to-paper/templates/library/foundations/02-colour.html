@@ -1,0 +1,80 @@
+<div style="display:flex; flex-direction:column; align-items:flex-start; gap:var(--spacing-9); width:100%;">
+  <div style="display:flex; align-items:baseline; gap:var(--spacing-4); width:100%; padding-bottom:var(--spacing-4); border-bottom:1px solid {{theme.border}};">
+    <div style="font-family:{{theme.display}}; font-size:var(--text-4xl); font-weight:600; line-height:1.1; color:{{theme.ink}};">Colour</div>
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:600; letter-spacing:0.14em; color:{{theme.muted}};">{{counts.colors}} TOKENS</div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-6); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.14em; color:{{theme.accent}};">SURFACE &amp; UI</div>
+
+    <div style="display:flex; flex-direction:column; gap:var(--spacing-4); width:100%;">
+      <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.16em; color:{{theme.ink}};">MINED</div>
+      <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+      {{#each colorsSurfaceMined}}
+      <div style="display:flex; flex-direction:column; gap:var(--spacing-3-5); width:250px;">
+        <div style="width:250px; height:104px; background:{{.cssVar}}; border:1px solid {{theme.border}};"></div>
+        <div style="display:flex; flex-direction:column; gap:var(--spacing-1-5);">
+          <div style="display:flex; align-items:center; gap:var(--spacing-2);">
+            <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); font-weight:500; color:{{theme.ink}};">{{.name}}</div>
+            {{.badgeHtml}}
+          </div>
+          <div style="display:flex; align-items:center; gap:var(--spacing-2-5);">
+            <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.body}};">{{.value}}</div>
+            <div style="width:3px; height:3px; background:{{theme.accent}};"></div>
+            <div style="font-family:{{theme.sans}}; font-size:var(--text-sm); color:{{theme.muted}};">{{.uses}} uses</div>
+          </div>
+          {{#if .mergedNote}}<div style="font-family:{{theme.sans}}; font-size:var(--text-xs); color:{{theme.muted}};">{{.mergedNote}}</div>{{/if}}
+        </div>
+      </div>
+      {{/each}}
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:var(--spacing-4); width:100%;">
+      <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.16em; color:{{theme.ink}};">SEMANTIC</div>
+      <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+      {{#each colorsSurfaceSemantic}}
+      <div style="display:flex; flex-direction:column; gap:var(--spacing-3-5); width:250px;">
+        <div style="width:250px; height:15px; background:{{.cssVar}}; border:1px solid {{theme.border}};"></div>
+        <div style="display:flex; flex-direction:column; gap:var(--spacing-1-5);">
+          <div style="display:flex; align-items:center; gap:var(--spacing-2);">
+            <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); font-weight:500; color:{{theme.ink}};">{{.name}}</div>
+            {{.badgeHtml}}
+          </div>
+          <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.body}};">{{.value}}</div>
+        </div>
+      </div>
+      {{/each}}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-5); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.14em; color:{{theme.accent}};">TEXT</div>
+
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.16em; color:{{theme.ink}};">MINED</div>
+    {{#each colorsTextMined}}
+    <div style="display:flex; align-items:center; gap:var(--spacing-6); width:1072px; padding:var(--spacing-3) 0; border-bottom:1px solid {{theme.border}};">
+      <div style="width:56px; height:36px; background:{{theme.surfaceAlt}}; display:flex; align-items:center; justify-content:center; flex:none;">
+        <div style="font-family:{{theme.display}}; font-size:var(--text-xl); color:{{.cssVar}};">Aa</div>
+      </div>
+      <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}}; width:280px; flex:none;">{{.name}}</div>
+      <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.body}}; width:120px; flex:none;">{{.value}}</div>
+      {{.badgeHtml}}
+      <div style="font-family:{{theme.sans}}; font-size:var(--text-sm); color:{{theme.muted}};">{{.uses}} uses</div>
+    </div>
+    {{/each}}
+
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.16em; color:{{theme.ink}}; padding-top:var(--spacing-3);">SEMANTIC</div>
+    {{#each colorsTextSemantic}}
+    <div style="display:flex; align-items:center; gap:var(--spacing-6); width:1072px; padding:var(--spacing-3) 0; border-bottom:1px solid {{theme.border}};">
+      <div style="width:56px; height:36px; background:{{theme.surfaceAlt}}; display:flex; align-items:center; justify-content:center; flex:none;">
+        <div style="font-family:{{theme.display}}; font-size:var(--text-xl); color:{{.cssVar}};">Aa</div>
+      </div>
+      <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}}; width:280px; flex:none;">{{.name}}</div>
+      <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.body}}; width:120px; flex:none;">{{.value}}</div>
+      {{.badgeHtml}}
+    </div>
+    {{/each}}
+  </div>
+</div>

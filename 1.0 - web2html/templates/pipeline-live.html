@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0b0d0a" />
+<title>Web2Html — run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=IBM+Plex+Sans:wght@100..700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d0a;
+    --panel: #12150f;
+    --ink: #f4f7ed;
+    --text: #c7cdbb;
+    --muted: #858d78;
+    --line: #30372a;
+    --line-strong: #4a5340;
+    --accent: #c7ff52;
+    --human: #ffd166;
+    /* one typeface across the whole design */
+    --sans: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); }
+  body { color: var(--text); font: 15px/1.5 var(--sans); }
+  a { color: inherit; }
+  code { color: var(--ink); font-family: var(--mono); font-size: 0.88em; }
+  .page { width: min(920px, 100%); margin: auto; padding: 32px 20px 80px; }
+  .mast { display: flex; justify-content: space-between; gap: 16px; margin: 0 0 48px; color: var(--muted); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+  .mast strong, .mast-tag { color: var(--accent); }
+  h1, h2, h3, h4 { font-family: var(--display); }
+  h1 { margin: 0; color: var(--ink); font-size: clamp(2.1rem, 6vw, 3.6rem); font-weight: 500; line-height: 1; letter-spacing: -.035em; }
+  .run-title { display: flex; flex-wrap: wrap; align-items: center; gap: .14em; }
+  .run-gear { width: .78em; height: .78em; overflow: visible; color: var(--accent); animation: gear-spin 3.4s linear infinite; transform-origin: 50% 50%; }
+  .run-gear circle { fill: none; stroke: currentColor; stroke-width: 2; }
+  .run-gear path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .lead { width: 100%; max-width: none; margin: 20px 0 36px; color: var(--text); font-size: 1.08rem; }
+  .hud { margin-bottom: 44px; }
+  .hud-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; color: var(--muted); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+  .status-live { display: inline-flex; align-items: center; gap: 10px; }
+  .loader-grid {
+    display: grid;
+    flex-shrink: 0;
+    grid-template-columns: repeat(3, 4px);
+    gap: 1.5px;
+  }
+  .loader-grid i {
+    width: 4px;
+    height: 4px;
+    border-radius: 1px;
+    background: var(--ink);
+    opacity: .15;
+    animation: pixel-on 650ms ease-in-out var(--d, 0ms) infinite;
+  }
+  .converting-label {
+    background-image: linear-gradient(90deg, var(--muted) 35%, var(--ink) 50%, var(--muted) 65%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer-text 1.4s linear infinite;
+  }
+  @keyframes pixel-on {
+    0%, 100% { opacity: .15; }
+    40%, 60% { opacity: 1; }
+  }
+  @keyframes shimmer-text {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+  @keyframes gear-spin { to { transform: rotate(360deg); } }
+  body[data-run="done"] .run-gear { animation-play-state: paused; color: var(--muted); }
+  body[data-run="yield"] .run-gear { animation-play-state: paused; color: var(--human); }
+  body[data-run="yield"] .converting-label {
+    animation: none;
+    color: var(--accent);
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+  }
+  body[data-run="yield"] .loader-grid i { animation: none; opacity: .35; background: var(--human); }
+  @media (prefers-reduced-motion: reduce) {
+    .loader-grid i { animation: none; opacity: .15; }
+    .converting-label { animation: none; color: var(--ink); background: none; -webkit-background-clip: unset; background-clip: unset; }
+    .run-gear { animation: none; }
+  }
+  .bar { height: 3px; overflow: hidden; background: var(--line); }
+  .bar i { display: block; width: var(--pct, 0%); height: 100%; background: var(--accent); }
+  .here-next {
+    display: grid;
+    gap: 6px;
+    margin: 12px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--accent);
+    background: #1d2514;
+    font: 700 12px/1.45 var(--mono);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .here-next[hidden] { display: none; }
+  .here-next-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+  .here-next .k { color: var(--muted); }
+  .here-next .v { color: var(--ink); text-transform: none; font-weight: 600; letter-spacing: 0; }
+  .here-next .v.next { color: var(--accent); }
+  .spine { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 48px; padding: 0; list-style: none; }
+  .spine li { position: relative; padding: 13px 42px 13px 12px; border: 1px solid var(--line); background: var(--panel); transition: border-color 160ms ease, background 160ms ease; }
+  .spine li + li { border-left: 0; }
+  .spine li:not(:last-child)::after { content: "→"; position: absolute; right: 10px; top: 50%; display: grid; width: 24px; height: 24px; place-items: center; color: var(--accent); font-weight: 800; transform: translateY(-50%); }
+  .spine strong { display: block; color: var(--ink); font-size: .86rem; }
+  .spine span { color: var(--muted); font: 11px/1.5 var(--mono); }
+  .spine li[data-status="active"], .spine li[data-status="done"] { z-index: 1; border-color: var(--accent); background: #1d2514; }
+  .spine li[data-status="active"] strong, .spine li[data-status="done"] strong { color: var(--accent); }
+  .spine li[data-status="active"]::after, .spine li[data-status="done"]::after { color: var(--bg); background: var(--accent); }
+  .section { margin-top: 48px; }
+  .eyebrow { margin: 0 0 12px; color: var(--accent); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+  h2 { margin: 0 0 18px; color: var(--ink); font-size: 1.35rem; font-weight: 500; letter-spacing: -.02em; }
+  #run-title { margin-bottom: 8px; }
+  .run-split { max-width: 62ch; margin: 0 0 24px; color: var(--text); font-size: .95rem; line-height: 1.45; }
+  .cards-wrap { display: grid; gap: 28px; }
+  .card-band { margin: 0 0 8px; color: var(--accent); font: 700 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .card-band.is-optional { color: var(--muted); }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--line); background: var(--panel); }
+  .card.is-optional { border-style: dashed; }
+  .card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px; padding: 15px 14px 9px; }
+  .card-head .opt { margin-left: auto; color: var(--muted); font: 700 9px/1 var(--mono); letter-spacing: .1em; }
+  .card-head .scope { margin-left: auto; color: var(--accent); font: 700 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+  .card.is-optional .scope { flex: 1 0 100%; margin-left: 0; color: var(--muted); }
+  .card-head .id { color: var(--accent); font: 700 11px/1 var(--mono); }
+  .card-head h3 { margin: 0; color: var(--ink); font-size: .95rem; font-weight: 500; }
+  .row { display: grid; grid-template-columns: 10px 40px minmax(0, 1fr); gap: 9px; align-items: center; padding: 8px 14px; }
+  .row:last-child { padding-bottom: 15px; }
+  .mark { width: 8px; height: 8px; border: 1px solid var(--line); }
+  .row .id { margin: 0; color: var(--muted); font: 700 10px/1 var(--mono); }
+  .row h4 { margin: 0; min-width: 0; color: var(--text); font-size: .82rem; line-height: 1.35; font-weight: 500; text-wrap: pretty; }
+  .row.check .id, .row.check h4 { color: var(--human); }
+  .row[data-status="done"] .mark { border-color: var(--accent); background: var(--accent); }
+  .row[data-status="done"] h4 { color: var(--ink); }
+  .row[data-status="active"] { background: #1d2514; }
+  .row[data-status="active"] .mark { border-color: var(--accent); background: var(--accent); }
+  .row[data-status="active"] .id, .row[data-status="active"] h4 { color: var(--accent); }
+  .timeline { position: relative; margin-top: 24px; }
+  .timeline-item { position: relative; display: grid; grid-template-columns: 108px minmax(0, 1fr); min-height: 190px; padding: 0 0 48px; }
+  .timeline-item::before { content: ""; position: absolute; top: 0; bottom: 0; left: 26.5px; width: 1px; background: var(--line); }
+  .timeline-item[data-status="done"]::before { background: var(--accent); }
+  .timeline-item:first-child::before { top: 27px; }
+  .timeline-item:last-child::before { bottom: calc(100% - 27px); }
+  .timeline-key { position: sticky; top: 20px; align-self: start; z-index: 1; display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font: 800 11px/1 var(--mono); letter-spacing: .04em; transition: color 180ms ease, border-color 180ms ease, background 180ms ease; }
+  .timeline-copy { padding: 0 0 28px; }
+  .timeline-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  .timeline-head h3 { margin: 0; color: var(--ink); font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 500; line-height: 1.25; letter-spacing: -.02em; text-wrap: balance; }
+  .timeline-copy > p { max-width: 52ch; margin: 10px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+  .timeline-status { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 7px 9px 6px; border: 1px solid var(--line); color: var(--muted); font: 800 9px/1 var(--mono); letter-spacing: .09em; white-space: nowrap; }
+  .timeline-status::before { content: "WAITING"; }
+  .timeline-item[data-status="pending"],
+  .timeline-item[data-status="skipped"] {
+    opacity: .32;
+    pointer-events: none;
+    filter: grayscale(.5);
+  }
+  .timeline-item[data-status="up-next"] {
+    opacity: .42;
+    pointer-events: none;
+    filter: grayscale(.25);
+  }
+  .timeline-item[data-status="pending"] .timeline-head h3,
+  .timeline-item[data-status="up-next"] .timeline-head h3,
+  .timeline-item[data-status="skipped"] .timeline-head h3 { color: var(--muted); }
+  .timeline-item[data-status="pending"] .timeline-key,
+  .timeline-item[data-status="up-next"] .timeline-key,
+  .timeline-item[data-status="skipped"] .timeline-key {
+    color: var(--muted);
+    border-color: var(--line);
+    background: var(--bg);
+  }
+  .timeline-item[data-status="pending"] .timeline-status,
+  .timeline-item[data-status="up-next"] .timeline-status,
+  .timeline-item[data-status="skipped"] .timeline-status { border-color: var(--line); color: var(--muted); }
+  .timeline-item[data-status="pending"] .dg svg,
+  .timeline-item[data-status="up-next"] .dg svg,
+  .timeline-item[data-status="skipped"] .dg svg { color: var(--muted); }
+  .timeline-item[data-status="up-next"] .timeline-status::before { content: "UP NEXT"; }
+  .timeline-item[data-status="active"] .timeline-key { border-color: var(--accent); background: var(--accent); color: var(--bg); }
+  .timeline-item[data-status="active"] .timeline-status { border-color: var(--accent); color: var(--accent); }
+  .timeline-item[data-status="active"] .timeline-status::before { content: "IN PROGRESS"; }
+  .timeline-item[data-status="done"] .timeline-key { border-color: var(--accent); color: var(--accent); }
+  .timeline-item[data-status="done"] .timeline-head h3 { color: var(--ink); }
+  .timeline-item[data-status="done"] .timeline-copy > p { color: var(--text); }
+  .timeline-item[data-status="done"] .timeline-status { border-color: var(--accent); color: var(--accent); }
+  .timeline-item[data-status="done"] .timeline-status::before { content: ""; width: 9px; height: 5px; flex: 0 0 auto; border-left: 1.7px solid currentColor; border-bottom: 1.7px solid currentColor; transform: translateY(-1px) rotate(-45deg); }
+  .timeline-item[data-status="done"] .timeline-status::after { content: "COMPLETE"; }
+  .dg { display: flex; align-items: center; gap: 14px; max-width: 62ch; margin: 20px 0 0; color: var(--muted); font: 500 0.78rem/1.5 var(--mono); }
+  .dg svg { flex: 0 0 auto; width: 76px; height: 44px; color: var(--accent); overflow: visible; }
+  .dg svg [stroke] { vector-effect: non-scaling-stroke; }
+  .dg-aa { font: 700 14px var(--mono); }
+  .finish { display: none; margin-top: 42px; padding: 18px; border: 1px solid var(--accent); }
+  body[data-run="done"] .finish { display: block; }
+  .finish h2 { margin-bottom: 8px; color: var(--accent); }
+  .finish p { margin: 0; }
+  @media (max-width: 900px) {
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 720px) {
+    .spine, .cards { grid-template-columns: 1fr; }
+    .spine li + li { border-left: 1px solid var(--line); border-top: 0; }
+    .timeline-item::before { left: 21.5px; }
+    .timeline-item:first-child::before { top: 22px; }
+    .timeline-item:last-child::before { bottom: calc(100% - 22px); }
+    .timeline-item { grid-template-columns: 72px minmax(0, 1fr); min-height: 170px; }
+    .timeline-key { width: 44px; height: 44px; }
+    .timeline-head { display: block; }
+    .timeline-status { display: inline-block; margin-top: 12px; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <p class="mast"><strong>Live pipeline</strong><span class="mast-tag" data-pipeline-count>0 / 12</span></p>
+  <h1 class="run-title"><span>Web2Html</span><svg class="run-gear" viewBox="0 0 24 24" role="img" aria-label="Run active"><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg><span>Run</span></h1>
+  <p class="lead">You'll need to install Paper MCP and keep the app open throughout the run.</p>
+
+  <div class="hud" data-pipeline-hud>
+    <div class="hud-meta">
+      <span class="status-live" role="status">
+        <span class="loader-grid" aria-hidden="true">
+          <i style="--d:90ms"></i><i style="--d:180ms"></i><i style="--d:270ms"></i>
+          <i style="--d:0ms"></i><i style="--d:90ms"></i><i style="--d:180ms"></i>
+          <i style="--d:90ms"></i><i style="--d:180ms"></i><i style="--d:270ms"></i>
+        </span>
+        <span class="converting-label" data-pipeline-current>Converting</span>
+      </span>
+    </div>
+    <div class="bar" aria-hidden="true"><i data-pipeline-bar style="--pct:0%"></i></div>
+    <div class="here-next" data-pipeline-here-next hidden>
+      <div class="here-next-row"><span class="k">Here</span><span class="v" data-pipeline-here></span></div>
+      <div class="here-next-row"><span class="k">Next</span><span class="v next" data-pipeline-next></span></div>
+    </div>
+  </div>
+
+  <ol class="spine" aria-label="Dependency chain">
+    <li data-spine="url"><strong>Live URL</strong><span>input</span></li>
+    <li data-spine="evidence"><strong>Evidence</strong><span>assets + states</span></li>
+    <li data-spine="paper"><strong>Paper</strong><span>layout + tokens</span></li>
+    <li data-spine="static"><strong>Static site</strong><span>HTML + CSS + JS</span></li>
+    <li data-spine="qa"><strong>QA proof</strong><span>compare + review</span></li>
+  </ol>
+
+  <section class="section" aria-labelledby="run-title">
+    <p class="eyebrow">The run</p>
+    <h2 id="run-title">Capture, Build, QA</h2>
+    <p class="run-split">1–3 rebuild the homepage (<code>/</code> only) and are required through 3.4. 4–5 are optional all-pages work: Paper the rest of the site, then bind it into Astro — navbar and footer pulled once from the signed homepage, one page body per Paper page.</p>
+    <div class="cards-wrap">
+      <div>
+        <p class="card-band">Homepage · required</p>
+        <div class="cards">
+          <section class="card">
+            <div class="card-head"><span class="id">1</span><h3>Capture</h3><span class="scope">Homepage</span></div>
+            <article class="row" data-step="1.1"><span class="mark"></span><p class="id">1.1</p><h4>Scope, assets, fonts</h4></article>
+            <article class="row" data-step="1.2"><span class="mark"></span><p class="id">1.2</p><h4>Breakpoints + Navigation</h4></article>
+            <article class="row" data-step="1.3"><span class="mark"></span><p class="id">1.3</p><h4>Design Library + Tokens</h4></article>
+            <article class="row check" data-step="1.4"><span class="mark"></span><p class="id">1.4</p><h4>Human checkpoint</h4></article>
+          </section>
+          <section class="card">
+            <div class="card-head"><span class="id">2</span><h3>Build</h3><span class="scope">Homepage</span></div>
+            <article class="row" data-step="2.1"><span class="mark"></span><p class="id">2.1</p><h4>Design System</h4></article>
+            <article class="row" data-step="2.2"><span class="mark"></span><p class="id">2.2</p><h4>Author the homepage</h4></article>
+            <article class="row" data-step="2.3"><span class="mark"></span><p class="id">2.3</p><h4>Validate vs Paper</h4></article>
+            <article class="row check" data-step="2.4"><span class="mark"></span><p class="id">2.4</p><h4>Sign-off → 3.0 polish</h4></article>
+          </section>
+          <section class="card">
+            <div class="card-head"><span class="id">3</span><h3>QA</h3><span class="scope">Homepage</span></div>
+            <article class="row" data-step="3.1"><span class="mark"></span><p class="id">3.1</p><h4>A11y + contrast</h4></article>
+            <article class="row" data-step="3.2"><span class="mark"></span><p class="id">3.2</p><h4>Hover + GSAP</h4></article>
+            <article class="row" data-step="3.3"><span class="mark"></span><p class="id">3.3</p><h4>Semantics + SEO</h4></article>
+            <article class="row check" data-step="3.4"><span class="mark"></span><p class="id">3.4</p><h4>Human checkpoint</h4></article>
+          </section>
+        </div>
+      </div>
+      <div>
+        <p class="card-band is-optional">All pages · optional</p>
+        <div class="cards">
+          <section class="card is-optional">
+            <div class="card-head"><span class="id">4</span><h3>Pages</h3><span class="opt">OPTIONAL</span><span class="scope">Capture all pages</span></div>
+            <article class="row" data-step="4.1"><span class="mark"></span><p class="id">4.1</p><h4>Sitemap</h4></article>
+            <article class="row" data-step="4.2"><span class="mark"></span><p class="id">4.2</p><h4>Capture pages</h4></article>
+            <article class="row" data-step="4.3"><span class="mark"></span><p class="id">4.3</p><h4>Seed tokens</h4></article>
+            <article class="row check" data-step="4.4"><span class="mark"></span><p class="id">4.4</p><h4>Human review</h4></article>
+          </section>
+          <section class="card is-optional">
+            <div class="card-head"><span class="id">5</span><h3>Site</h3><span class="opt">OPTIONAL</span><span class="scope">Full website · Astro</span></div>
+            <article class="row" data-step="5.1"><span class="mark"></span><p class="id">5.1</p><h4>Scaffold Astro</h4></article>
+            <article class="row" data-step="5.2"><span class="mark"></span><p class="id">5.2</p><h4>Author pages</h4></article>
+            <article class="row" data-step="5.3"><span class="mark"></span><p class="id">5.3</p><h4>Desktop QA</h4></article>
+            <article class="row" data-step="5.4"><span class="mark"></span><p class="id">5.4</p><h4>Responsive</h4></article>
+            <article class="row" data-step="5.5"><span class="mark"></span><p class="id">5.5</p><h4>Wire routes + SEO</h4></article>
+            <article class="row check" data-step="5.6"><span class="mark"></span><p class="id">5.6</p><h4>Human checkpoint</h4></article>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="timeline-title">
+    <p class="eyebrow">Run timeline</p>
+    <h2 id="timeline-title">Follow the work as it moves.</h2>
+    <div class="timeline">
+      <article class="timeline-item" data-progress-step="1.1"><div class="timeline-key">1.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scope the page and keep the files honest</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Open the live board first. Scrape the homepage — images plus Latin fonts only. Do not write rebuild HTML.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M26 6h16l8 8v24H26z" stroke="var(--line-strong)"/><path d="M42 6v8h8" stroke="var(--line-strong)"/><path d="M18 22h40"/><circle cx="18" cy="22" r="2" fill="currentColor" stroke="none"/></svg><span>named, checked</span></div></div></article>
+      <article class="timeline-item" data-progress-step="1.2"><div class="timeline-key">1.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Capture every breakpoint to Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Capture the homepage and Navigation at 1600, 768, and 390. Store a source clip next to each lander. Prove desktop geometry before moving on.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>1600 · 768 · 390</span></div></div></article>
+      <article class="timeline-item" data-progress-step="1.3"><div class="timeline-key">1.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Create the Design Library + Tokens</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Mine one set of colors, type, and spacing from the Paper frames. Bind them back without moving layout. Then copy unique buttons and cards from desktop into the Buttons and Components frames, and author button hover from source CSS.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>named once</span></div></div></article>
+        <article class="timeline-item" data-progress-step="1.4"><div class="timeline-key">1.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Review all three sizes, Navigation, Buttons, Components, and the Design Library in Paper. Pin every problem. Capture Tool stays optional leftover hover. Marking done prints the session 2 prompt.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>walk Paper, then sign off</span></div></div></article>
+            <article class="timeline-item" data-progress-step="2.1"><div class="timeline-key">2.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Emit the Design System</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Write rebuild/design-system.html and tokens.css from the signed Design Library. Token contract, not the ship.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>system before page</span></div></div></article>
+      <article class="timeline-item" data-progress-step="2.2"><div class="timeline-key">2.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Author the homepage from Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Author one semantic, responsive first pass from Paper desktop using the 2.1 tokens. Writes <code>index-semantic.html</code>. No new palette, fonts, or copy. file:// only.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="10" y="6" width="42" height="12" rx="2"/><rect x="14" y="18" width="42" height="12" rx="2"/><rect x="18" y="30" width="42" height="12" rx="2" stroke="currentColor"/></svg><span>Paper is the brief</span></div></div></article>
+      <article class="timeline-item" data-progress-step="2.3"><div class="timeline-key">2.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Validate each section against Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Pull the numbered 1.2 section clips (01-slug.png at 1600 / 768 / 390) and compare each rebuild band to those files plus index-raw. Serial or at most two workers. No live Paper MCP. Recipe: section-23-paper-loop.md. qa/paper-measure/clip-compare.json required. No invented 1024 or 1320.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>disk gold · max 2</span></div></div></article>
+      <article class="timeline-item" data-progress-step="2.4"><div class="timeline-key">2.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Sign-off, then Session 3 polish</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Sign off the 2.4 lock with TAGS on. Continue starts Session 3 polish at 3.1. <code>index-polish.html</code> does not exist until 3.1 starts — it is not polished yet.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>TAGS, then 3.0</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.1"><div class="timeline-key">3.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Session 3 polish starts</h3><span class="timeline-status" aria-hidden="true"></span></div><p>First action copies <code>index.html</code> to <code>index-polish.html</code>. That copy is not polished until 3.1–3.3 finish. Then a11y, contrast, and anti-slop on the copy only.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="22" cy="22" r="12" stroke="var(--line-strong)"/><path d="M22 10a12 12 0 0 1 0 24z" fill="currentColor" stroke="none"/><text class="dg-aa" x="44" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>copy, then polish</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.2"><div class="timeline-key">3.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Hover, GSAP, and guidelines</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Sequential GSAP reveals as each section crosses 25% from the viewport bottom, plus source-CSS button hover, a painted burger drawer, FAQ accordion, nav dropdowns, and guidelines a11y. No layout restyle.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="14" cy="22" r="8" stroke="var(--line-strong)"/><path d="M11.2 18.2 18.4 22l-7.2 3.8z" fill="currentColor" stroke="none"/><path d="M28 28c10-2 20-12 36-16" stroke="var(--line-strong)"/><circle cx="64" cy="12" r="2" fill="currentColor" stroke="none"/></svg><span>hover · GSAP</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.3"><div class="timeline-key">3.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Semantics and SEO</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Sweep landmarks, SEO, and images. Earlier hover work stays out of scope.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8 6 22l12 14"/><path d="M58 8l12 14-12 14"/><path d="M26 16h24M26 22h18M26 28h14" stroke="var(--line-strong)"/></svg><span>semantics · SEO</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.4"><div class="timeline-key">3.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Compare the 2.4 index.html with index-polish.html, then sign off. The homepage run can stop here. Optional Phase 4 imports the rest of the site into Paper.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="4" y="6" width="68" height="32" rx="2"/><path d="M4 15h68"/><path d="M34 20l12 11-5 .4 2.2 4.6-2.2 1-2.2-4.6-3.4 2.9z" fill="currentColor" stroke="currentColor"/></svg><span>compare, then optional 4.0</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.1"><div class="timeline-key">4.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scrape the sitemap</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. List every extra source URL from sitemap.xml. Homepage stays out.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><path d="M10 8h20l8 8v20H10z"/><path d="M30 8v8h8"/><path d="M16 28h28" stroke="currentColor"/></svg><span>sitemap.xml</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.2"><div class="timeline-key">4.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Capture each page into Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Desktop only. One Paper page per URL, named after the route, in the same file.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="6" y="8" width="28" height="28" rx="2"/><rect x="42" y="8" width="28" height="28" rx="2" stroke="currentColor"/></svg><span>one page each</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.3"><div class="timeline-key">4.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Seed pages with existing tokens</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Bind the signed Design Library onto each new page. One writer. No second library.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>bind, do not mine</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.4"><div class="timeline-key">4.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human review</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Walk the new Paper pages, pin comments, then sign off. The Paper run can stop here. Optional Phase 5 binds the site into Astro.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>review, then optional 5.0</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.1"><div class="timeline-key">5.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scaffold Astro + shared chrome</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Create astro/ from the signed rebuild CSS, fonts, images, and scripts. Pull Header, Footer, and every Paper-backed component once from the polish homepage; convert the homepage to index.astro. No server.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="8" y="6" width="60" height="10" rx="2" stroke="currentColor"/><rect x="8" y="20" width="24" height="18" rx="2"/><rect x="40" y="20" width="28" height="18" rx="2"/></svg><span>astro/ · Header · Footer · once</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.2"><div class="timeline-key">5.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Author each interior body</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. One worker per page, two at a time. Only the &lt;main&gt; of src/pages/{slug}.astro on the shared chrome. Paper is the brief. Raw dumps only in rebuild/.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="10" y="6" width="42" height="12" rx="2"/><rect x="14" y="18" width="42" height="12" rx="2"/><rect x="18" y="30" width="42" height="12" rx="2" stroke="currentColor"/></svg><span>sub-agents · max 2</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.3"><div class="timeline-key">5.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Validate desktop clips</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. astro build, then compare each built page in astro/dist to the 4.2 1600 section clips. Fix the .astro body, rebuild, reshoot. Disk only. No Paper MCP.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2" stroke="currentColor"/></svg><span>desktop gold · dist</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.4"><div class="timeline-key">5.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Make interior pages responsive</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Capture live 768 and 390 clips, reshoot the built pages, then compare. Real media queries. No extra Paper frames.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>live 768 · 390</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.5"><div class="timeline-key">5.5</div><div class="timeline-copy"><div class="timeline-head"><h3>Wire routes, SEO, build</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Sitemap paths and labels to Astro routes across Header, Footer, and pages. Scrape-only SEO per page into frontmatter. Then astro build. Do not start a dev server.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><path d="M18 14h16M18 22h28M18 30h12" stroke="currentColor"/><rect x="8" y="8" width="60" height="28" rx="2"/></svg><span>routes + SEO + build</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.6"><div class="timeline-key">5.6</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Review the built routes on file://, then sign off. Done tidies and keeps rebuild/ plus astro/.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>review, then tidy</span></div></div></article>
+    </div>
+  </section>
+
+  <section class="finish" data-finish>
+    <h2>Done.</h2>
+    <p>Take it wherever you build. Open <code>rebuild/index.html</code>, or <code>astro/</code> after Phase 5. Use <code>DESIGN.md</code> as the spec. This board stays next to <code>rebuild/</code>.</p>
+  </section>
+
+</main>
+</body>
+</html>

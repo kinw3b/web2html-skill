@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.png
+!.gitignore
+.DS_Store
+.env
+.env.*

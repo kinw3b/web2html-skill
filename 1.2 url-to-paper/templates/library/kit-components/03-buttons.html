@@ -1,0 +1,20 @@
+<div style="display:flex; flex-direction:column; align-items:flex-start; gap:20px; width:100%;">
+  <div style="font-family:{{theme.sans}}; font-size:12px; font-weight:600; letter-spacing:0.14em; color:{{theme.muted}};">BUTTONS</div>
+  <div style="display:flex; flex-wrap:wrap; gap:20px; width:100%;">
+    {{#each buttons}}
+    <div style="display:flex; flex-direction:column; gap:10px; width:340px;">
+      <div style="display:flex; gap:12px;">
+        <div style="display:flex; flex-direction:column; gap:8px; width:164px;">
+          <div style="width:164px; height:64px; background:{{theme.surfaceAlt}}; border:1px solid {{theme.border}};"></div>
+          <div style="font-family:{{theme.sans}}; font-size:12px; color:{{theme.muted}};">default</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; width:164px;">
+          <div style="width:164px; height:64px; background:{{theme.surfaceAlt}}; border:1px dashed {{theme.borderStrong}};"></div>
+          <div style="font-family:{{theme.sans}}; font-size:12px; color:{{theme.muted}};">hover</div>
+        </div>
+      </div>
+      <div style="font-family:{{theme.sans}}; font-size:14px; font-weight:500; color:{{theme.ink}};">{{.name}}</div>
+    </div>
+    {{/each}}
+  </div>
+</div>

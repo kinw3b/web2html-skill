@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Capture Tool · UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@100..700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: dark;
+    --page-bg: #0B0B0E;
+    --page-ink: #F4F4F5;
+    --page-muted: #A1A1AA;
+    --page-line: #27272A;
+    --hud-bg: #121214;
+    --hud-line: #2A2A2E;
+    --hud-well: #1C1C1F;
+    --hud-red: #E11D2E;
+    --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page-bg); color: var(--page-ink); }
+  body { font: 400 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  .page { width: min(920px, calc(100% - 40px)); margin: 0 auto; padding: 40px 0 96px; }
+  .kicker { margin: 0 0 8px; color: var(--page-muted); font: 600 11px/1 var(--sans); letter-spacing: 0.06em; text-transform: uppercase; }
+  h1 { margin: 0 0 10px; font: 700 28px/1.15 var(--display); letter-spacing: -0.03em; }
+  .lead { margin: 0 0 28px; max-width: 58ch; color: var(--page-muted); }
+  .lead code { color: #E4E4E7; font: 500 12px/1 var(--mono); }
+  h2 { margin: 40px 0 14px; font: 650 13px/1.2 var(--display); letter-spacing: 0.04em; text-transform: uppercase; color: var(--page-muted); }
+  .spec {
+    display: grid; grid-template-columns: 300px 1fr; gap: 20px 24px;
+    align-items: center; padding: 16px 0; border-top: 1px solid var(--page-line);
+  }
+  .spec:last-child { border-bottom: 1px solid var(--page-line); }
+  .swatch {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 72px; padding: 16px; border-radius: 12px;
+    background: #09090B; border: 1px solid var(--page-line);
+  }
+  .copy h3 { margin: 0 0 4px; font: 600 14px/1.3 var(--display); }
+  .copy p { margin: 0; color: var(--page-muted); font: 400 13px/1.45 var(--sans); }
+  .copy code { color: #D4D4D8; font: 500 11px/1 var(--mono); }
+  .tokens { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+  .token {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px 6px 6px; border-radius: 999px;
+    background: #18181B; border: 1px solid var(--page-line);
+    font: 500 11px/1 var(--mono); color: #D4D4D8;
+  }
+  .token i { width: 16px; height: 16px; border-radius: 999px; display: block; }
+  x-paper-human-hud, x-paper-human-hud *,
+  x-paper-section-chip, x-paper-section-chip * {
+    font-family: var(--sans) !important;
+    box-sizing: border-box;
+  }
+  x-paper-human-hud {
+    display: flex; flex-direction: column;
+    width: 300px; min-height: 0; max-height: min(88vh, 760px); overflow: hidden;
+    border-radius: 12px; background: #121214; color: #F4F4F5;
+    font: 400 13px/1.35 var(--sans);
+    border: 1px solid #2A2A2E;
+  }
+  x-paper-human-hud[data-recording="1"] { border-color: #E11D2E; }
+  x-paper-human-hud .hr-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 12px 14px;
+  }
+  x-paper-human-hud .hr-brand { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+  x-paper-human-hud .hr-title { font: 600 12px/1.25 inherit; letter-spacing: -0.01em; flex-shrink: 0; }
+  x-paper-human-hud .hr-widths { display: flex; gap: 4px; padding: 10px 14px 8px; }
+  x-paper-human-hud .hr-w {
+    height: 22px; min-width: 44px; padding: 0 6px; border: 0; border-radius: 8px;
+    background: #1C1C1F; color: #A1A1AA; font: 600 10px/1 inherit; cursor: default;
+  }
+  x-paper-human-hud .hr-w[data-st="done"] { color: #E4E4E7; box-shadow: inset 0 0 0 1px #3F3F46; }
+  x-paper-human-hud .hr-tools { display: flex; align-items: center; gap: 8px; }
+  x-paper-human-hud .hr-drag {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    background: #1C1C1F; color: #A1A1AA; border: 0; border-radius: 8px;
+  }
+  x-paper-human-hud .hr-lamp { width: 8px; height: 8px; border-radius: 999px; background: #3F3F46; }
+  x-paper-human-hud .hr-lamp.is-on {
+    background: #E11D2E; box-shadow: 0 0 0 4px rgba(225,29,46,.22);
+    animation: hr-record-blink .8s steps(2, end) infinite;
+  }
+  @keyframes hr-record-blink {
+    0%, 42% { opacity: 1; }
+    43%, 100% { opacity: .24; }
+  }
+  x-paper-human-hud .hr-ai {
+    height: 26px; padding: 0 10px; border: 0; border-radius: 8px;
+    background: #3A2E10; color: #F5D67B; font: 700 10px/1 inherit;
+    letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+    box-shadow: inset 0 0 0 1px #C4A35A;
+  }
+  x-paper-human-hud .hr-ai[data-on="1"] {
+    background: #E11D2E; color: #fff; box-shadow: inset 0 0 0 1px #E11D2E;
+  }
+  x-paper-human-hud .hr-step {
+    display: grid; grid-template-columns: 32px 1fr 32px; gap: 6px; align-items: center;
+    padding: 8px 14px 4px;
+  }
+  x-paper-human-hud .hr-mid {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; min-width: 0; text-align: center;
+  }
+  x-paper-human-hud .hr-id {
+    display: block; color: #E11D2E; font: 700 12px/1 inherit; white-space: nowrap;
+  }
+  x-paper-human-hud .hr-slug {
+    font: 600 13px/1.25 inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%;
+  }
+  x-paper-human-hud .hr-meta { display: none !important; }
+  x-paper-human-hud button {
+    font: 600 12px/1 inherit; color: inherit; cursor: default;
+    border: 0; border-radius: 8px; background: transparent;
+  }
+  x-paper-human-hud .hr-iconbtn { width: 32px; height: 32px; background: #1C1C1F; color: #F4F4F5; font-size: 16px; }
+  x-paper-human-hud .hr-nav-copy { padding: 0 14px 8px; color: #E4E4E7; font: 400 12px/1.4 inherit; }
+  x-paper-human-hud .hr-nav-copy p { margin: 0; }
+  x-paper-human-hud .hr-modes {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px 16px;
+  }
+  x-paper-human-hud .hr-mode-label { color: #A1A1AA; font: 600 11px/1 inherit; white-space: nowrap; }
+  x-paper-human-hud .hr-mode-select {
+    flex: 1; min-width: 0; height: 36px; padding: 0 32px 0 12px; border: 0; border-radius: 8px;
+    appearance: none; -webkit-appearance: none;
+    background: #1C1C1F url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%23A1A1AA' d='M3 4.5 L6 8 L9 4.5'/></svg>") no-repeat right 10px center;
+    color: #F4F4F5; font: 600 12px/1 inherit;
+    box-shadow: inset 0 0 0 1px #2A2A2E;
+  }
+  x-paper-human-hud .hr-mode-help {
+    margin: 0 14px 14px; padding: 10px 12px; border-radius: 8px;
+    background: #1C1C1F; box-shadow: inset 0 0 0 1px #2A2A2E;
+    color: #D4D4D8; font: 400 12px/1.45 inherit;
+  }
+  x-paper-human-hud .hr-mode-help p { margin: 0 0 8px; }
+  x-paper-human-hud .hr-mode-help p:last-child { margin: 0; }
+  x-paper-human-hud .hr-mode-help strong { color: #F4F4F5; }
+  x-paper-human-hud .hr-takes {
+    --hr-row-h: 44px;
+    display: flex; flex-direction: column;
+    border-top: 1px solid #2A2A2E; padding: 8px 14px;
+    max-height: calc(var(--hr-row-h) * 5);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #3F3F46 transparent;
+  }
+  x-paper-human-hud .hr-takes:has(.hr-empty) { min-height: 112px; }
+  x-paper-human-hud .hr-takes::-webkit-scrollbar { width: 8px; }
+  x-paper-human-hud .hr-takes::-webkit-scrollbar-thumb {
+    background: #3F3F46; border-radius: 999px;
+  }
+  x-paper-human-hud .hr-empty {
+    flex: 1 1 auto;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 88px; margin: 2px 0; padding: 12px;
+    border: 1px dashed #3F3F46; border-radius: 8px;
+    color: #8B8B93; font: 500 12px/1 inherit; text-align: center;
+  }
+  x-paper-human-hud .hr-row {
+    display: grid; grid-template-columns: 28px 1fr; gap: 8px;
+    margin: 0 -6px; padding: 7px 8px; border-radius: 8px;
+  }
+  x-paper-human-hud .hr-row + .hr-row { box-shadow: inset 0 1px 0 #2A2A2E; }
+  x-paper-human-hud[data-phase="hover"] .hr-row.is-hover {
+    background: #1C1C1F;
+    cursor: pointer;
+  }
+  x-paper-human-hud .hr-row:hover .hr-row-label,
+  x-paper-human-hud .hr-row.is-hover .hr-row-label { color: #fff; }
+  x-paper-human-hud .hr-row.is-here { background: #1C1214; box-shadow: inset 0 0 0 1.5px #E11D2E; }
+  x-paper-human-hud .hr-row.is-dim { opacity: 0.42; }
+  x-paper-human-hud .hr-row-id {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; box-sizing: border-box;
+    font: 700 12px/1 inherit; color: #E11D2E;
+  }
+  x-paper-human-hud .hr-row.is-navbar .hr-row-id,
+  x-paper-human-hud .hr-row.is-dropdown .hr-row-id {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    background: #121214; border: 1px solid #E11D2E; border-radius: 8px;
+  }
+  x-paper-human-hud .hr-row-label { font: 500 12px/1.25 inherit; }
+  x-paper-human-hud .hr-row-kind, x-paper-human-hud .hr-paper-st { font: 400 11px/1.2 inherit; color: #B4B4BC; margin-top: 2px; }
+  x-paper-human-hud .hr-row-tag {
+    display: inline-block; min-width: 28px; padding: 1px 4px; border-radius: 3px;
+    font: 700 9px/16px var(--mono); color: #fff; text-align: center;
+  }
+  x-paper-human-hud .hr-row-tag[data-tag="h1"] { background: #2563eb; }
+  x-paper-human-hud .hr-row-tag[data-tag="p"] { background: #ef4444; }
+  x-paper-human-hud .hr-row-tag[data-tag="img"] { background: #22746b; }
+  x-paper-human-hud .hr-row-tag[data-tag="a"] { background: #ec4899; }
+  x-paper-human-hud .hr-row-tag[data-tag="button"] { background: #f59e0b; color: #1c1917; }
+  x-paper-human-hud .hr-clear {
+    height: 32px; width: calc(100% - 28px); margin: 0 14px 10px;
+    background: #1C1C1F; color: #A1A1AA; font: 600 12px/1 inherit;
+    box-shadow: inset 0 0 0 1px #2A2A2E;
+  }
+  x-paper-human-hud .hr-foot {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    padding: 12px 14px; border-top: 1px solid #2A2A2E;
+  }
+  x-paper-human-hud .hr-rec { height: 44px; background: #E11D2E; color: #fff; font: 600 13px/1 inherit; }
+  x-paper-human-hud .hr-rec.is-stop { background: #3A1216; color: #FECACA; box-shadow: inset 0 0 0 1px #E11D2E; }
+  x-paper-human-hud .hr-done { height: 44px; background: #F4F4F5; color: #121214; }
+  x-paper-human-hud .hr-skip { height: 44px; width: 100%; background: #1C1C1F; color: #E4E4E7; }
+  x-paper-human-hud .hr-send { height: 44px; width: 100%; background: #F4F4F5; color: #121214; }
+  x-paper-human-hud .hr-send:disabled { background: #2A2A2E; color: #52525B; }
+  x-paper-human-hud .hr-send-status { padding: 16px 14px 8px; text-align: center; }
+  x-paper-human-hud .hr-spin {
+    width: 28px; height: 28px; margin: 0 auto 12px;
+    border: 2px solid #2A2A2E; border-top-color: #E11D2E; border-radius: 999px;
+    animation: hr-spin 0.75s linear infinite;
+  }
+  @keyframes hr-spin { to { transform: rotate(360deg); } }
+  x-paper-human-hud .hr-send-title { font: 600 13px/1.3 inherit; }
+  x-paper-human-hud .hr-send-meta { margin-top: 6px; color: #B4B4BC; font: 400 12px/1.4 inherit; }
+  x-paper-human-hud .hr-row.is-captured .hr-paper-st { color: #F5D67B; }
+  x-paper-human-hud .hr-keys { display: flex; flex-direction: column; gap: 6px; padding: 0 14px 12px; color: #A1A1AA; font: 400 11px/1.35 inherit; }
+  x-paper-human-hud .hr-hint-main { color: #D4D4D8; }
+  x-paper-human-hud .hr-hint-cancel { display: flex; align-items: center; gap: 6px; }
+  x-paper-human-hud kbd {
+    display: inline-block; min-width: 16px; padding: 2px 5px; border-radius: 4px;
+    background: #1C1C1F; border: 1px solid #3F3F46; font: 500 10px/1 inherit; color: #E4E4E7;
+  }
+  x-paper-section-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 10px 5px 5px; border-radius: 10px;
+    background: #121214; color: #F4F4F5; border: 1px solid #2A2A2E;
+  }
+  x-paper-section-chip .hr-chip-id {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 8px;
+    background: #E11D2E; color: #fff; font: 700 12px/1 var(--sans);
+  }
+  x-paper-section-chip .hr-chip-slug { font: 600 12px/1.2 var(--sans); }
+  .aim-box {
+    width: 100%; height: 56px; border-radius: 8px; background: #18181B;
+    outline: 3px solid #E11D2E; outline-offset: 2px;
+  }
+  .cursor-demo { position: relative; width: 160px; height: 72px; }
+  .cursor-spot {
+    position: absolute; left: 24px; top: 22px; width: 28px; height: 28px;
+    border: 3px solid #E11D2E; border-radius: 999px; background: rgba(225,29,46,.18);
+  }
+  .hold {
+    width: 92px; height: 8px; border-radius: 999px; background: #fff; overflow: hidden;
+  }
+  .hold span { display: block; width: 62%; height: 100%; background: #E11D2E; }
+  .click-mark {
+    width: 28px; height: 28px; border-radius: 999px; background: #fff; color: #111;
+    display: grid; place-items: center; font: 700 11px/1 var(--sans);
+  }
+  .sem-chip {
+    display: inline-block; padding: 2px 4px; border-radius: 2px; color: #fff;
+    font: 700 9px/1 var(--mono); letter-spacing: 0.02em; text-transform: lowercase;
+  }
+  @media (max-width: 720px) {
+    .spec { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <p class="kicker">1.3 hover-reel</p>
+    <h1>Capture Tool UI</h1>
+    <p class="lead">Source of truth for the live HUD. Open this file. Do not run a demo. Live styles ship from <code>capture-extension/sidepanel/panel.css</code>. Match that file when you change a specimen.</p>
+    <div class="tokens">
+      <span class="token"><i style="background:#121214;box-shadow:inset 0 0 0 1px #2A2A2E"></i>#121214 panel</span>
+      <span class="token"><i style="background:#1C1C1F"></i>#1C1C1F well</span>
+      <span class="token"><i style="background:#E11D2E"></i>#E11D2E accent</span>
+      <span class="token"><i style="background:#F4F4F5"></i>#F4F4F5 Done</span>
+      <span class="token"><i style="background:#F5D67B"></i>#F5D67B Auto Mode on</span>
+    </div>
+
+    <h2>Header</h2>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-head">
+            <div class="hr-brand"><div class="hr-title">Capture Tool</div></div>
+            <div class="hr-tools">
+              <span class="hr-lamp"></span>
+              <button type="button" class="hr-drag" aria-label="Drag">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.25"/><circle cx="10" cy="3.5" r="1.25"/><circle cx="4" cy="7" r="1.25"/><circle cx="10" cy="7" r="1.25"/><circle cx="4" cy="10.5" r="1.25"/><circle cx="10" cy="10.5" r="1.25"/></svg>
+              </button>
+            </div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Title + drag <code>.hr-title</code> <code>.hr-head</code></h3>
+        <p>Every phase. The whole header moves the HUD. It always opens top-left so it cannot clip off the bottom-right.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-head">
+            <div class="hr-brand">
+              <div class="hr-title">Capture Tool</div>
+              <button type="button" class="hr-ai">✦ Auto</button>
+            </div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Auto Mode <code>.hr-ai</code></h3>
+        <p>Hover and Semantics only. CTAs plus one text link per featured box. Skips product / blog loops. Hidden on navbar pick.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-head">
+            <div class="hr-brand">
+              <div class="hr-title">Capture Tool</div>
+              <button type="button" class="hr-ai" data-on="1">Stop AI</button>
+            </div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Auto Mode on <code>.hr-ai[data-on]</code></h3>
+        <p>Gold well while the walk is running. Click again to stop.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-head">
+            <div class="hr-brand"><div class="hr-title">Capture Tool</div></div>
+          </div>
+          <div class="hr-widths">
+            <button type="button" class="hr-w">1600</button>
+            <button type="button" class="hr-w">768</button>
+            <button type="button" class="hr-w">390</button>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Breakpoint pills <code>.hr-w</code></h3>
+        <p>Navbar pick only. Unchecked until that width’s Navbar is written to Paper. A check appears after Continue parks it.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-head">
+            <div class="hr-brand"><div class="hr-title">Capture Tool</div></div>
+            <div class="hr-tools"><span class="hr-lamp is-on"></span></div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Record lamp <code>.hr-lamp</code></h3>
+        <p>Grey when idle. Red blink while Record is on; captured-element outlines blink in sync.</p>
+      </div>
+    </article>
+
+    <h2>Navbar pick</h2>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-nav-copy">
+            <p>Click anywhere to capture the NAVBAR.</p>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Navbar instructions <code>.hr-nav-copy</code></h3>
+        <p>1.3 opens on Nav after the 1.2 landers pass geometry. Record, then click the exact navbar. The take parks on Navigation. Dropdowns are more Record → click takes in the same session. <code>--hover-only</code> resumes later modes when Paper already exists.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-takes"><div class="hr-empty">Waiting for takes</div></div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Navbar empty <code>.hr-empty</code></h3>
+        <p>Same dashed well as Hover. Navbar pick starts here so the slot is obviously waiting for a click.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-takes">
+            <div class="hr-row is-navbar is-captured">
+              <span class="hr-row-id"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 4.2h8M3 7h8M3 9.8h8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              <div><div class="hr-row-label">Navbar</div><div class="hr-paper-st">captured · ready to send</div></div>
+            </div>
+            <div class="hr-row is-dropdown is-captured">
+              <span class="hr-row-id"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 5.2 L7 9.2 L10.5 5.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <div><div class="hr-row-label">All Pages</div><div class="hr-paper-st">captured · ready to send</div></div>
+            </div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Paper list + Navbar + dropdown <code>.hr-row.is-navbar</code></h3>
+        <p>Navbar and dropdowns fill the list after each click. The dashed well only shows when nothing has been captured yet.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <div class="aim-box"></div>
+      </div>
+      <div class="copy">
+        <h3>Navbar aim <code>[data-hr-nav-aim]</code></h3>
+        <p>Red outline on the live header/nav wrapper while you hover. Click captures it.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-foot" style="grid-template-columns:1fr">
+            <button type="button" class="hr-send">Continue</button>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Continue <code>.hr-send</code></h3>
+        <p>After Navbar is confirmed, Continue writes the compact overlay last on desktop, then the same pick at 768 and 390 in the background — no extra Chrome — then Navbar and dropdowns onto Navigation. The same 1.3 session continues on Hover.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-send-status">
+            <div class="hr-spin" aria-hidden="true"></div>
+            <div class="hr-send-title">Sending to Paper</div>
+            <div class="hr-send-meta">Navbar → last on home-desktop</div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Send loader <code>.hr-send-status</code></h3>
+        <p>Visible while Paper writes. Status names desktop Navbar, then hidden 768 / 390, then dropdowns. When it finishes, Chrome restarts with Hover.</p>
+      </div>
+    </article>
+
+    <h2>Hover</h2>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-step">
+            <button type="button" class="hr-iconbtn">‹</button>
+            <div class="hr-mid">
+              <span class="hr-id">1 of 10</span>
+              <div class="hr-slug">hero-section</div>
+            </div>
+            <button type="button" class="hr-iconbtn">›</button>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Section stepper <code>.hr-step</code></h3>
+        <p>Count on top as <code>1 of 10</code>. Slug under it. No third line. Hidden on navbar pick.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <label class="hr-modes">
+            <span class="hr-mode-label">Mode</span>
+            <select class="hr-mode-select" aria-label="Mode">
+              <option>Hover</option>
+              <option selected>Multi-state Component</option>
+              <option>Single Components</option>
+              <option>Semantics</option>
+            </select>
+          </label>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Mode dropdown <code>.hr-modes</code></h3>
+        <p>Hover phase. Switches Hover / Multi-state Component / Single Components / Semantics. 16px under the row.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-mode-help">
+            <p><strong>Ideal:</strong> Buttons and CTAs. Default vs Hover paint. Not product or blog loops.</p>
+            <p><strong>How:</strong> Record, then hover until the bar hits 100%.</p>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Mode help · Hover <code>.hr-mode-help</code></h3>
+        <p>Under Mode. Buttons and links. Bar at 100% parks the pair on Source · Hover States. The row shows ✓ added to paper.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-mode-help">
+            <p><strong>Ideal:</strong> Two states of any component you choose.</p>
+            <p><strong>How:</strong> Record, click 01 (closed or first), then 02 (open or second).</p>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Mode help · Multi-state Component</h3>
+        <p>Same card, Multi-state Component selected. Two clicks, two cells.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-mode-help">
+            <p><strong>Ideal:</strong> Any element you choose. No component-type filtering.</p>
+            <p><strong>How:</strong> Record, then click any element.</p>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Mode help · Single Components</h3>
+        <p>The exact clicked element. Default only. No hover pair.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-mode-help">
+            <p><strong>Ideal:</strong> Tags for this Paper section. Headings, copy, images.</p>
+            <p><strong>How:</strong> Record then Scan this section, or click a tag.</p>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Mode help · Semantics</h3>
+        <p>Faded slate outlines ghost every visible semantic candidate. Hover reveals its tag; Auto Mode walks one band at a time.</p>
+      </div>
+    </article>
+
+    <h2>Lists</h2>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-takes"><div class="hr-empty">Waiting for takes</div></div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Empty list <code>.hr-empty</code></h3>
+        <p>Dashed well, label centered. Navbar pick, dropdowns, and Hover use this shell only while the list is empty. Semantics still says to Scan or click a tag.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-takes">
+            <div class="hr-row is-here">
+              <span class="hr-row-id">01</span>
+              <div><div class="hr-row-label">input</div><div class="hr-row-kind">buttons</div></div>
+            </div>
+            <div class="hr-row is-dim">
+              <span class="hr-row-id">06</span>
+              <div><div class="hr-row-label">Content Wrapper</div><div class="hr-row-kind">buttons</div></div>
+            </div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Take rows <code>.hr-row.is-here</code></h3>
+        <p>Hover list. Red inset marks takes for the current section. Other rows dim.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-takes">
+            <div class="hr-row">
+              <span class="hr-row-tag" data-tag="h1">h1</span>
+              <div><div class="hr-row-label">Generate more leads</div><div class="hr-row-kind">h1 · Generate more leads</div></div>
+            </div>
+            <div class="hr-row">
+              <span class="hr-row-tag" data-tag="p">p</span>
+              <div><div class="hr-row-label">Trusted by 6,287 users</div><div class="hr-row-kind">p · Trusted by 6,287 users</div></div>
+            </div>
+            <div class="hr-row">
+              <span class="hr-row-tag" data-tag="img">img</span>
+              <div><div class="hr-row-label">hero photo</div><div class="hr-row-kind">img · hero photo</div></div>
+            </div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Semantics tags <code>.hr-row-tag</code></h3>
+        <p>Semantics list only. Chip color matches the live overlay outline for that tag.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <button type="button" class="hr-clear">Clear list</button>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Clear list <code>.hr-clear</code></h3>
+        <p>Hover phase. Empties the active mode in the HUD. Paper layers already parked stay.</p>
+      </div>
+    </article>
+
+    <h2>Footer actions</h2>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-foot">
+            <button type="button" class="hr-rec">Record</button>
+            <button type="button" class="hr-done">Continue</button>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Record + Continue <code>.hr-rec</code> <code>.hr-done</code></h3>
+        <p>Hover / Multi-state Component / Single Components. Continue opens the next mode. Done appears only on Semantics and writes <code>human-hover-done.json</code>. Type Continue in agent chat to start Design Library.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-foot">
+            <button type="button" class="hr-rec is-stop">Stop</button>
+            <button type="button" class="hr-done">Done</button>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Stop <code>.hr-rec</code> while recording</h3>
+        <p>Record is on. A finished take turns Record off again.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-foot">
+            <button type="button" class="hr-rec">Scan</button>
+            <button type="button" class="hr-done">Done</button>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Scan <code>.hr-rec</code> in Semantics</h3>
+        <p>Semantics only. Label becomes Scan. Collects tags for the current section.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-human-hud>
+          <div class="hr-keys">
+            <div class="hr-hint-main">Key <kbd>R</kbd> Record → Hover ( 2s )</div>
+            <div class="hr-hint-cancel">
+              <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                <rect x="4" y="1.5" width="6" height="11" rx="3" fill="none" stroke="#E4E4E7" stroke-width="1.25"/>
+                <path fill="#E4E4E7" d="M7 1.5h3v4.6H7z"/>
+                <path d="M7 1.5v4.2" fill="none" stroke="#E4E4E7" stroke-width="1.25"/>
+              </svg>
+              Right click (cancels)
+            </div>
+          </div>
+        </x-paper-human-hud>
+      </div>
+      <div class="copy">
+        <h3>Shortcut footer <code>.hr-keys</code></h3>
+        <p>Every Hover mode. Shortcut changes with the dropdown. Right click cancels the armed take.</p>
+      </div>
+    </article>
+
+    <h2>Page overlays</h2>
+    <article class="spec">
+      <div class="swatch">
+        <x-paper-section-chip>
+          <span class="hr-chip-id">01</span>
+          <span class="hr-chip-slug">hero-section</span>
+        </x-paper-section-chip>
+      </div>
+      <div class="copy">
+        <h3>Section chip <code>x-paper-section-chip</code></h3>
+        <p>Top-left of the live page during Hover. Hidden on navbar pick so source clips stay clean.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <div class="cursor-demo">
+          <div class="cursor-spot"></div>
+        </div>
+      </div>
+      <div class="copy">
+        <h3>Aim circle <code>x-paper-cursor</code></h3>
+        <p>Red ring on the control you are about to capture. Same overlay as the hold bar.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch"><div class="hold"><span></span></div></div>
+      <div class="copy">
+        <h3>Hold bar</h3>
+        <p>Hover only. Fills for 2 seconds. 100% commits. Leave early cancels. Single Components commits on click.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch"><div class="click-mark">01</div></div>
+      <div class="copy">
+        <h3>Click mark</h3>
+        <p>Component mode. Shows 01 after the first click, 02 on the second.</p>
+      </div>
+    </article>
+    <article class="spec">
+      <div class="swatch">
+        <span class="sem-chip" style="background:#2563eb">h1</span>
+        <span class="sem-chip" style="background:#ef4444;margin-left:6px">p</span>
+        <span class="sem-chip" style="background:#22746b;margin-left:6px">img</span>
+      </div>
+      <div class="copy">
+        <h3>Semantics overlay chips <code>x-paper-sem-chip</code></h3>
+        <p>Painted on the live section. Only collected tags. Clipped to the current band.</p>
+      </div>
+    </article>
+  </div>
+</body>
+</html>

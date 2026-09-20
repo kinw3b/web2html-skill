@@ -1,0 +1,99 @@
+<div style="display:flex; flex-direction:column; align-items:flex-start; gap:var(--spacing-9); width:100%;">
+  <div style="display:flex; align-items:baseline; gap:var(--spacing-4); width:100%; padding-bottom:var(--spacing-4); border-bottom:1px solid {{theme.border}};">
+    <div style="font-family:{{theme.display}}; font-size:var(--text-4xl); font-weight:600; line-height:1.1; color:{{theme.ink}};">Typography</div>
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:600; letter-spacing:0.14em; color:{{theme.muted}};">{{counts.families}} FAMILIES &middot; {{counts.sizes}} SIZES &middot; {{counts.weights}} WEIGHTS{{#if counts.lineHeights}} &middot; {{counts.lineHeights}} LINE-HEIGHT{{/if}}{{#if counts.letterSpacings}} &middot; {{counts.letterSpacings}} LETTER-SPACING{{/if}}</div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-5); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-sm); font-weight:700; letter-spacing:0.12em; color:{{theme.ink}};">FAMILIES</div>
+    <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+      {{#each families}}
+      <div style="display:flex; flex-direction:column; gap:var(--spacing-3); width:341px; padding-top:var(--spacing-3-5); border-top:2px solid {{theme.accent}};">
+        <div style="font-family:{{.paperValue}}; font-size:var(--text-7xl); line-height:1; color:{{theme.ink}};" data-font-token="{{.name}}">Aa</div>
+        <div style="font-family:{{.paperValue}}; font-size:var(--text-xl); font-weight:600; line-height:1.2; color:{{theme.ink}};">{{.label}}</div>
+        <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.body}};">{{.name}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-3-5); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.14em; color:{{theme.accent}};">SCALE</div>
+    {{#each sizesScale}}
+    <div style="display:flex; align-items:baseline; gap:var(--spacing-8); width:1072px; padding:var(--spacing-3-5) 0; border-bottom:1px solid {{theme.border}};">
+      <div style="display:flex; flex-direction:column; gap:2px; width:200px; flex:none;">
+        <div style="display:flex; align-items:center; gap:var(--spacing-2);">
+          <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}};">{{.name}}</div>
+          {{.displayBadge}}{{.minedBadge}}
+        </div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); color:{{theme.muted}};">{{.value}} / {{.lineHeight}}</div>
+      </div>
+      <div style="font-family:{{theme.sans}}; font-size:{{.cssVar}}; line-height:1.15; color:{{theme.ink}}; {{.wrap}}">Aa</div>
+    </div>
+    {{/each}}
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-5); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.14em; color:{{theme.accent}};">WEIGHTS</div>
+    <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+      {{#each weights}}
+      <div style="display:flex; flex-direction:column; gap:var(--spacing-2); width:341px; padding:var(--spacing-5); background:{{theme.surfaceAlt}};">
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-3xl); font-weight:{{.cssVar}}; color:{{theme.ink}};">{{.name}}</div>
+        <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}};">{{.name}}</div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); color:{{theme.muted}};">{{.value}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  {{#if lineHeights}}
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-5); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.14em; color:{{theme.accent}};">LINE HEIGHT</div>
+    <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+      {{#each lineHeights}}
+      <div style="display:flex; flex-direction:column; gap:var(--spacing-2); width:341px; padding:var(--spacing-5); background:{{theme.surfaceAlt}};">
+        <div style="display:flex; align-items:center; gap:var(--spacing-2);">
+          <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}};">{{.name}}</div>
+          {{.minedBadge}}
+        </div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-base); line-height:{{.cssVar}}; color:{{theme.ink}}; width:280px;">The quick brown fox jumps over the lazy dog to show this leading.</div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); color:{{theme.muted}};">{{.value}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if letterSpacings}}
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-5); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.14em; color:{{theme.accent}};">LETTER SPACING</div>
+    <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+      {{#each letterSpacings}}
+      <div style="display:flex; flex-direction:column; gap:var(--spacing-2); width:341px; padding:var(--spacing-5); background:{{theme.surfaceAlt}};">
+        <div style="display:flex; align-items:center; gap:var(--spacing-2);">
+          <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}};">{{.name}}</div>
+          {{.minedBadge}}
+        </div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-2xl); font-weight:600; letter-spacing:{{.cssVar}}; color:{{theme.ink}};">Tracking</div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); color:{{theme.muted}};">{{.value}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if styles}}
+  <div style="display:flex; flex-direction:column; gap:var(--spacing-5); width:100%;">
+    <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); font-weight:700; letter-spacing:0.14em; color:{{theme.accent}};">STYLES</div>
+    <div style="display:flex; flex-wrap:wrap; gap:var(--spacing-6); width:1072px;">
+      {{#each styles}}
+      <div style="display:flex; flex-direction:column; gap:var(--spacing-2); width:341px; padding:var(--spacing-5); background:{{theme.surfaceAlt}};">
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-3xl); font-style:{{.cssVar}}; color:{{theme.ink}};">{{.name}}</div>
+        <div style="font-family:{{theme.mono}}; font-size:var(--text-sm); color:{{theme.ink}};">{{.name}}</div>
+        <div style="font-family:{{theme.sans}}; font-size:var(--text-xs); color:{{theme.muted}};">{{.value}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+</div>

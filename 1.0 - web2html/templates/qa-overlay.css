@@ -1,0 +1,367 @@
+/* In-page layout outlines. Distilled from mrmrs/pesticide (MIT) —
+   outline colors + hover tag/selector chip. No depth shadows. */
+
+.qa-overlay {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2147483647;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font: 600 12px/1.2 system-ui, sans-serif;
+  color: #080e13;
+  pointer-events: auto;
+}
+.qa-overlay button {
+  appearance: none;
+  border: 1px solid #080e13;
+  background: #ecd046;
+  color: #080e13;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.qa-overlay button[aria-pressed="true"] {
+  background: #080e13;
+  color: #ecd046;
+}
+html:not([data-qa-review="final"]) .qa-overlay a.qa-polish { display: none; }
+.qa-overlay a.qa-polish {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #080e13;
+  background: #f4f1ea;
+  color: #080e13;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.qa-overlay kbd {
+  font: 500 10px/1 ui-monospace, monospace;
+  opacity: 0.7;
+}
+
+html[data-qa-outlines="on"] body { outline: 1px solid #2980b9; }
+html[data-qa-outlines="on"] article { outline: 1px solid #3498db; }
+html[data-qa-outlines="on"] nav { outline: 1px solid #0088c3; }
+html[data-qa-outlines="on"] aside { outline: 1px solid #33a0ce; }
+html[data-qa-outlines="on"] section { outline: 1px solid #66b8da; }
+html[data-qa-outlines="on"] header { outline: 1px solid #99cfe7; }
+html[data-qa-outlines="on"] footer { outline: 1px solid #cce7f3; }
+html[data-qa-outlines="on"] h1 { outline: 1px solid #162544; }
+html[data-qa-outlines="on"] h2 { outline: 1px solid #314e6e; }
+html[data-qa-outlines="on"] h3 { outline: 1px solid #3e5e85; }
+html[data-qa-outlines="on"] main { outline: 1px solid #2f4f90; }
+html[data-qa-outlines="on"] div { outline: 1px solid #036cdb; }
+html[data-qa-outlines="on"] p { outline: 1px solid #ac050b; }
+html[data-qa-outlines="on"] ul,
+html[data-qa-outlines="on"] ol,
+html[data-qa-outlines="on"] li { outline: 1px solid #d90416; }
+html[data-qa-outlines="on"] button { outline: 1px solid #da8301; }
+html[data-qa-outlines="on"] form,
+html[data-qa-outlines="on"] input,
+html[data-qa-outlines="on"] textarea,
+html[data-qa-outlines="on"] select { outline: 1px solid #fca600; }
+html[data-qa-outlines="on"] img,
+html[data-qa-outlines="on"] svg { outline: 1px solid #22746b; }
+html[data-qa-outlines="on"] a { outline: 1px solid #ff62ab; }
+html[data-qa-outlines="on"] span { outline: 1px solid #cc2643; }
+
+
+/* Inset rings so overflow:clip parents cannot eat the stroke. */
+html[data-qa-outlines="tags"] h1,
+html[data-qa-outlines="tags"] h2,
+html[data-qa-outlines="tags"] h3,
+html[data-qa-outlines="tags"] h4,
+html[data-qa-outlines="tags"] h5,
+html[data-qa-outlines="tags"] h6,
+html[data-qa-outlines="tags"] main,
+html[data-qa-outlines="tags"] article,
+html[data-qa-outlines="tags"] aside,
+html[data-qa-outlines="tags"] p,
+html[data-qa-outlines="tags"] a,
+html[data-qa-outlines="tags"] section,
+html[data-qa-outlines="tags"] header,
+html[data-qa-outlines="tags"] footer,
+html[data-qa-outlines="tags"] nav,
+html[data-qa-outlines="tags"] button {
+  outline: none;
+}
+html[data-qa-outlines="tags"] h1 { box-shadow: inset 0 0 0 2px #2563eb; }
+html[data-qa-outlines="tags"] h2 { box-shadow: inset 0 0 0 2px #3b82f6; }
+html[data-qa-outlines="tags"] h3 { box-shadow: inset 0 0 0 2px #60a5fa; }
+html[data-qa-outlines="tags"] h4,
+html[data-qa-outlines="tags"] h5,
+html[data-qa-outlines="tags"] h6 { box-shadow: inset 0 0 0 2px #93c5fd; }
+html[data-qa-outlines="tags"] main { box-shadow: inset 0 0 0 2px #1d4ed8; }
+html[data-qa-outlines="tags"] article { box-shadow: inset 0 0 0 2px #0ea5e9; }
+html[data-qa-outlines="tags"] aside { box-shadow: inset 0 0 0 2px #38bdf8; }
+html[data-qa-outlines="tags"] p { box-shadow: inset 0 0 0 2px #ef4444; }
+html[data-qa-outlines="tags"] a { box-shadow: inset 0 0 0 2px #ec4899; }
+html[data-qa-outlines="tags"] button { box-shadow: inset 0 0 0 2px #f59e0b; }
+html[data-qa-outlines="tags"] section { box-shadow: inset 0 0 0 2px #7c3aed; }
+html[data-qa-outlines="tags"] header { box-shadow: inset 0 0 0 2px #6d28d9; }
+html[data-qa-outlines="tags"] footer { box-shadow: inset 0 0 0 2px #5b21b6; }
+html[data-qa-outlines="tags"] nav { box-shadow: inset 0 0 0 2px #8b5cf6; }
+html[data-qa-outlines="tags"] [data-qa-hover] {
+  outline: none !important;
+  box-shadow: inset 0 0 0 3px #00d1ff !important;
+}
+
+.qa-tag-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  pointer-events: none;
+}
+.qa-tag-chip {
+  position: fixed;
+  transform: translate(-100%, 0);
+  padding: 2px 4px;
+  border-radius: 2px 0 0 2px;
+  color: #fff;
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.qa-tag-chip[data-tag="h1"] { background: #2563eb; }
+.qa-tag-chip[data-tag="h2"] { background: #3b82f6; }
+.qa-tag-chip[data-tag="h3"] { background: #60a5fa; color: #082f49; }
+.qa-tag-chip[data-tag="h4"],
+.qa-tag-chip[data-tag="h5"],
+.qa-tag-chip[data-tag="h6"] { background: #93c5fd; color: #082f49; }
+.qa-tag-chip[data-tag="main"] { background: #1d4ed8; }
+.qa-tag-chip[data-tag="article"] { background: #0ea5e9; }
+.qa-tag-chip[data-tag="aside"] { background: #38bdf8; color: #082f49; }
+.qa-tag-chip[data-tag="p"] { background: #ef4444; }
+.qa-tag-chip[data-tag="a"] { background: #ec4899; }
+.qa-tag-chip[data-tag="button"] { background: #f59e0b; color: #1c1917; }
+.qa-tag-chip[data-tag="section"] { background: #7c3aed; }
+.qa-tag-chip[data-tag="header"] { background: #6d28d9; }
+.qa-tag-chip[data-tag="footer"] { background: #5b21b6; }
+.qa-tag-chip[data-tag="nav"] { background: #8b5cf6; }
+
+html[data-qa-outlines="mono"] body *:not(.qa-overlay):not(.qa-overlay *):not(.qa-overlay-label):not(.qa-inspector):not(.qa-inspector *) {
+  outline: 1px solid #036cdb;
+}
+
+html[data-qa-outlines] .qa-overlay,
+html[data-qa-outlines] .qa-overlay *,
+html[data-qa-outlines] .qa-overlay-label,
+html[data-qa-outlines] .qa-inspector,
+html[data-qa-outlines] .qa-inspector *,
+html[data-qa-outlines] .qa-tag-layer,
+html[data-qa-outlines] .qa-tag-layer * {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+html[data-qa-outlines] [data-qa-hover] {
+  outline-width: 2px !important;
+  outline-style: solid !important;
+}
+
+.qa-overlay-label {
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(92vw, 520px);
+  padding: 4px 7px;
+  background: #00d1ff;
+  color: #080e13;
+  font: 600 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+  border-radius: 2px 2px 4px 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qa-overlay-label[hidden] {
+  display: none !important;
+}
+.qa-overlay-label b {
+  font-weight: 700;
+}
+.qa-overlay-label span {
+  font-weight: 500;
+  opacity: 0.8;
+  font-size: 10px;
+}
+.qa-overlay-label .qa-overlay-copy {
+  pointer-events: auto;
+  appearance: none;
+  align-self: flex-start;
+  margin-top: 2px;
+  border: 1px solid #080e13;
+  background: #080e13;
+  color: #00d1ff;
+  border-radius: 2px;
+  padding: 2px 6px;
+  font: 700 10px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.qa-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: auto;
+  width: min(420px, calc(100vw - 24px));
+  z-index: 2147483646;
+  max-height: 42vh;
+  padding: 10px 12px 12px;
+  background: #1c1f24;
+  color: #e8eef4;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  font: 500 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: auto;
+  pointer-events: auto;
+}
+.qa-inspector[hidden] {
+  display: none !important;
+}
+.qa-inspector-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.qa-inspector.is-dragging .qa-inspector-bar {
+  cursor: grabbing;
+}
+.qa-inspector.is-collapsed {
+  max-height: none;
+  overflow: hidden;
+  padding-bottom: 10px;
+}
+.qa-inspector.is-collapsed dl {
+  display: none;
+}
+.qa-inspector-tip {
+  flex: 1;
+  font: 500 11px/1.3 system-ui, sans-serif;
+  color: #9aa8b5;
+  pointer-events: none;
+}
+.qa-inspector-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.qa-inspector-pin,
+.qa-inspector-collapse,
+.qa-inspector-parent,
+.qa-inspector-child,
+.qa-inspector-shot,
+.qa-inspector-copy {
+  appearance: none;
+  border: 1px solid #4a5560;
+  background: #2a3038;
+  color: #e8eef4;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: 600 11px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+.qa-inspector-pin[aria-pressed="true"] {
+  background: #00d1ff;
+  color: #080e13;
+  border-color: #00d1ff;
+}
+
+.qa-inspector-parent,
+.qa-inspector-child {
+  min-width: 28px;
+  padding: 4px 8px;
+  font: 700 14px/1 system-ui, sans-serif;
+}
+.qa-inspector-attr {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+.qa-inspector-copyicon {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #4a5560;
+  background: #2a3038;
+  color: #e8eef4;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.qa-inspector-copyicon.is-copied {
+  background: #00d1ff;
+  color: #080e13;
+  border-color: #00d1ff;
+}
+.qa-inspector dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.qa-inspector dl > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.qa-inspector dt {
+  margin: 0;
+  color: #9aa8b5;
+  font-weight: 600;
+}
+.qa-inspector dd {
+  margin: 0;
+  color: #7ec8ff;
+  word-break: break-word;
+}
+.qa-inspector dd[data-k="dom"] {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 767px) {
+  .qa-overlay-label {
+    display: none !important;
+  }
+  .qa-inspector {
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    width: auto;
+  }
+}
+
+/* Decorative fills stay under interactive controls (B/2b-S a11y). */
+[data-decorative="true"] {
+  pointer-events: none;
+  z-index: 0;
+}
+a[href],
+button {
+  position: relative;
+  z-index: 1;
+}

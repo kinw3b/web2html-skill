@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Web2Html reviewer finding",
+  "type": "object",
+  "required": ["generatedFrom", "phase", "agent", "inputSha256", "findings"],
+  "properties": {
+    "generatedFrom": {"const": "web2html/agent-findings/v1"},
+    "phase": {"type": "string", "minLength": 1},
+    "agent": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "inputSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "viewport": {"enum": [390, 768, 1600]},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "severity", "source", "evidence", "suggestion"],
+        "properties": {
+          "key": {"type": "string", "minLength": 1},
+          "severity": {"enum": ["high", "medium", "low", "info"]},
+          "source": {"type": "string", "minLength": 1},
+          "evidence": {"type": "string", "minLength": 1},
+          "suggestion": {"type": "string", "minLength": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,13 @@
+<div style="display:flex; flex-direction:column; align-items:flex-start; gap:20px; width:100%;">
+  <div style="font-family:{{theme.sans}}; font-size:12px; font-weight:600; letter-spacing:0.14em; color:{{theme.muted}};">MOLECULES</div>
+  <div style="display:flex; flex-wrap:wrap; align-items:flex-start; gap:20px; width:100%;">
+    {{#each molecules}}
+    <div style="display:flex; flex-direction:column; gap:10px; width:{{.cw}}px; flex:none;">
+      <div style="width:{{.cw}}px; height:{{.ch}}px; background:{{.bg}}; border:1px solid {{theme.border}}; display:flex; align-items:center; justify-content:center; flex:none;">
+        <x-paper-clone node-id="{{.id}}" style="width:{{.w}}px; height:{{.h}}px; flex:none;" />
+      </div>
+      <div style="font-family:{{theme.sans}}; font-size:14px; font-weight:500; color:{{theme.ink}};">{{.name}}</div>
+    </div>
+    {{/each}}
+  </div>
+</div>

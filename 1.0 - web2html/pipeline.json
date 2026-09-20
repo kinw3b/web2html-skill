@@ -1,0 +1,409 @@
+{
+ "_meta": {
+  "purpose": "Single source of truth for the web2html pipeline: step ids, titles, sessions, tiers, gates, and reference wiring. Linted by scripts/lint-docs.py (run from scripts/test-all.sh and the pre-push hook). Update THIS file when a step, tier, reference, or version stamp changes; the linter then fails any doc surface that drifts from it.",
+  "review": "Implements O1 (one source of truth + a doc lint) from the web2html Pipeline Orchestration Review — September 2026.",
+  "surfaces_generated_from_this": "Not yet. Today the linter only VERIFIES the hand-maintained surfaces against this file. Generating SKILL.md's step table, the live-board todos, and the HTML cards from this file is the follow-up half of O1.",
+  "checks": [
+   "orchestratorVersion matches the stamp in every versionStampSurface",
+   "each package's declaredSkillVersion matches that package's SKILL.md frontmatter version",
+   "every step id appears in SKILL.md's step table",
+   "every step's tier matches model-routing.md's per-step table (ranges expanded)",
+   "every referenced references/*.md file exists on disk (no dangling links)",
+   "pitfalls.md has no duplicate id (ERROR) and no cited-but-undefined id (ERROR)",
+   "reference files nothing links to are reported (WARNING)"
+  ]
+ },
+ "orchestratorVersion": "2.21.1",
+ "versionStampSurfaces": [
+  "AGENTS.md",
+  "1.0 - web2html/SKILL.md",
+  "1.0 - web2html/references/pillars.md",
+  "1.0 - web2html/references/model-routing.md"
+ ],
+ "referenceDir": "1.0 - web2html/references",
+ "tierPolicy": "advisory. tierLabel and each step's tier are cost recommendations for the operator, never a gate: no script reads or checks the model, and a session must run on whichever model the operator chose without stopping to ask for a switch. Handoff prompts name the recommended tier; they must not forbid a model.",
+ "linkScanSurfaces": [
+  "AGENTS.md",
+  "pipeline.html",
+  "workflow.html",
+  "1.0 - web2html/SKILL.md"
+ ],
+ "packages": [
+  {
+   "path": "1.0 - web2html",
+   "role": "orchestrator",
+   "declaredSkillVersion": "2.21.1",
+   "tracksOrchestratorVersion": true
+  },
+  {
+   "path": "1.2 url-to-paper",
+   "role": "capture",
+   "declaredSkillVersion": "1.2.86"
+  },
+  {
+   "path": "1.3 hover-reel",
+   "role": "components",
+   "declaredSkillVersion": "1.1.108",
+   "note": "SKILL.md, package.json (1.2.15), and the extension manifest are legitimately different artifacts (Review R1); only the SKILL.md frontmatter is linted here."
+  }
+ ],
+ "sessions": [
+  {
+   "number": 1,
+   "phase": "homepage",
+   "tierLabel": "operator",
+   "steps": [
+    "1.1",
+    "1.2",
+    "1.3",
+    "1.4"
+   ],
+   "handoffOnDone": {
+    "step": "1.4",
+    "emits": "qa/handoff-2.0.md"
+   }
+  },
+  {
+   "number": 2,
+   "phase": "homepage",
+   "tierLabel": "strong",
+   "steps": [
+    "2.1",
+    "2.2",
+    "2.3",
+    "2.4"
+   ],
+   "handoffOnDone": {
+    "step": "2.4",
+    "emits": "qa/handoff-3.0.md"
+   }
+  },
+  {
+   "number": 3,
+   "phase": "homepage",
+   "tierLabel": "operator",
+   "steps": [
+    "3.1",
+    "3.2",
+    "3.3",
+    "3.4"
+   ],
+   "handoffOnDone": {
+    "step": "3.4",
+    "emits": "finish or opt into Phase 4"
+   }
+  },
+  {
+   "number": 4,
+   "phase": "allpages",
+   "tierLabel": "operator",
+   "optional": true,
+   "steps": [
+    "4.1",
+    "4.2",
+    "4.3",
+    "4.4"
+   ],
+   "handoffOnDone": {
+    "step": "4.4",
+    "emits": "qa/handoff-5.0.md (when opted in)"
+   }
+  },
+  {
+   "number": 5,
+   "phase": "allpages",
+   "tierLabel": "strong",
+   "optional": true,
+   "steps": [
+    "5.1",
+    "5.2",
+    "5.3",
+    "5.4",
+    "5.5",
+    "5.6"
+   ],
+   "handoffOnDone": {
+    "step": "5.6",
+    "emits": "tidy"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "id": "1.1",
+   "title": "light scrape (URL + images + Latin fonts)",
+   "session": 1,
+   "phase": "homepage",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": false,
+   "references": [
+    "step-11.md"
+   ]
+  },
+  {
+   "id": "1.2",
+   "title": "capture 1600/768/390 + Navigation",
+   "session": 1,
+   "phase": "homepage",
+   "tier": "T3",
+   "gate": "machine",
+   "optional": false,
+   "references": [
+    "12-desktop-source.md",
+    "stage-p-notes.md"
+   ]
+  },
+  {
+   "id": "1.3",
+   "title": "Design Library + Buttons/Components pull + source-CSS hover",
+   "session": 1,
+   "phase": "homepage",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": false,
+   "references": [
+    "pillars.md",
+    "13-buttons-components.md"
+   ]
+  },
+  {
+   "id": "1.4",
+   "title": "human Paper checkpoint",
+   "session": 1,
+   "phase": "homepage",
+   "tier": "T2",
+   "gate": "human",
+   "optional": false,
+   "references": [
+    "live-board.md",
+    "pillars.md"
+   ]
+  },
+  {
+   "id": "2.1",
+   "title": "Design System",
+   "session": 2,
+   "phase": "homepage",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": false,
+   "references": [
+    "paper-design-to-code.md"
+   ]
+  },
+  {
+   "id": "2.2",
+   "title": "author the page",
+   "session": 2,
+   "phase": "homepage",
+   "tier": "T1",
+   "gate": "self",
+   "optional": false,
+   "references": [
+    "paper-design-to-code.md"
+   ]
+  },
+  {
+   "id": "2.3",
+   "title": "section loop",
+   "session": 2,
+   "phase": "homepage",
+   "tier": "T1",
+   "gate": "self",
+   "optional": false,
+   "references": [
+    "paper-design-to-code.md",
+    "responsive-22d.md",
+    "section-23-paper-loop.md"
+   ]
+  },
+  {
+   "id": "2.4",
+   "title": "TAGS checkpoint",
+   "session": 2,
+   "phase": "homepage",
+   "tier": "T1",
+   "gate": "human",
+   "optional": false,
+   "references": [
+    "paper-design-to-code.md"
+   ]
+  },
+  {
+   "id": "3.1",
+   "title": "QA pass 1 — Impeccable + Taste",
+   "session": 3,
+   "phase": "homepage",
+   "tier": "T2",
+   "gate": "self",
+   "optional": false,
+   "references": [
+    "polish-visual-restore.md"
+   ]
+  },
+  {
+   "id": "3.2",
+   "title": "QA pass 2 — hover + drawer + FAQ + dropdown + GSAP + a11y",
+   "session": 3,
+   "phase": "homepage",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": false,
+   "references": [
+    "gsap-inview.md",
+    "hover-22c.md",
+    "nav-drawer.md",
+    "faq.md",
+    "nav-dropdown.md"
+   ]
+  },
+  {
+   "id": "3.3",
+   "title": "semantics + SEO",
+   "session": 3,
+   "phase": "homepage",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": false,
+   "references": [
+    "semantics-pass.md"
+   ]
+  },
+  {
+   "id": "3.4",
+   "title": "handoff — finish or opt into Phase 4",
+   "session": 3,
+   "phase": "homepage",
+   "tier": "T3",
+   "gate": "human",
+   "optional": false,
+   "references": [
+    "live-board.md"
+   ]
+  },
+  {
+   "id": "4.1",
+   "title": "scrape sitemap for extra URLs",
+   "session": 4,
+   "phase": "allpages",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": true,
+   "references": [
+    "scripts.md"
+   ]
+  },
+  {
+   "id": "4.2",
+   "title": "desktop capture extra pages onto the home canvas",
+   "session": 4,
+   "phase": "allpages",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": true,
+   "references": [
+    "scripts.md"
+   ]
+  },
+  {
+   "id": "4.3",
+   "title": "bind existing Design Library tokens",
+   "session": 4,
+   "phase": "allpages",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": true,
+   "references": [
+    "scripts.md"
+   ]
+  },
+  {
+   "id": "4.4",
+   "title": "Paper review — finish or opt into Phase 5",
+   "session": 4,
+   "phase": "allpages",
+   "tier": "T3",
+   "gate": "human",
+   "optional": true,
+   "references": [
+    "live-board.md"
+   ]
+  },
+  {
+   "id": "5.1",
+   "title": "scaffold astro/ + shared chrome (Header/Footer/components + index.astro from the 3.4 polish)",
+   "session": 5,
+   "phase": "allpages",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": true,
+   "references": [
+    "phase-5-astro.md"
+   ]
+  },
+  {
+   "id": "5.2",
+   "title": "author interior bodies — src/pages/{slug}.astro <main> only",
+   "session": 5,
+   "phase": "allpages",
+   "tier": "T1",
+   "gate": "self",
+   "optional": true,
+   "references": [
+    "phase-5-astro.md"
+   ]
+  },
+  {
+   "id": "5.3",
+   "title": "desktop clip compare on astro build output",
+   "session": 5,
+   "phase": "allpages",
+   "tier": "T1",
+   "gate": "self",
+   "optional": true,
+   "references": [
+    "section-23-paper-loop.md",
+    "phase-5-astro.md"
+   ]
+  },
+  {
+   "id": "5.4",
+   "title": "live 768/390 clip compare on astro build output",
+   "session": 5,
+   "phase": "allpages",
+   "tier": "T1",
+   "gate": "self",
+   "optional": true,
+   "references": [
+    "section-23-paper-loop.md",
+    "phase-5-astro.md"
+   ]
+  },
+  {
+   "id": "5.5",
+   "title": "wire routes + interior SEO + astro build",
+   "session": 5,
+   "phase": "allpages",
+   "tier": "T2",
+   "gate": "machine",
+   "optional": true,
+   "references": [
+    "phase-5-astro.md",
+    "semantics-pass.md"
+   ]
+  },
+  {
+   "id": "5.6",
+   "title": "Astro review — tidy",
+   "session": 5,
+   "phase": "allpages",
+   "tier": "T1",
+   "gate": "human",
+   "optional": true,
+   "references": [
+    "live-board.md"
+   ]
+  }
+ ]
+}

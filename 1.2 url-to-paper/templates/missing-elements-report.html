@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#050b00" />
+<title>1.55 Missing-elements · Phase 1.55 preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=IBM+Plex+Sans:wght@100..700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: oklch(0.137 0.036 128);
+    --surface: oklch(0.175 0.040 128);
+    --ink: oklch(0.966 0.020 128);
+    --text: oklch(0.90 0.038 128);
+    --muted: oklch(0.76 0.090 128);
+    --line: oklch(0.920 0.210 128.5 / 0.20);
+    --line-strong: oklch(0.920 0.210 128.5 / 0.42);
+    --accent: oklch(0.920 0.210 128.5);
+    --accent-soft: oklch(0.920 0.210 128.5 / 0.12);
+    --accent-contrast: oklch(0.137 0.036 128);
+    --human: oklch(0.84 0.14 102);
+    --human-soft: oklch(0.84 0.14 102 / 0.12);
+    --ok: oklch(0.82 0.16 145);
+    --ok-soft: oklch(0.82 0.16 145 / 0.12);
+    --bad: oklch(0.72 0.16 25);
+    --bad-soft: oklch(0.72 0.16 25 / 0.12);
+    --sans: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --radius: 2px;
+    --dot-grid-size: 16px;
+    --dot-grid-opacity: 0.42;
+    --dot-grid-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { min-height: 100%; background: var(--bg); }
+  body {
+    position: relative;
+    margin: 0;
+    color: var(--text);
+    font: 400 15px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, var(--dot-grid-color) 1px, transparent 1px);
+    background-size: var(--dot-grid-size) var(--dot-grid-size);
+    background-position: center;
+    opacity: var(--dot-grid-opacity);
+  }
+  ::selection { background: var(--accent); color: var(--accent-contrast); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  a { color: var(--accent); }
+  .page {
+    position: relative;
+    z-index: 1;
+    width: min(980px, 100%);
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  .page::before, .page::after {
+    content: "";
+    position: absolute;
+    width: 18px; height: 18px;
+    pointer-events: none;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .page::before { top: 14px; left: 14px; border-width: 1px 0 0 1px; }
+  .page::after { top: 14px; right: 14px; border-width: 1px 1px 0 0; }
+  .page-foot-marks {
+    position: absolute; left: 14px; right: 14px; bottom: 14px; height: 18px;
+    pointer-events: none;
+  }
+  .page-foot-marks::before, .page-foot-marks::after {
+    content: "";
+    position: absolute; width: 18px; height: 18px;
+    border-color: var(--accent); border-style: solid;
+  }
+  .page-foot-marks::before { left: 0; bottom: 0; border-width: 0 0 1px 1px; }
+  .page-foot-marks::after { right: 0; bottom: 0; border-width: 0 1px 1px 0; }
+  .mast {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 16px; margin: 0 0 28px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--line-strong);
+    color: var(--muted);
+    font: 600 11px/1.5 var(--sans);
+    letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .mast strong { color: var(--accent); font-weight: 800; letter-spacing: 0.16em; }
+  .mast-tag {
+    padding: 5px 9px; border: 1px solid var(--line-strong);
+    color: var(--accent); font: 700 10px/1 var(--sans); letter-spacing: 0.14em;
+  }
+  h1 { margin: 0 0 6px; color: var(--accent); font: 800 1.8rem/1.15 var(--display); letter-spacing: -0.03em; }
+  .lead { color: var(--muted); margin: 0 0 22px; max-width: 62ch; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+  .pill { padding: 5px 10px; border-radius: var(--radius); font: 650 12px/1 var(--mono); }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.open { background: var(--bad-soft); color: var(--bad); }
+  .pill.human { background: var(--human-soft); color: var(--human); }
+  h2 { margin: 28px 0 10px; color: var(--accent); font: 700 1.05rem/1.5 var(--display); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 10px; border-top: 1px solid var(--line); vertical-align: top; font-size: 0.88rem; }
+  th { font: 650 11px/1.5 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-top: 0; }
+  tr.ok { background: var(--ok-soft); }
+  tr.bad { background: var(--bad-soft); }
+  .mark { font: 650 16px/1 var(--sans); width: 28px; }
+  tr.ok .mark { color: var(--ok); }
+  tr.bad .mark { color: var(--bad); }
+  .st { font: 650 11px/1 var(--mono); }
+  .note { margin-top: 4px; color: var(--muted); font-size: 0.8rem; }
+  code { font: 0.9em var(--mono); color: var(--ink); }
+  .box { padding: 16px; border: 1px solid var(--human); border-radius: 2px; background: var(--human-soft); }
+  .checks { display: grid; gap: 8px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; background: var(--surface); border-radius: 2px; border: 1px solid var(--line); }
+  .check.checked { background: var(--ok-soft); border-color: var(--ok); }
+  .check input { margin-top: 3px; }
+  footer { margin-top: 28px; color: var(--muted); font: 400 12px/1.5 var(--mono); }
+  .reply { margin: 0 0 12px; }
+  .reply code { font: 650 14px/1.5 var(--mono); color: var(--ink); }
+  .proceed { appearance: none; border: 0; border-radius: 2px; padding: 10px 14px; background: var(--accent); color: var(--accent-contrast); font: 650 13px/1 var(--sans); cursor: pointer; }
+  .proceed:hover { opacity: 0.88; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="mast"><strong>WEB2HTML</strong><span class="mast-tag">QA</span></div>
+  <h1>1.55 Missing-elements</h1>
+  <p class="lead">This is the report you get on every future run, after auto-fix, before you sign off. Green rows are already applied. Tick the final checks.</p>
+  <div class="pills">
+    <span class="pill ok">9 applied</span>
+    <span class="pill open">0 still open</span>
+    <span class="pill human">14 human checks</span>
+  </div>
+  
+
+  <h2>Issues found</h2>
+  <table>
+    <thead><tr><th></th><th>ID</th><th>Sev</th><th>Issue</th><th>Where</th><th>What we saw</th><th>Solution</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-01</code></td>
+      <td>P0</td>
+      <td>Named section is empty</td>
+      <td>01 · hero (cuisine)</td>
+      <td>Frame 1600×420, 0 children, white</td>
+      <td>Insert capture/home-desktop/01-hero.html. No delete.<div class="note">Restored from capture HTML. Hug min-content.</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-02</code></td>
+      <td>P0</td>
+      <td>Named section is empty</td>
+      <td>03 · story (cuisine)</td>
+      <td>Frame 1600×224, 0 children</td>
+      <td>Insert 03-content-section.html.<div class="note">Restored. No wipe.</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-03</code></td>
+      <td>P0</td>
+      <td>Named section is empty</td>
+      <td>05 · delivery (cuisine)</td>
+      <td>Frame 1600×240, 0 children</td>
+      <td>Insert 05-content-section-2.html.<div class="note">Restored.</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-04</code></td>
+      <td>P0</td>
+      <td>Nav / announcement not imported</td>
+      <td>page chrome (cuisine)</td>
+      <td>Landmarks y 0–149 never became 00 · nav</td>
+      <td>Prepend nav capture.<div class="note">assemble-lander --prepend nav.html</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-05</code></td>
+      <td>P0</td>
+      <td>Sourceless iframe (maps / embed)</td>
+      <td>08 · appointment (smily)</td>
+      <td>Empty 682×400 rectangle, iframe has no src</td>
+      <td>Crop map from source-section PNG; write_html https img.<div class="note">Bitmap from prepesticide 08. Never paper-asset://.</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-06</code></td>
+      <td>P0</td>
+      <td>SVG / path text collapsed to 0×0</td>
+      <td>03 · about (denty)</td>
+      <td>✦ QUICK ✦ QUALITY ✦ SAFE ✦ RESULT → SVG Text 0×0</td>
+      <td>Replace with scrape badge PNG.<div class="note">Dead text swapped for about-image-02 PNG.</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-07</code></td>
+      <td>P1</td>
+      <td>Hidden breakpoint variants inflate height</td>
+      <td>testimonials 768 (cuisine)</td>
+      <td>768×11720 with 1px-wide ~5500px stacks</td>
+      <td>Collapse width≈1 towers.<div class="note">Collapsed hidden Framer variants.</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-08</code></td>
+      <td>P1</td>
+      <td>Date field lost native chrome</td>
+      <td>08 · appointment (smily)</td>
+      <td>Shows Enter Text instead of dd/mm/yyyy</td>
+      <td>Mock date chrome. Keep type=date in rebuild.<div class="note">Placeholder set to dd/mm/yyyy + calendar.</div></td>
+      <td class="st">applied</td>
+    </tr>
+<tr class="ok">
+      <td class="mark">✓</td>
+      <td><code>FIX-09</code></td>
+      <td>P1</td>
+      <td>Empty slot is live (do not invent)</td>
+      <td>02 · hero Book card (denty)</td>
+      <td>Title + icon, no body — live is the same</td>
+      <td>Keep empty.<div class="note">Did not invent copy.</div></td>
+      <td class="st">left-on-purpose</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>Final checks</h2>
+  <div class="box">
+    <p class="lead" style="margin:0 0 12px">These ticks stay in this browser. They do not tell the agent. If anything is still wrong, pin a <strong>comment on that Paper layer</strong> — do not only type it in chat. The next agent lists open threads and fixes them before 2.0. When the file is clean, reply:</p>
+    <p class="reply"><code>Paper looks right — continue</code></p>
+    <button type="button" class="proceed" id="copy-proceed">Copy that reply</button>
+    <div class="checks" style="margin-top:14px"><label class="check "><input type="checkbox" data-check="paper-comments" /><span>Pin a Paper comment on every problem (clip, missing photo, wrong type, hover). Skip only if the file is clean. The next agent reads those threads before 2.0.</span></label>
+<label class="check "><input type="checkbox" data-check="walk-1600" /><span>home-desktop page stack matches live order (isolated section shots can look correct while a leftover top parks a frame below the footer)</span></label>
+<label class="check "><input type="checkbox" data-check="walk-768" /><span>home-768 is a real tablet layout, not a squeezed 1600</span></label>
+<label class="check "><input type="checkbox" data-check="walk-390" /><span>home-390 is a real phone layout</span></label>
+<label class="check "><input type="checkbox" data-check="library" /><span>Design Library foundations look like this site</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-01" /><span>01 · hero (cuisine) is no longer a blank frame</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-02" /><span>03 · story (cuisine) is no longer a blank frame</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-03" /><span>05 · delivery (cuisine) is no longer a blank frame</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-04" /><span>Nav / announcement is on the lander</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-05" /><span>Map / embed in 08 · appointment (smily) is a photo, not a white hole</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-06" /><span>Badge / ring text in 03 · about (denty) is visible</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-07" /><span>testimonials 768 (cuisine) height is near live (no 1px variant towers)</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-08" /><span>Date field shows dd/mm/yyyy, not Enter Text</span></label>
+<label class="check "><input type="checkbox" data-check="see-FIX-09" /><span>Leave 02 · hero Book card (denty) empty — do not invent copy</span></label></div>
+  </div>
+  <footer>Generated 2026-08-16 preview from the three new template briefs · prior-run · prior-run · prior-run · Optional diagnostic before 1.5 human sign-off</footer>
+  <div class="page-foot-marks" aria-hidden="true"></div>
+</div>
+<script>
+const key = "me-fix:" + location.pathname;
+const saved = JSON.parse(localStorage.getItem(key) || "{}");
+for (const input of document.querySelectorAll("input[data-check]")) {
+  if (saved[input.dataset.check]) {
+    input.checked = true;
+    input.closest(".check").classList.add("checked");
+  }
+  input.addEventListener("change", () => {
+    saved[input.dataset.check] = input.checked;
+    localStorage.setItem(key, JSON.stringify(saved));
+    input.closest(".check").classList.toggle("checked", input.checked);
+  });
+}
+const phrase = "Paper looks right — continue";
+document.getElementById("copy-proceed")?.addEventListener("click", async () => {
+  const b = document.getElementById("copy-proceed");
+  try {
+    await navigator.clipboard.writeText(phrase);
+    if (b) b.textContent = "Copied — paste it in the agent chat";
+  } catch {
+    if (b) b.textContent = "Copy failed — reply that phrase in chat";
+  }
+});
+</script>
+</body>
+</html>

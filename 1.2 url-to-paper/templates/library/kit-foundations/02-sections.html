@@ -1,0 +1,11 @@
+<div style="display:flex; flex-direction:column; align-items:flex-start; gap:20px; width:100%;">
+  <div style="font-family:{{theme.sans}}; font-size:12px; font-weight:600; letter-spacing:0.14em; color:{{theme.muted}};">COLOUR</div>
+  <div style="display:flex; flex-wrap:wrap; gap:20px; width:100%;">
+    {{#each colour}}
+    <div style="display:flex; flex-direction:column; gap:10px; width:260px;">
+      <div style="width:260px; height:96px; background:{{theme.surfaceAlt}}; border:1px solid {{theme.border}};"></div>
+      <div style="font-family:{{theme.sans}}; font-size:14px; font-weight:500; color:{{theme.ink}};">{{.name}}</div>
+    </div>
+    {{/each}}
+  </div>
+</div>
