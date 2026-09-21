@@ -12,6 +12,14 @@ import {
 
 /** Visual size — hug children. Never a fixed 1400 / 1800 board. */
 export const REVIEW_BOARD_WIDTH = "fit-content";
+/**
+ * Stage behind a parked desktop specimen. Mid grey so a transparent root
+ * or white type stays visible. Matches a signed Components card (`#6F6F6F`).
+ * The specimen itself keeps its source paint.
+ */
+export const REVIEW_ROW_FILL = "#6F6F6F";
+/** Specimen title on REVIEW_ROW_FILL. `#666666` disappears on this grey. */
+export const REVIEW_ROW_LABEL = "#F2F2F2";
 export const NAVIGATION_BOARD_WIDTH = "fit-content";
 /** Canvas slot reserved when parking an empty review frame. */
 export const REVIEW_BOARD_PARK_WIDTH = 1400;
@@ -250,12 +258,12 @@ export function reviewRowHtml({ name, label, pair, sid = "01" }) {
   const second = pair
     ? `<div layer-name="second" style="display:flex;width:100%;min-height:48px;"><div layer-name="slot" style="display:flex;width:100%;min-height:48px;"></div></div>`
     : "";
-  return `<div layer-name="${name}" style="display:flex;flex-direction:column;gap:16px;width:1600px;padding:24px;background:#ffffff;border-radius:16px;overflow:visible;">
+  return `<div layer-name="${name}" style="display:flex;flex-direction:column;gap:16px;width:1600px;padding:24px;background:${REVIEW_ROW_FILL};border-radius:16px;overflow:visible;">
       <div layer-name="title" style="display:flex;align-items:center;gap:12px;">
         <div layer-name="section-number" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:36px;background:#E11D2E;flex-shrink:0;">
           <p style="font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:#ffffff;line-height:18px;">${badge}</p>
         </div>
-        <p style="font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:#666666;">${label}</p>
+        <p style="font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:${REVIEW_ROW_LABEL};">${label}</p>
       </div>
       <div layer-name="states" style="display:flex;flex-direction:column;gap:16px;">
         <div layer-name="first" style="display:flex;width:100%;min-height:48px;"><div layer-name="slot" style="display:flex;width:100%;min-height:48px;"></div></div>
@@ -480,6 +488,12 @@ async function setGroupLabel(call, groupId, fileId, text) {
     || kids[kids.length - 1];
   if (label?.id) {
     await call("set_text_content", { fileId, updates: [{ nodeId: label.id, textContent: text }] });
+    try {
+      await call("update_styles", {
+        fileId,
+        updates: [{ nodeIds: [label.id], styles: { color: REVIEW_ROW_LABEL } }],
+      });
+    } catch { /* label color is best-effort */ }
   }
 }
 
@@ -1072,6 +1086,10 @@ export async function parkDesktopNodeOnBoard({
     await call("update_styles", {
       fileId,
       updates: [
+        {
+          nodeIds: [group.id],
+          styles: { backgroundColor: REVIEW_ROW_FILL },
+        },
         {
           nodeIds: [copy.id],
           styles: {

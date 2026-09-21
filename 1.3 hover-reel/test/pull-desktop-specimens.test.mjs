@@ -13,7 +13,12 @@ import {
   BUTTONS_BOARD,
   isButtonsBoard,
 } from "../scripts/component-state-utils.mjs";
-import { reviewRowHtml, reviewSectionSid } from "../scripts/park-capture-boards.mjs";
+import {
+  REVIEW_ROW_FILL,
+  REVIEW_ROW_LABEL,
+  reviewRowHtml,
+  reviewSectionSid,
+} from "../scripts/park-capture-boards.mjs";
 
 test("Buttons is the canonical review board; Hover States is a legacy alias", () => {
   assert.equal(BUTTONS_BOARD, "Buttons");
@@ -36,6 +41,9 @@ test("review card badge is the home-desktop section NN, title is the specimen na
   assert.match(row, />02</);
   assert.match(row, />Content Widget</);
   assert.doesNotMatch(row, />01</);
+  assert.match(row, new RegExp(`background:${REVIEW_ROW_FILL}`, "i"));
+  assert.doesNotMatch(row, /background:#ffffff/i);
+  assert.match(row, new RegExp(`color:${REVIEW_ROW_LABEL}`, "i"));
 });
 
 test("1.3 pull plan requires scanned NN sections and matching sectionId on every row", () => {

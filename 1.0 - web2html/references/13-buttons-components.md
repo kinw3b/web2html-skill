@@ -32,10 +32,16 @@ Every row needs `sectionId` matching a scanned `NN ·` (`"02"` or `"02 · featur
 ## Card layout
 
 Parked rows reuse the review card: red 36px `section-number` badge, specimen
-title, white inner slot. The badge is the **home-desktop section `NN`**, not
-dump order — two cards from `02 · features` both show `02`. The title is the
-specimen name (`Content Widget`). Paper layer names stay `Object 01` /
-`Component 01` for stack order.
+title, and a **neutral grey stage** (`#6F6F6F`) behind the specimen. The badge
+is the **home-desktop section `NN`**, not dump order — two cards from
+`02 · features` both show `02`. The title is the specimen name
+(`Content Widget`) in `#F2F2F2` so it stays readable on that grey. Paper layer
+names stay `Object 01` / `Component 01` for stack order.
+
+The grey is review chrome only. Duplicate the desktop node as-is — do not
+paint a fill onto a transparent specimen. A white card hides white type and
+anything with no background of its own (Pitfall #222). `parkDesktopNodeOnBoard`
+stamps `#6F6F6F` on every row, including a duplicate of an older white template.
 
 **Height must hug the specimen (Pitfall #212).** Set the parked specimen root
 and its content-hugging slot / review wrapper to Paper **Fit** height
