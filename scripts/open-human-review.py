@@ -58,13 +58,20 @@ def file_uri(path: Path) -> str:
 
 
 def open_chrome(lock: Path, polish: Path, report: Path) -> int:
+    """Open the three 3.4 documents: Orca browser tabs when reachable, else Chrome (one call, all URIs)."""
     uris = [
         file_uri(lock),
         file_uri(polish) + "?qa-review=final",
         file_uri(report),
     ]
-    cmd = ["open", "-a", "Google Chrome", *uris]
-    return subprocess.call(cmd)
+    import open_doc
+
+    results = open_doc.open_docs(uris, ["open", "-a", "Google Chrome", *uris])
+    if all(r.get("opened") for r in results):
+        print(f"opened in {open_doc.describe(results[0])}")
+        return 0
+    print(f"FAIL: could not open the 3.4 review ({results[0].get('error')}).", file=sys.stderr)
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -125,9 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         rc = open_chrome(lock, polish, report)
         if rc != 0:
             return rc
-        print(f"opened Chrome: {file_uri(lock)}  (2.4 lock)")
-        print(f"opened Chrome: {file_uri(polish)}  (QA polish)")
-        print(f"opened Chrome: {file_uri(report)}")
+        print(f"opened: {file_uri(lock)}  (2.4 lock)")
+        print(f"opened: {file_uri(polish)}  (QA polish)")
+        print(f"opened: {file_uri(report)}")
     else:
         print(f"ready for 3.4: {lock} vs {polish}")
         print(f"ready for 3.4: {report}")

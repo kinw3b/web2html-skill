@@ -100,6 +100,35 @@ class Section22GateTest(unittest.TestCase):
             errors = " ".join(gate.gate_errors(root))
             self.assertIn("cap is 3", errors)
 
+    def test_missing_wave_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gate.install_passing_artifacts(root)
+            wave = root / "qa" / "agent-runs" / "r1" / "2.3" / "wave.json"
+            wave.unlink()
+            errors = " ".join(gate.gate_errors(root))
+            self.assertIn("missing 2.3 wave", errors)
+            self.assertIn("#221", errors)
+
+    def test_wave_missing_a_band_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gate.install_passing_artifacts(root)
+            gate.install_passing_wave(root, ["other"])
+            errors = " ".join(gate.gate_errors(root))
+            self.assertIn("hero has no 2.3 wave finding", errors)
+
+    def test_unapplied_wave_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gate.install_passing_artifacts(root)
+            path = root / "qa" / "agent-runs" / "r1" / "2.3" / "wave.json"
+            payload = json.loads(path.read_text())
+            payload.pop("appliedAt", None)
+            path.write_text(json.dumps(payload))
+            errors = " ".join(gate.gate_errors(root))
+            self.assertIn("missing 2.3 wave", errors)
+
     def test_missing_semantic_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

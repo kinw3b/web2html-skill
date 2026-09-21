@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>web2html · workflow</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #111;
+    --text: #222;
+    --muted: #555;
+    --line: #ddd;
+    --bg: #fff;
+    --code-bg: #f6f6f6;
+    --stop: #8a1f11;
+    --ok: #0b5;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 6rem; }
+  h1, h2, h3 { color: var(--ink); line-height: 1.25; }
+  h1 { font-size: 2.15rem; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.45rem; margin: 2.5rem 0 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.12rem; margin: 1.4rem 0 0.4rem; }
+  p, li { max-width: 46rem; }
+  p { margin: 0.6rem 0; }
+  a { color: #06c; }
+  code, kbd {
+    font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.08em 0.32em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    padding: 0.85rem 1rem;
+    overflow: auto;
+    font: 0.82rem/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0 1.2rem; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 0.4rem 0.55rem; text-align: left; vertical-align: top; }
+  th { background: #fafafa; }
+  ul, ol { margin: 0.4rem 0 0.9rem; padding-left: 1.3rem; }
+  .muted { color: var(--muted); }
+  .lead { font-size: 1.05rem; }
+  .stop { color: var(--stop); font-weight: 600; }
+  .toc { margin: 1.2rem 0 2rem; }
+  .toc ol { padding-left: 1.2rem; }
+  .meta { color: var(--muted); font-size: 0.9rem; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
+  nav.toc a { text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>web2html workflow</h1>
+<p class="meta">Orchestrator <strong>2.9.0</strong> · live site → Paper → semantic static HTML. This is the human map of every board step: what it is, what it needs, which scripts run, what must exist before <code>mark done</code>. Agents still follow <code>SKILL.md</code> and the step accordion on the live board.</p>
+
+<p class="lead">First action of any run: start the live board. If it does not open, stop.</p>
+<pre><code>python3 $SKILLS/web2html/scripts/pipeline-progress.py start /path/to/templates/&lt;project&gt;</code></pre>
+<p class="muted"><code>start</code> writes and opens that folder’s <code>pipeline.html</code>, quarantines leftover <code>rebuild/*.html</code>, and never overwrites the spec <code>web2html/pipeline.html</code>.</p>
+
+<nav class="toc">
+<p><strong>Contents</strong></p>
+<ol>
+  <li><a href="#global">Global rules</a></li>
+  <li><a href="#spine">Spine</a></li>
+  <li><a href="#homepage-vs-pages">Homepage vs all pages</a></li>
+  <li><a href="#s11">1.1 Contract, files, fonts</a></li>
+  <li><a href="#s12">1.2 Capture breakpoints to Paper</a></li>
+  <li><a href="#s13">1.3 Design Library + Tokens</a></li>
+  <li><a href="#s14">1.4 Human Paper checkpoint</a></li>
+  <li><a href="#s21">2.1 Design System</a></li>
+  <li><a href="#s22">2.2 Author semantic page</a></li>
+  <li><a href="#s23">2.3 Validate each section vs Paper</a></li>
+  <li><a href="#s24">2.4 Sign-off → 3.0 polish</a></li>
+  <li><a href="#s31">3.1 QA pass 1</a></li>
+  <li><a href="#s32">3.2 QA pass 2</a></li>
+  <li><a href="#s33">3.3 Semantics + SEO sweep</a></li>
+  <li><a href="#s34">3.4 Human checkpoint</a></li>
+  <li><a href="#s41">4.1 Sitemap (optional)</a></li>
+  <li><a href="#s42">4.2 Capture pages (optional)</a></li>
+  <li><a href="#s43">4.3 Seed tokens (optional)</a></li>
+  <li><a href="#s44">4.4 Human review (optional)</a></li>
+  <li><a href="#s51">5.1 Scaffold Astro + shared chrome (optional)</a></li>
+  <li><a href="#s52">5.2 Author pages (optional)</a></li>
+  <li><a href="#s53">5.3 Desktop QA (optional)</a></li>
+  <li><a href="#s54">5.4 Responsive (optional)</a></li>
+  <li><a href="#s55">5.5 Wire routes + SEO (optional)</a></li>
+  <li><a href="#s56">5.6 Human checkpoint (optional)</a></li>
+  <li><a href="#folders">Folder contract</a></li>
+</ol>
+</nav>
+
+<h2 id="global">Global rules</h2>
+<ul>
+  <li>Never skip a numbered step (<code>1.1</code> → <code>3.4</code>). <code>pipeline-progress.py skip</code> fails on required steps. <strong>Capture Tool is leftover live hover</strong> — <code>mark 1.4 active</code> opens the stamped tab; <code>pipeline-progress.py open-capture</code> re-opens it. It is not a 1.4 done-gate. <strong>Phase 4 is optional after 3.4</strong> — write <code>qa/phase-4-opted.json</code> or <code>qa/phase-4-skipped.json</code>. <strong>Phase 5 is optional after 4.4</strong> — write <code>qa/phase-5-opted.json</code> or <code>qa/phase-5-skipped.json</code>.</li>
+  <li><code>mark --step &lt;id&gt; --status active|done</code> at every boundary. <code>mark</code> cannot open 2.1+ while 1.1–1.4 are unfinished.</li>
+  <li><strong>New run: <code>start</code>. Continued session (2 or 3): <code>resume . --at &lt;step&gt; --owner &lt;session&gt;</code>.</strong> <code>start</code> force-resets the board and throws a run in flight away (Pitfall #179).</li>
+  <li>Homepage only through 3.4 (<code>/</code>). Extra routes stay out of 1.2. Phase 4 is Paper-only. Phase 5 binds the site into <code>astro/</code> after 4.4 opt-in: 5.1 pulls Header / Footer / components once from the 3.4 polish, 5.2 authors only each page's <code>&lt;main&gt;</code>. 5.5 is the one post-3.4 href exception.</li>
+  <li>No local HTTP server. Preview is <code>file://</code> — in Orca's browser when the probe says <code>orca reachable</code> (the board, 2.4 review, 3.4 compare + report, 5.6 routes; <code>WEB2HTML_BROWSER=default</code> keeps Chrome), else Chrome. Phase 5 relativizes <code>astro/dist</code> so built pages open on <code>file://</code>. The agent verifies with <code>astro build</code>, never <code>astro dev</code>; the human may run <code>npm run preview</code>.</li>
+  <li>Do not write <code>rebuild/*.html</code> from a scrape, Firecrawl, Tailwind CDN, or memory. Gate first:</li>
+</ul>
+<pre><code>python3 $SKILLS/web2html/scripts/rebuild_write_gate.py /path/to/templates/&lt;project&gt;
+python3 $SKILLS/web2html/scripts/rebuild_write_gate.py /path/to/templates/&lt;project&gt; --allow index           # 2.1+</code></pre>
+<ul>
+  <li>One <code>rebuild/</code>. Extra <code>rebuild-semantic/</code> trees fail <code>verify-rebuild-trees.py</code>.</li>
+  <li>Silent shell for 20s (especially the 1.3 library mine): kill the PID and rerun with live logs. Do not wait minutes.</li>
+  <li>Reviewers may only write <code>qa/agent-findings/</code>. The controller owns Paper, <code>rebuild/</code>, the board, and canonical <code>qa/</code> receipts.</li>
+</ul>
+
+<p><strong>Human stops</strong> (the run pauses):</p>
+<table>
+  <tr><th>Step</th><th>What happens</th></tr>
+  <tr><td>1.4</td><td><code>mark --step 1.4 --status active</code> writes <code>qa/paper-human-review.md</code> if missing, opens Paper, and opens the browser on the stamped source URL (<code>capture-doctor</code> first). Stop. Walk 1600 / 768 / 390, FRAME <code>Navigation</code>, FRAME <code>Buttons</code>, FRAME <code>Components</code>, Design Library. Pin comments. Last action is the <strong>two-option question modal</strong>: <strong>Done &amp; continue to next step</strong> (mark 1.4 done, continue into 2.1 here) and <strong>Provide hand-off prompt to start fresh session</strong> (<code>handoff</code>; do not start 2.1). Capture Tool is leftover live hover (<code>open-capture</code>), not a done-gate. <strong>Marking 1.4 done requires <code>qa/paper-human-review.md</code> and emits the SESSION 2 prompt</strong> (<code>qa/handoff-2.0.md</code>).</td></tr>
+  <tr><td>2.4</td><td>First browser open of the authored ship (Orca browser when reachable, else Chrome). <code>open-build-review.py . --stage 2.4</code>. Overlay default is TAGS. Stop until <code>qa/build-checkpoint.md</code>. <strong>Marking done emits the SESSION 3 prompt</strong> (<code>qa/handoff-3.0.md</code>).</td></tr>
+  <tr><td>3.4</td><td><code>open-human-review.py</code>. Two-option: finish (<code>qa/phase-4-skipped.json</code>, tidy) or continue to optional Phase 4 (<code>qa/phase-4-opted.json</code>, no tidy).</td></tr>
+  <tr><td>4.4</td><td><code>open-phase-4-review.py</code>. Two-option: finish (<code>qa/phase-5-skipped.json</code>, tidy) or continue to optional Phase 5 (<code>qa/phase-5-opted.json</code>, no tidy).</td></tr>
+  <tr><td>5.6</td><td><code>open-phase-5-review.py</code> opens the built routes from <code>astro/dist</code> on <code>file://</code>. Marking 5.6 done requires <code>qa/phase-5-review.md</code>, tidies, and keeps <code>rebuild/</code> + <code>astro/</code>.</td></tr>
+</table>
+<p class="muted">1.2 geometry postflight and 2.3 section validation are agent loops, not human stops. Do not open Chrome on the 2.1 draft.</p>
+
+<h2 id="spine">Spine</h2>
+<pre><code>HOMEPAGE · required · / only
+SESSION 1 · operator tier
+1.0 Capture   1.1 → 1.2 → 1.3 → 1.4 → emits SESSION 2 prompt
+SESSION 2 · strong tier
+2.0 Build     2.1 → 2.2 → 2.3 → 2.4 → emits SESSION 3 prompt
+SESSION 3 · operator tier
+3.0 QA        3.1 → 3.2 → 3.3 → 3.4 → STOP or optional 4.0
+
+ALL PAGES · optional · extra routes
+4.0 Pages     4.1 → 4.2 → 4.3 → 4.4 → STOP or optional 5.0
+SESSION 5 · strong tier
+5.0 Astro     5.1 → 5.2 → 5.3 → 5.4 → 5.5 → 5.6 → STOP (tidy)</code></pre>
+<p>Display IDs as <code>1.4</code> / <code>2.1</code> / <code>2.2</code> / <code>2.3</code> / <code>2.4</code> / <code>3.1</code>. Older notes may say 2.2.a–e or B/2b; those letters are retired. The board, <code>mark</code>, and todos use the IDs above.</p>
+
+<h3 id="homepage-vs-pages">Homepage vs all pages</h3>
+<p>The board is two bands. <strong>1–3 are the required homepage run</strong> (<code>/</code> only). <strong>4–5 are optional all-pages work</strong> that starts only after 3.4 opt-in. They reuse the signed homepage tokens and chrome. They do not recapture <code>/</code>, do not mine a second Design Library, and do not rewrite 2.3 geometry.</p>
+<table>
+  <tr><th></th><th>Homepage 1–3</th><th>All pages 4–5</th></tr>
+  <tr><td>Required?</td><td>Yes through 3.4. <code>skip</code> fails.</td><td>Opt-in at 3.4, then 4.4. Each phase has its own receipt.</td></tr>
+  <tr><td>Scope</td><td><code>/</code> only. Extra routes stay out of 1.2.</td><td>Extra sitemap URLs. Homepage stays out of 4.1.</td></tr>
+  <tr><td>Paper</td><td>New file. 1600 / 768 / 390 + Navigation at all three.</td><td>Same file. 4.2 is desktop pages only. 5.4 clips live 768 / 390 with no extra Paper frames.</td></tr>
+  <tr><td>Tokens</td><td>Mine one Design Library.</td><td>Bind that library. No second library.</td></tr>
+  <tr><td>Ship</td><td><code>rebuild/index.html</code>, then <code>index-polish.html</code>.</td><td><code>astro/</code> after 4.4 — chrome pulled once from the polish, one <code>.astro</code> body per page, built <code>dist/</code>. Does not replace <code>rebuild/</code>.</td></tr>
+  <tr><td>Hover / GSAP</td><td>3.2 on the polish homepage.</td><td>Interiors reuse the 3.4 chrome as shared Astro components. 5.5 is scrape-only SEO with structure frozen.</td></tr>
+</table>
+<p class="muted">3.4 can stop the run. 4.x is Paper-only. 5.x binds the site into Astro.</p>
+
+<h3 id="sessions">Three sessions, two handoffs</h3>
+<p><strong>A run spans three sessions so the model can change per phase.</strong> <strong>2.0</strong> and optional <strong>5.0</strong> are recommended on the strong tier — those are the phases that author HTML or Astro bodies no earlier artifact contains. 1.0, 3.0, and 4.0 are recommended on the operator tier: every step there either lands on a script that opens the artifacts and compares them, or stops for a human. <strong>The tier is advice, never a gate</strong> — no script checks the model, and a session runs on whichever model the operator chose without stopping to ask for a switch.</p>
+<p><code>mark --step 1.4 --status done</code> and <code>mark --step 2.4 --status done</code> release the controller lease and print a copy-ready prompt for the next session, also written to <code>qa/handoff-2.0.md</code> / <code>qa/handoff-3.0.md</code>. 4.4 opted in writes <code>qa/handoff-5.0.md</code>. Copy it into a fresh session on the right tier.</p>
+<p><strong>Relay (mid-session).</strong> When <code>mark</code> prints <code>RELAY armed</code>, finish the current unit and run <code>relay . --owner &lt;held&gt;</code>. It writes <code>qa/handoff-&lt;step&gt;.relayN.md</code>, releases the lease, and on a reachable Orca opens a terminal for the same agent and sends the prompt; otherwise it prints the block. The successor runs <code>resume . --at &lt;step&gt; --owner session-2b</code>. A relay is a change of agent, never a human stop.</p>
+<p><strong>A continued session never runs <code>start</code>.</strong> <code>start</code> force-resets the board and quarantines ship HTML — it is for a new run only. Sessions 2 and 3 resume:</p>
+<pre><code>python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --at 2.1 --owner session-2</code></pre>
+<p>That loads existing progress, refuses if predecessors are unfinished, claims the controller lease under the new owner, and rewrites the board HTML <strong>without opening a new tab</strong>. The live board was opened once by <code>start</code>. Full detail in <code>references/model-routing.md</code>. Pitfalls #179 #180 #191.</p>
+
+<!-- ========== 1.1 ========== -->
+<h2 id="s11">1.1 · Contract, files, fonts</h2>
+<p><strong>Concept.</strong> One script. Lock default scope and cache binaries. Structure and styling still come from Paper. Do not author a long contract or self-host fonts here.</p>
+<p><strong>Depends on.</strong> Live board exists (<code>start</code>). A URL.</p>
+<p><strong>What you do.</strong></p>
+<ol>
+  <li>Run the light scrape. It writes a stub <code>qa/fidelity-contract.md</code> (homepage-only, <code>web-responsive</code>, <strong>1600 / 768 / 390</strong>). Do not rewrite it. Do not interview to fill it.</li>
+  <li>The script curls the one URL, then parallel-downloads images + <strong>Latin <code>U+0000-00FF</code> fonts only</strong>. Extra sitemap routes do not expand Paper. Non-Latin <code>@font-face</code> subsets stay on the CDN (Pitfall #185).</li>
+  <li>1.2 <code>localize-html-images.mjs</code> reuses <code>source-site/assets/</code> and downloads any remaining live images. Do not re-download the scrape. Do not copy into <code>rebuild/</code> at 1.1.</li>
+  <li>Self-host those Latin files into <code>rebuild/fonts/*.woff2</code> + <code>css/fonts.css</code> at <strong>2.1</strong> (<code>verify-fonts.py</code>). Confirm license. Fallbacks always.</li>
+</ol>
+<p><strong>Scripts.</strong></p>
+<pre><code>./scripts/scrape-web.sh https://example.com/ source-site
+# 2.1, not 1.1:
+python3 $SKILLS/website-to-html/scripts/verify-fonts.py --rebuild rebuild --scrape source-site/index.html</code></pre>
+<p><strong>Artifacts.</strong> <code>qa/fidelity-contract.md</code> (stub), <code>source-site/</code> (HTML, Latin assets, <code>scraped-tokens.md</code>), <code>qa/asset-ledger.json</code>.</p>
+<p><strong>Mark done.</strong> <code>source-site</code> exists, or any of <code>qa/fidelity-contract.md</code> / <code>scrape-contract.md</code> / <code>source-site/scraped-tokens.md</code>.</p>
+<p><strong>Forbidden.</strong> Treating the scrape as the build. Importing more than one page. Firecrawl-to-HTML. Writing <code>rebuild/index.html</code>. Downloading every unicode-range woff2. Copying sibling-project assets. Inspecting font name tables at 1.1.</p>
+
+<!-- ========== 1.2 ========== -->
+<h2 id="s12">1.2 · Capture 1600 / 768 / 390 + Navigation</h2>
+<p><strong>Concept.</strong> Headless capture of <code>/</code> at all three widths through the existing <code>url-to-paper</code> path. <strong>Nothing here is model-authored</strong> — the old &ldquo;author 768 / 390 from desktop&rdquo; pass is retired. FRAME <code>Navigation</code> is captured at <strong>all three widths</strong>, which is what makes the 1.4 extension optional. Seed review frames. Prove desktop geometry. Opens no window and mounts no HUD. Navbar picker is not this step.</p>
+<p><strong>Depends on.</strong> 1.1. Paper MCP up. <code>mark --step 1.2 --status active</code> before work.</p>
+<p><strong>What you do.</strong></p>
+<ol>
+  <li>P-0 happens inside capture: <strong>create a new Paper file</strong> (<code>create_file</code>, timestamped name). Never <code>list_files</code> / never open a similarly-named existing document. Then create only <code>Ruler · desktop</code>. Design Library must not exist yet.</li>
+  <li>Live pre-pesticide inventory (sections / images / forms / landmarks).</li>
+  <li><code>capture-session.mjs</code>: capture the homepage at 1600, 768 and 390. Content sections only (<code>01</code> = hero). Clip <code>fullpage.png</code> and per-section source shots at each width. <code>Screenshots</code> board stays 1600 only at 50% opacity, <code>scale: "css"</code>, cap 1600px.</li>
+  <li><strong>Capture the compact chrome at each width</strong> onto FRAME <code>Navigation</code> as <code>01 · nav-1600</code> / <code>02 · nav-768</code> / <code>03 · nav-390</code>. Each take is serialized with the viewport actually at that width, so the compact bar and the burger are captured paint rather than a guess; open the menu where the live site opens it so closed <em>and</em> open states reach Paper. A missing take at any width keeps 1.2 open. If <code>home-desktop</code> has no navbar, port that compact stack onto the lander. Seed FRAME <code>Buttons</code> and <code>Components</code>. Then <code>breakpoint-shot-qa.mjs</code>.</li>
+  <li>Serializer writes <code>capture/home-desktop/layer-ids.json</code> with <code>generatedFrom: url-to-paper/serializer</code>, pc-ids, and live tags on every row. This is the semantic census. After desktop capture, <code>layer-ids-census.mjs</code> diffs visible live <code>h1–h6</code> / <code>p</code> / <code>a</code> / <code>img</code> / <code>button</code> against that sidecar. Red census fails 1.2 (Pitfall #167).</li>
+  <li>Automatic postflight: <code>stretch-root.mjs --prove --artboard home-desktop</code> only. Fail 1.2 if stretch fails. Do not run <code>qa-paper</code> or <code>merge-split-headings</code> in this postflight (merge-after-census breaks <code>pc-#</code>).</li>
+</ol>
+<p><strong>Scripts.</strong></p>
+<pre><code>node $SKILLS/url-to-paper/scripts/draw-rulers.mjs --init …
+node $SKILLS/url-to-paper/scripts/pre-pesticide.mjs --url "$URL" --width 1600 --out capture/home-desktop/pre-pesticide.json
+node $SKILLS/hover-reel/scripts/capture-session.mjs \
+  --url "$URL" --page home --out source-site/components --capture capture
+# omit --file — the session create_file a new Paper document
+node $SKILLS/url-to-paper/scripts/run-geometry-postflight.mjs …
+node $SKILLS/url-to-paper/scripts/stretch-root.mjs --prove --artboard home-desktop
+node $SKILLS/url-to-paper/scripts/breakpoint-shot-qa.mjs --project . --file-id "$PAPER_FILE_ID"
+node $SKILLS/url-to-paper/scripts/apply-review-sequence.mjs …</code></pre>
+<p class="muted">Leftover / CI only: <code>experiment-capture-home.mjs</code>. A visible Playwright HUD is a failed 1.2.</p>
+<p><strong>Artifacts.</strong> Paper artboard <code>Screenshots</code> (1600 section clips), <code>capture/home-desktop|768|390/</code> (including <code>layer-ids.json</code>, <code>source-sections/NN-slug.png</code>, <code>fullpage.png</code>), <code>qa/paper-file.json</code>, <code>qa/stretch-root-evidence.md</code>, <code>qa/breakpoint-shot-qa.json</code>, <code>review-sequence.json</code>. FRAME <code>Navigation</code> carrying three takes; empty Buttons / Components frames.</p>
+<p><strong>Mark done.</strong> Paper <code>Screenshots</code> board + <code>capture/home-desktop/</code> + stretch postflight green + source-section shots at three widths + Navigation takes at three widths + green <code>qa/breakpoint-shot-qa.json</code>.</p>
+<p><strong>Forbidden.</strong> Opening Chrome / HUD / navbar picker. Creating Design Library. Importing a second route. <strong>Opening an existing Paper file because the name looks similar</strong> — 1.2 always <code>create_file</code> (Pitfall #187). <strong>Hand-authoring a 768 / 390 frame instead of capturing it</strong> — if a breakpoint frame is wrong, fix the capture. Capturing Navigation at desktop only. Skipping 768 or 390 shots. Full-page source shot as a Paper artboard (opt-in only). <code>paper-asset://</code> in <code>write_html</code>. Pitfall #168.</p>
+
+<!-- ========== 1.3 ========== -->
+<h2 id="s13">1.3 · Design Library + Tokens</h2>
+<p><strong>Concept.</strong> The only Design Library creation and mining pass, and it now runs <strong>immediately after the 1.2 capture</strong> — on the frames that capture just wrote. Foundations only (fonts, type, colors, spacing, radius, desktop line-height as <code>%</code>, letter-spacing as <code>rem</code>) in Paper, then bind exact token matches back onto landers without changing geometry. After seed QA is green, still inside 1.3, pull unique buttons onto FRAME <code>Buttons</code> and unique cards onto FRAME <code>Components</code>.</p>
+<p><strong>Depends on.</strong> 1.2 green (stretch + census + landers at three widths + Navigation at three widths). <code>qa/paper-file.json</code>.</p>
+<p><strong>What you do.</strong> One official writer:</p>
+<pre><code>node $SKILLS/url-to-paper/scripts/run-design-library-step.mjs \
+  --project . --file-id $PAPER_FILE_ID --expect-file &lt;file-name&gt;</code></pre>
+<p>That path is: inventory once → mine once → <code>extract-library.mjs</code> → <code>render-library.mjs --kind foundations</code> → replace Paper tokens with one canonical set → <code>apply-theme-tokens.mjs</code> bind exact matches once. No seed-check retry loop.</p>
+<pre><code>python3 $SKILLS/web2html/scripts/library_14_foundations_gate.py .</code></pre>
+<p>Then walk every <code>NN ·</code> section on token-seeded <code>home-desktop</code>, write <code>qa/buttons-components-plan.json</code> (every specimen has <code>sectionId</code> matching that <code>NN</code>), and park unique CTAs / cards. Each parked row keeps the review card: red badge is the source section, title is the specimen name.</p>
+<pre><code>node $SKILLS/hover-reel/scripts/pull-desktop-specimens.mjs \
+  --project . --file-id $PAPER_FILE_ID \
+  --plan qa/buttons-components-plan.json</code></pre>
+<p>Recipe: <code>references/13-buttons-components.md</code>. Receipts <code>qa/buttons-components-pull.json</code> and <code>qa/button-hover.json</code> (source CSS hover on pulled Buttons). The pull already runs <code>author-button-hover.mjs</code>.</p>
+<p><strong>Rules baked in.</strong> Opaque brand fills stay separate from alpha tints of the same RGB (<code>--color-accent</code> vs <code>--color-accent-soft</code>). Never paint a 1.2-unpainted frame. Never <code>flatten-paper-buttons.mjs</code>. Never <code>write_html</code> a stub sheet. Kill 20s of silence.</p>
+<p><strong>Artifacts.</strong> Paper artboard <code>Design Library</code>, <code>design-library/library.json</code>, <code>qa/design-library-step.json</code> (<code>writer: render-library.mjs</code>, <code>kind: foundations</code>), <code>qa/token-pass.json</code> + <code>qa/token-pass-qa.json</code>, FRAME <code>Buttons</code> + FRAME <code>Components</code> specimens, <code>qa/buttons-components-pull.json</code>, <code>qa/button-hover.json</code>.</p>
+<p><strong>Mark done.</strong> Library on disk <strong>and</strong> those two QA files green with the official writer commands listed, <strong>and</strong> <code>qa/buttons-components-pull.json</code> <strong>and</strong> <code>qa/button-hover.json</code>. Disk-only without the Paper artboard does not count.</p>
+<p><strong>Forbidden.</strong> Components artboard. Skipping Stage L. Inventing a second Design Library. <strong>Waiting for the Capture Tool before mining</strong> — that stalls the run for a human who may have nothing to do (Pitfall #181). If Capture Tool later adds hover frames, re-run the bind over those frames only.</p>
+
+<!-- ========== 1.4 ========== -->
+<h2 id="s14">1.4 · Human Paper checkpoint</h2>
+<p class="stop">HARD STOP · emits the SESSION 2 prompt.</p>
+<p><strong>Concept.</strong> This is the single human checkpoint that closes out Design. 1.3 already filled FRAME <code>Buttons</code> and FRAME <code>Components</code> from desktop. Walk Paper, pin comments, sign off. Capture Tool is leftover live hover only. This is also the model-switch boundary: the visuals are approved here, and the run moves to the strong tier for 2.0.</p>
+<p><strong>Depends on.</strong> 1.3 done. <code>qa/paper-file.json</code>.</p>
+<p><strong>First action</strong> (writes the review file if missing, opens Paper, runs the bridge doctor, and opens the browser on the source URL stamped with <code>?paperFileId=…&amp;projectRoot=…</code> so the Capture Tool side panel connects without typing — Pitfall #217):</p>
+<pre><code>python3 $SKILLS/web2html/scripts/pipeline-progress.py mark /path/to/templates/&lt;project&gt; --step 1.4 --status active
+# re-open that Capture Tool tab / re-check the native bridge (FAIL = side panel OFFLINE):
+python3 $SKILLS/web2html/scripts/pipeline-progress.py open-capture   /path/to/templates/&lt;project&gt;
+python3 $SKILLS/web2html/scripts/pipeline-progress.py capture-doctor /path/to/templates/&lt;project&gt;
+# optional SESSION 2 prompt without marking done:
+python3 $SKILLS/web2html/scripts/pipeline-progress.py handoff /path/to/templates/&lt;project&gt;</code></pre>
+<p><strong>Orca.</strong> <code>start</code> / <code>resume</code> print a probe line. <strong>2.3 VALIDATE LOOK always runs <code>wave.py</code></strong> (Pitfall #221). When the probe says <code>orca reachable</code>, that wave opens supervised terminals of the <strong>same agent</strong>. A session near its context ceiling relays to a fresh terminal instead of stopping. Absent Orca, 2.3 still calls <code>wave.py</code> on the serial rung (Pitfall #218 #219 #220).</p>
+<pre><code>python3 $SKILLS/web2html/scripts/harness_probe.py  /path/to/templates/&lt;project&gt; --brief
+python3 $SKILLS/web2html/scripts/context_budget.py /path/to/templates/&lt;project&gt; --brief
+python3 $SKILLS/web2html/scripts/pipeline-progress.py relay /path/to/templates/&lt;project&gt; --owner session-2
+python3 $SKILLS/web2html/scripts/wave.py prepare /path/to/templates/&lt;project&gt; --phase 2.3 --run-id r1
+python3 $SKILLS/web2html/scripts/wave.py start   /path/to/templates/&lt;project&gt; --phase 2.3 --run-id r1
+python3 $SKILLS/web2html/scripts/wave.py wait    /path/to/templates/&lt;project&gt; --phase 2.3 --run-id r1
+python3 $SKILLS/web2html/scripts/wave.py apply   /path/to/templates/&lt;project&gt; --phase 2.3 --run-id r1</code></pre>
+<p><strong>What you do.</strong> Stop. Last action: the 1.4 question modal. Walk 1600 / 768 / 390, FRAME <code>Navigation</code>, FRAME <code>Buttons</code>, FRAME <code>Components</code>, Design Library. Pin comments on anything wrong. Choices: <strong>Done &amp; continue to next step</strong> and <strong>Provide hand-off prompt to start fresh session</strong>.</p>
+<p><strong>Optional Capture Tool</strong> (<code>hover-reel/capture-extension/</code>): leftover live hover pairs only. Hover parks on FRAME <code>Buttons</code>. Multi / Single park on FRAME <code>Components</code>. Nav → Hover → Multi → Single → Done. Not a 1.4 done-gate. <strong>OFFLINE in the side panel</strong> means the native bridge is missing for the browser you loaded it in: <code>./scripts/install-skills.sh</code> installs it for every Chromium browser found (Chrome, Brave, Chromium, Edge, Arc), or run <code>sh &quot;$SKILLS/hover-reel/capture-extension/install-native-host.command&quot; --quiet</code>, then fully quit and reopen the browser. The installer finds node off Finder's bare PATH and pins the resolved binary. <code>PAPER_CAPTURE_BROWSER=&quot;Brave Browser&quot;</code> picks the browser <code>mark</code> / <code>open-capture</code> opens.</p>
+<p><strong>Before 2.1</strong> (first action of Build, even if they said &ldquo;build&rdquo;):</p>
+<pre><code>node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID</code></pre>
+<p>Exit 2 = open threads. Apply each fix on the canvas, resolve only after it lands, re-run until exit 0. Writes <code>qa/paper-comments.json</code>. Agents cannot create comments.</p>
+<p><strong>Handoff.</strong> Marking 1.4 done requires <code>qa/paper-human-review.md</code>, releases the controller lease, and prints the session 2 prompt, also written to <code>qa/handoff-2.0.md</code>:</p>
+<pre><code>python3 $SKILLS/web2html/scripts/pipeline-progress.py mark . --step 1.4 --status done</code></pre>
+<p>Copy that block into a <strong>new session on the strong tier</strong>. It carries the project root, source URL, Paper file id, board URI, what is already signed, and the exact first commands — starting with <code>resume . --at 2.1 --owner session-2</code>, never <code>start</code>.</p>
+<p><strong>Mark done.</strong> <code>qa/paper-human-review.md</code> with sign-off recorded in that file.</p>
+<p><strong>Forbidden.</strong> <code>get_jsx</code>, 2.1, or <code>rebuild/*.html</code> before sign-off. Treating green <code>qa-paper</code> or silence as sign-off. Asking for this review before 1.3 exists. Starting 2.1 after the hand-off choice. Continuing into 2.0 without the human picking <strong>Done &amp; continue to next step</strong>.</p>
+
+<!-- ========== 2.1 ========== -->
+<h2 id="s21">2.1 · Design System</h2>
+<p><strong>Concept.</strong> Emit the token contract from the signed 1.3 Design Library. Script, not the model. <code>rebuild/design-system.html</code> + <code>rebuild/css/tokens.css</code>. Not the ship.</p>
+<p><strong>Depends on.</strong> 1.1–1.4 done. <code>design-library/library.json</code>. Paper <code>Design Library</code> artboard.</p>
+<p><strong>Preflight.</strong></p>
+<pre><code>python3 $SKILLS/web2html/scripts/rebuild_write_gate.py . --allow design-system
+node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID</code></pre>
+<p><strong>What you do.</strong></p>
+<ol>
+  <li>Comment gate until exit 0. Apply every open thread on the canvas first.</li>
+  <li>Emit the sheet from <code>library.json</code> — do not freehand it.</li>
+</ol>
+<pre><code>node $SKILLS/url-to-paper/scripts/emit-design-system.mjs --project .
+python3 $SKILLS/web2html/scripts/design_system_21_gate.py .</code></pre>
+<p><strong>Artifacts.</strong> <code>rebuild/design-system.html</code>, <code>rebuild/css/tokens.css</code>, <code>rebuild/css/fonts.css</code>, <code>qa/design-system-21.json</code>.</p>
+<p><strong>Mark done.</strong> Foundations page links <code>tokens.css</code> and <code>fonts.css</code> and paints <code>var(--color-*)</code>. Tokens match <code>library.json</code>. Receipt from <code>emit-design-system.mjs</code>.</p>
+<p><strong>Font fidelity gate.</strong> 1.1 retains each face’s style. 2.1 emits distinct family/weight/style/content filenames and preserves actual weight ranges; a lone static face is not a variable font. <code>design_system_21_gate.py</code> and <code>verify-fonts.py</code> compare CSS descriptors and file hashes against the saved source. Missing exact files or unknown legacy hashed styles stop emission—never substitute another style. Keep intentional source italics; widespread slant with computed <code>font-style: normal</code> means check the font binary, not add a global CSS reset. The raw reference shares <code>fonts.css</code>, so validate rendered text against the 1.2 screenshots too.</p>
+<p><strong>Forbidden.</strong> Treating this page as the ship. Freehanding the gallery. Inventing <code>--color</code> / <code>--font</code> names. Hardcoding <code>#1A1A1A</code> chrome. Writing <code>rebuild/index.html</code> or <code>index-semantic.html</code> here.</p>
+
+<!-- ========== 2.2 ========== -->
+<h2 id="s22">2.2 · Author semantic responsive page</h2>
+<p><strong>Concept.</strong> Two files at this step. Write <code>rebuild/index-raw.html</code> from Paper <code>get_jsx</code> of <code>home-desktop</code> (reference dump, not the ship). Then load 4.8 <code>frontend-design</code> and author <code>rebuild/index-semantic.html</code> from Paper using 2.1 tokens. Aesthetic-risk OFF. No dump metadata on the first pass. No skip-link. No source or external <code>&lt;a href&gt;</code>. Do <strong>not</strong> write <code>index.html</code> here.</p>
+<p><strong>Depends on.</strong> 2.1 Design System page. Paper 1600 / 768 / 390.</p>
+<p><strong>Preflight.</strong></p>
+<pre><code>python3 $SKILLS/web2html/scripts/rebuild_write_gate.py . --allow index
+node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID</code></pre>
+<p><strong>What you do.</strong></p>
+<ol>
+  <li>Comment gate until exit 0 if new threads opened.</li>
+  <li>Paper <code>get_jsx</code> of <code>home-desktop</code> → save JSON → <code>dump_index_raw.py</code> → <code>rebuild/index-raw.html</code>. Real HTML, <code>tokens.css</code> linked, no self-closing <code>&lt;div /&gt;</code>. Do not overlay this file.</li>
+  <li>Load 4.8 frontend-design. Write <code>rebuild/index-semantic.html</code> from Paper desktop (+ 768 / 390) using <code>var(--token)</code> from 2.1. Do not copy live-site URLs. Do not write <code>index.html</code>.</li>
+  <li>Receipt <code>qa/frontend-design-21.md</code>.</li>
+</ol>
+<pre><code>python3 $SKILLS/web2html/scripts/dump_index_raw.py . --from qa/index-raw.jsx.json
+python3 $SKILLS/web2html/scripts/author_21_gate.py .</code></pre>
+<p><strong>Artifacts.</strong> <code>rebuild/index-raw.html</code> (HTML get_jsx reference + tokens), <code>rebuild/index-semantic.html</code> (authored first pass), <code>qa/frontend-design-21.md</code>.</p>
+<p><strong>Mark done.</strong> Both files exist. Raw dump is HTML (not JSON). First pass links <code>tokens.css</code>. Not a get_jsx dump on <code>index-semantic.html</code>. Marking 2.2 done seeds <code>index.html</code>.</p>
+<p><strong>Forbidden.</strong> Writing the MCP JSON blob as <code>index-raw.html</code>. Self-closing <code>&lt;div /&gt;</code>. Shipping the dump as the first pass. Writing <code>index.html</code> at 2.2. Skipping <code>index-raw.html</code>. React / Tailwind CDN. Skip-link. Opening Chrome on this draft.</p>
+
+<!-- ========== 2.3 ========== -->
+<h2 id="s23">2.3 · Validate each section vs Paper</h2>
+<p><strong>Concept.</strong> <strong>Never skip.</strong> Compare each rebuild band to the <strong>1.2 source-section clips</strong> already on disk at <strong>1600 / 768 / 390</strong> and to <code>rebuild/index-raw.html</code>. Measure/APPLY is serial (controller writes <code>rebuild/</code>). VALIDATE LOOK <strong>MUST</strong> run <code>wave.py</code> after <code>--shoot-open</code> (Orca terminals when the probe says <code>waves orca</code>). <strong>No Paper MCP</strong> — do not spawn one <code>get_screenshot</code> worker per section (Pitfall #202). Pixel-perfect is a one-pass assist — not a refine loop. Recipe <code>references/section-23-paper-loop.md</code>.</p>
+<p><strong>Depends on.</strong> 2.2 <code>index-semantic.html</code>, <code>rebuild/index-raw.html</code>, and <code>capture/home-{desktop,768,390}/source-sections/</code>.</p>
+<p><strong>Loop.</strong></p>
+<ol>
+  <li>Seed the lock: <code>seed_index.py</code> copies <code>index-semantic.html</code> → <code>index.html</code> (never overwrite). Do not mutate the first pass.</li>
+  <li>List ship bands from <code>rebuild/index.html</code> (<code>&lt;section id&gt;</code> + footer).</li>
+  <li>Census dump vs ship: <code>raw_23_census.py .</code> — SVG/icon fills in <code>index-raw.html</code> the author dropped.</li>
+  <li>Map clips: <code>paper_23_disk_gold.py .</code> — fail closed if a numbered 1.2 <code>NN-slug.png</code> is missing at any breakpoint.</li>
+  <li>Shoot <code>file://</code> rebuild once at 1600 / 768 / 390 (<code>paper_23_rebuild_shots.py . --all</code>, includes footer).</li>
+  <li>Pull the 1.2 clips: <code>paper_23_clip_compare.py .</code> copies <code>capture/home-{desktop,768,390}/source-sections/01-hero.png</code> (same number at every width) into <code>qa/paper-measure/compare/NN-slug-{width}-source.png</code> and writes a side-by-side vs the rebuild shot. <strong>Read those PNGs.</strong> Do not use 1.1 <code>source-site/screenshots/</code> here.</li>
+  <li>Write <code>qa/paper-measure/&lt;id&gt;.json</code> with <code>rawCompared: true</code>, <code>diskCompared: true</code>, and <code>clipCompared: true</code> before proposing CSS.</li>
+  <li>Controller is the only <code>rebuild/</code> writer. Apply scoped patches serially. Port missing dump glyphs — do not invent Lucide icons. Overlay cards stay <code>position: absolute</code> siblings of the photo.</li>
+  <li>Pixel-perfect at most once per section, only on watch-list misses, only against the disk PNGs, then stop. Re-shoot only changed sections (max 1).</li>
+  <li>No invented 1024 or max-width 1320 unless Paper has that artboard.</li>
+  <li><strong>VALIDATE LOOK</strong> (2.23.0). <code>paper_23_validate.py . --shoot-open</code> re-shoots every open band, then <strong>MUST</strong> <code>wave.py prepare/start/wait/apply</code>. Adapter from the probe: <code>orca</code> opens Orca terminals of the same agent, <code>subagent</code> dispatches this harness's subagents, <code>serial</code> means the controller does each printed spec. Apply printed patches, then <code>--record</code> from the findings. Round 3 still off → <code>--residual</code>. Do not Read the sides yourself on the orca/subagent rungs (Pitfall #216 #221).</li>
+</ol>
+<pre><code>python3 $SKILLS/web2html/scripts/seed_index.py .
+python3 $SKILLS/web2html/scripts/raw_23_census.py .
+python3 $SKILLS/web2html/scripts/paper_23_disk_gold.py .
+python3 $SKILLS/web2html/scripts/paper_23_rebuild_shots.py . --all
+python3 $SKILLS/web2html/scripts/paper_23_clip_compare.py .
+# … measure + APPLY, then VALIDATE LOOK:
+python3 $SKILLS/web2html/scripts/paper_23_validate.py . --shoot-open
+python3 $SKILLS/web2html/scripts/wave.py prepare . --phase 2.3 --run-id r1
+python3 $SKILLS/web2html/scripts/wave.py start   . --phase 2.3 --run-id r1
+python3 $SKILLS/web2html/scripts/wave.py wait    . --phase 2.3 --run-id r1
+python3 $SKILLS/web2html/scripts/wave.py apply   . --phase 2.3 --run-id r1
+# apply printed patches, then each printed --record
+python3 $SKILLS/web2html/scripts/paper_23_validate.py . --status
+python3 $SKILLS/web2html/scripts/section_22_gate.py .</code></pre>
+<p><strong>Artifact / mark done.</strong> <code>qa/paper-measure/raw-census.json</code>, <code>qa/paper-measure/disk-gold.json</code>, <code>qa/paper-measure/clip-compare.json</code>, pulled files under <code>qa/paper-measure/compare/NN-slug-*.png</code>, <code>qa/paper-measure/_index.json</code> (<code>measured: true</code>, <code>rawCompared: true</code>, <code>diskCompared: true</code>, <code>clipCompared: true</code> per section), <code>qa/paper-measure/&lt;id&gt;.validate.json</code> per band (last round <code>match</code> at every width or a capped residual, non-empty <code>seen</code>, ship unchanged since that round was shot) <strong>and</strong> <code>qa/section-align-22.json</code> (<code>ok: true</code> at 1600 / 768 / 390).</p>
+<p><strong>Forbidden.</strong> Skipping 2.3. Missing <code>index-raw.html</code>. Signing aligned without reading the dump (Pitfall #201). Inventing Lucide icons when index-raw has the glyph. Loading <code>/pixel-perfect</code> as the 2.3 driver or running its refine loop (Pitfall #195). Eyeball aligned without dump numbers (Pitfall #185). Spawning one Paper-bound worker per section (Pitfall #202). Workers writing <code>rebuild/</code>. Full-page <code>get_jsx</code> each pass. Skipping <code>wave.py</code> at VALIDATE LOOK, recording a round without a wave finding, a fourth round, or a residual before round 3 (Pitfall #216 #221). Jumping to 2.4 while a section is open.</p>
+
+<!-- ========== 2.4 ========== -->
+<h2 id="s24">2.4 · Sign-off → 3.0 polish</h2>
+<p class="stop">HARD STOP · emits the SESSION 3 prompt. Polish has not started.</p>
+<p><strong>Concept.</strong> QA overlay pesticide outlines ON by default in TAGS mode. Overlay default is TAGS, not off and not a hidden query. Open Chrome on the authored ship. Human receipt. Continue starts Session 3 polish at 3.1. <code>index-polish.html</code> does not exist until then.</p>
+<p><strong>Depends on.</strong> Green 2.3. Overlay files on disk.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/inject-qa-overlay.py .
+python3 $SKILLS/website-to-html/scripts/open-build-review.py . --stage 2.4
+node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID</code></pre>
+<p>Pass the <strong>project root</strong> or <code>rebuild/index.html</code>. Overlay CSS/JS always land in <code>rebuild/css</code> and <code>rebuild/js</code> — never a sibling <code>css/</code> / <code>js/</code> next to the project (Pitfall #197).</p>
+<p>Chrome opens <code>file://…/rebuild/index.html?qa-outlines=tags</code>. Overlay default is TAGS, not off and not a hidden query. Write <code>qa/build-checkpoint.md</code> only after approval. Last action: blocking <strong>Continue to 3.0 polish (3.1–3.4)</strong> (native choice/CTA tool if this harness has one; resume token is the word Continue). Controller still applies every open Paper thread, resolves only after both Paper and ship match.</p>
+<p><strong>Handoff.</strong> Marking 2.4 done releases the controller lease and prints the session 3 prompt, also written to <code>qa/handoff-3.0.md</code>. Copy it into a <strong>new operator-tier session</strong>; it starts with <code>resume . --at 3.1 --owner session-3</code>. It does not create <code>index-polish.html</code>.</p>
+<p><strong>Mark done.</strong> Overlay present + <code>qa/build-checkpoint-opened.json</code> (stage <code>2.4</code>) + <code>qa/build-checkpoint.md</code>.</p>
+<p><strong>Forbidden.</strong> Opening 2.4 while 2.3 is red. Starting 3.x without the human receipt. Overlay default off. Continuing into 3.0 in the same session without emitting the prompt.</p>
+
+<!-- ========== 3.1 ========== -->
+<h2 id="s31">3.1 · QA pass 1 (a11y + contrast + anti-slop)</h2>
+<p><strong>Concept.</strong> First polish pass on a <strong>copy</strong> of the 2.4-approved ship. <code>rebuild/index.html</code> stays the lock. Write <code>rebuild/index-polish.html</code> only. 2.3 already signed layout, type, icons, and geometry. Do <strong>not</strong> restore Paper paint. Apply accessibility, contrast/readability on existing tokens, and anti-AI-slop only. Do not change font-size, Design Library class names, gap, radius, or section order.</p>
+<p><strong>Depends on.</strong> 2.4 approved. Read <code>references/polish-visual-restore.md</code> first. <code>qa/fidelity-freeze-24.json</code> is snapshotted at 2.4 done. <code>index-polish.html</code> is seeded when 3.1 goes active — that copy is not polished until 3.1–3.3 finish.</p>
+<p><strong>Skills.</strong> <code>impeccable</code> (<code>audit</code> + <code>polish</code> only), then <code>design-taste-frontend</code>. No craft/bolder/typeset/layout. If the build does not match Paper, return to 2.3 — do not taste a drifted page into looking different.</p>
+<p><strong>Artifacts / mark done.</strong> <code>qa/polish-passes/c3-3.1-impeccable.json</code> and <code>qa/polish-passes/c3-3.2-design-taste-frontend.json</code>.</p>
+<p><strong>Forbidden.</strong> Font-size / <code>--text-*</code> edits. Replacing <code>btn-primary</code> (or any library name). Visual restore of icons/gaps. Invented skip-link / marketing meta. Pixel-perfect.</p>
+
+<!-- ========== 3.2 ========== -->
+<h2 id="s32">3.2 · QA pass 2 (hover + GSAP + guidelines a11y)</h2>
+<p><strong>Concept.</strong> Second polish pass: 1.3 source-CSS button hover (if paint exists), a painted burger open drawer, FAQ accordion, nav dropdowns, mandatory sequential GSAP reveals, plus interface-guidelines accessibility. Inject GSAP on every run — do not skip because 1.4 did not record in-view motion. Do not skip hover, the burger drawer, FAQ, or dropdowns because Capture Tool did not run. Do not skip FAQ because Paper signed empty bodies. Do not restore Paper geometry.</p>
+<p><strong>Depends on.</strong> 3.1 receipts.</p>
+<p><strong>Skills / scripts.</strong> <code>emil-design-eng</code>, <code>web-design-guidelines</code>, <code>find-animation-opportunities</code> (read-only extras; GSAP inject is Emil), <code>apple-design</code> (principles). <code>mark --step 3.2 --status active</code> already runs <code>apply-hover-css.py</code>, <code>author-nav-drawer.py</code>, <code>author-faq.py</code>, and <code>author-nav-dropdown.py</code>. Always run:</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/apply-hover-css.py .
+python3 $SKILLS/website-to-html/scripts/author-nav-drawer.py .
+python3 $SKILLS/website-to-html/scripts/author-faq.py .
+python3 $SKILLS/website-to-html/scripts/author-nav-dropdown.py .
+python3 $SKILLS/website-to-html/scripts/inject-gsap-reveal.py rebuild/index-polish.html
+python3 $SKILLS/website-to-html/scripts/verify-gsap-reveal.py .</code></pre>
+<p>Reveals start when a parent group's top crosses 25% of the viewport from the bottom (<code>start: "top 75%"</code>), then stagger that group's first children + siblings 80ms (heads → text; grids → articles/divs). Hover CSS lands on existing <code>library.json</code> class names in <code>rebuild/css/hover.css</code> from <code>qa/button-hover.json</code>. If a hamburger is painted, <code>author-nav-drawer.py</code> stacks the same desktop links into <code>#nav-panel</code>. If FAQ rows are painted, <code>author-faq.py</code> wires the accordion and fills empty answers from the scrape. If a nav dropdown is painted or the scrape has a matching submenu, <code>author-nav-dropdown.py</code> wires hover/click. Do not invent UA-blue link hover. Do not skip the drawer, FAQ, or dropdowns for Capture Tool. Do not rename classes. Do not mutate <code>index.html</code>. 3.1 must not write <code>hover.css</code>.</p>
+<p><strong>Artifacts / mark done.</strong> <code>qa/polish-passes/c3-3.3-emil-design-eng.json</code>, <code>qa/button-hover-css.json</code>, <code>qa/nav-drawer.json</code>, <code>qa/faq.json</code>, <code>qa/nav-dropdown.json</code>, plus the three companion receipts <code>qa/web-design-guidelines.md</code>, <code>qa/find-animation-opportunities.md</code>, <code>qa/apple-design.md</code> (Pitfall #215).</p>
+<p><strong>Then:</strong></p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/verify-polish-passes.py .</code></pre>
+<p>That gate wants C/3.1–3.3 receipts, the three companion receipts, and <code>qa/polish-report.html</code> before 3.4.</p>
+
+<!-- ========== 3.3 ========== -->
+<h2 id="s33">3.3 · Semantics + SEO sweep</h2>
+<p><strong>Concept.</strong> Last automated pass before 3.4. Polish may have added a11y labels. Re-run SEO / a11y <strong>without retagging</strong> signed 2.3 markup. SEO head is scrape-only. No invented skip-link or marketing meta. Do not touch hover. Do not run type-align mutation or <code>apply-library-classes.py</code>.</p>
+<p><strong>Depends on.</strong> 3.2.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/semantics_pass.py rebuild/index-polish.html -o rebuild/index-polish.html --freeze-structure
+python3 $SKILLS/website-to-html/scripts/verify-semantics.py rebuild/index-polish.html
+python3 $SKILLS/website-to-html/scripts/fidelity_freeze.py verify .</code></pre>
+<p><strong>Mark done.</strong> <code>qa/semantics-pass-qa.json</code>.</p>
+<p><strong>Forbidden.</strong> Skipping this because 3.4 exists. Invented skip-link. Stopping 3.4 with only <code>index.html</code> and no <code>index-polish.html</code> or polish report. Writing the 2.4 lock. Replacing or re-running hover states already authored earlier in the run.</p>
+
+<!-- ========== 3.4 ========== -->
+<h2 id="s34">3.4 · Human checkpoint</h2>
+<p class="stop">HARD STOP. Homepage run can end here. Optional Phase 4 is next.</p>
+<p><strong>Concept.</strong> Human compares the 2.4 lock (<code>rebuild/index.html</code>) with the QA file (<code>rebuild/index-polish.html</code>) next to the 3.1–3.3 polish report. Overlay chip <strong>Polish 3.1–3.3</strong> on the polish file. Then choose: finish the homepage run, or continue to optional Phase 4.</p>
+<p><strong>Depends on.</strong> Green 3.3. Both HTML files present. No active reviewer leases. <code>verify-polish-passes.py</code> green.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/open-human-review.py .</code></pre>
+<p>Last action is a two-option question: <strong>Done — finish homepage run</strong> writes <code>qa/phase-4-skipped.json</code> and tidies; <strong>Continue to optional Phase 4</strong> writes <code>qa/phase-4-opted.json</code> and does not tidy.</p>
+<p><strong>Forbidden.</strong> Marking 3.4 done without a Phase 4 receipt. Tidying mid-flow.</p>
+
+<h2 id="s41">4.1 · Sitemap (optional)</h2>
+<p><strong>Concept.</strong> List extra source URLs from sitemap.xml. Homepage stays out.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/scrape-sitemap.py .</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-4-sitemap.json</code>.</p>
+
+<h2 id="s42">4.2 · Capture pages (optional)</h2>
+<p><strong>Concept.</strong> Desktop only. One Paper page per URL in the 1.2 file. Never create_file.</p>
+<pre><code>node $SKILLS/hover-reel/scripts/capture-extra-pages.mjs --project .</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-4-pages.json</code>.</p>
+
+<h2 id="s43">4.3 · Seed tokens (optional)</h2>
+<p><strong>Concept.</strong> Serial bind of the signed Design Library. No second library. No create_tokens.</p>
+<pre><code>node $SKILLS/url-to-paper/scripts/seed-interior-page-tokens.mjs --project .</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-4-token-seed.json</code>.</p>
+
+<h2 id="s44">4.4 · Human review (optional)</h2>
+<p class="stop">HARD STOP.</p>
+<p><strong>Concept.</strong> Walk the extra Paper pages and pin comments.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/open-phase-4-review.py .</code></pre>
+<p>Last action is a two-option question: <strong>Done — finish Paper run</strong> writes <code>qa/phase-5-skipped.json</code> and tidies; <strong>Continue to optional Phase 5</strong> writes <code>qa/phase-5-opted.json</code> and does not tidy.</p>
+<p><strong>Forbidden.</strong> Marking 4.4 done without a Phase 5 receipt. Tidying when Phase 5 is opted in.</p>
+
+<h2 id="s51">5.1 · Scaffold Astro + shared chrome (optional)</h2>
+<p><strong>Concept.</strong> Astro first. Create <code>astro/</code> from the 3.4 rebuild CSS, fonts, images, and client scripts. Pull Header and Footer <strong>once</strong> from <code>rebuild/index-polish.html</code>, plus every Paper-backed button or comment-nominated block that can stay shared. Convert the polish homepage to <code>src/pages/index.astro</code> on that chrome. Every later page reuses it. No React. No Tailwind CDN. Do not start a server.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/scaffold-astro.py .
+python3 $SKILLS/website-to-html/scripts/extract-astro-components.py .
+python3 $SKILLS/website-to-html/scripts/convert-astro-home.py .</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-5-scaffold.json</code> + <code>qa/phase-5-components.json</code> + <code>qa/phase-5-home.json</code>.</p>
+<p>Recipe: <code>references/phase-5-astro.md</code>.</p>
+
+<h2 id="s52">5.2 · Author pages (optional)</h2>
+<p><strong>Concept.</strong> Serial Paper dumps, then at most two workers author <strong>only the <code>&lt;main&gt;</code> body</strong> of <code>astro/src/pages/{slug}.astro</code> from the Design System + the Paper desktop brief, importing BaseLayout + Header + Footer + the 5.1 components they use. No inline header / footer. No new token names. Hrefs stay <code>#</code>. <code>rebuild/</code> only takes the raw dumps.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/rebuild_write_gate.py . --allow pages
+node $SKILLS/website-to-html/scripts/dump-interior-raw.mjs --project .
+python3 $SKILLS/website-to-html/scripts/record-phase-5-pages.py .</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-5-pages.json</code>.</p>
+
+<h2 id="s53">5.3 · Desktop QA (optional)</h2>
+<p><strong>Concept.</strong> The ship is the built page. <code>astro build</code>, relativize <code>astro/dist</code> for <code>file://</code>, then the 2.3-style clip loop at 1600 against <code>capture/{slug}-desktop/source-sections/</code>. Fix in the <code>.astro</code> body, rebuild, reshoot. No Paper MCP.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/build-astro-dist.py .
+python3 $SKILLS/website-to-html/scripts/paper_23_rebuild_shots.py . --page {slug} --ship astro/dist/{slug}/index.html --widths 1600 --all
+python3 $SKILLS/website-to-html/scripts/phase_5_compare.py . --mode desktop</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-5-clip-compare.json</code>.</p>
+
+<h2 id="s54">5.4 · Responsive (optional)</h2>
+<p><strong>Concept.</strong> Live 768 / 390 section clips on disk. Never <code>create_page</code> / <code>write_html</code>. Reshoot the built page at those widths, then the same compare. Real media queries.</p>
+<pre><code>node $SKILLS/hover-reel/scripts/capture-interior-breakpoints.mjs --project .
+python3 $SKILLS/website-to-html/scripts/paper_23_rebuild_shots.py . --page {slug} --ship astro/dist/{slug}/index.html --widths 768,390 --all
+python3 $SKILLS/website-to-html/scripts/phase_5_compare.py . --mode responsive</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-5-responsive.json</code>.</p>
+
+<h2 id="s55">5.5 · Wire routes + SEO (optional)</h2>
+<p><strong>Concept.</strong> Sitemap paths and nav / footer labels → Astro routes across <code>astro/src</code>: home → <code>/</code>, <code>/about</code> → <code>/about/</code>, leftover <code>.html</code> → routes, external / mailto / tel stay <code>#</code>. Then per-page scrape-only SEO into that page's frontmatter (title / description / lang / canonical / og:image from the page's own URL). Homepage takes its own <code>qa/scrape-meta.json</code>; never stamp homepage meta onto interiors. No heading or section retag. Then <code>astro build</code>. The agent never starts <code>astro dev</code>.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/wire-astro-routes.py .</code></pre>
+<p><strong>Mark done.</strong> <code>qa/phase-5-links.json</code>.</p>
+
+<h2 id="s56">5.6 · Human checkpoint (optional)</h2>
+<p class="stop">HARD STOP.</p>
+<p><strong>Concept.</strong> Review the built routes on <code>file://</code> from <code>astro/dist</code> (shared chrome = 3.4 polish; bodies = Paper). Human preview server is optional: <code>cd astro && npm run preview</code>.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/open-phase-5-review.py .</code></pre>
+<p><strong>Mark done</strong> requires <code>qa/phase-5-review.md</code> and tidies: keep <code>rebuild/</code>, <code>astro/</code>, and the finished <code>pipeline.html</code>.</p>
+
+<h2 id="folders">Folder contract</h2>
+<pre><code>capture/          Stage P · serialized DOM, fullpage.png, layer-ids, source-sections
+design-library/   Stage L · library.json, optional exports-inline/
+source-site/      1.1 scrape + 1.3 component state HTML
+rebuild/          Ship · only after 1.4. tokens live in rebuild/css/tokens.css
+astro/            Optional Phase 5 · chrome from the signed homepage, one .astro body per page, built dist/
+qa/               Gates and receipts (gone after 3.4 tidy)</code></pre>
+<p>Never <code>site/</code> or <code>v1/</code> as ship paths. CMS is parked in <code>archive/</code>.</p>
+
+<hr />
+<p class="muted">Sources: <code>SKILL.md</code>, <code>references/pillars.md</code>, <code>references/paper-design-to-code.md</code>, <code>scripts/pipeline-progress.py</code> <code>artifact_done</code>. Live run order: the project’s <code>pipeline.html</code>.</p>
+
+</body>
+</html>

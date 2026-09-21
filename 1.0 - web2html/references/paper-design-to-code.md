@@ -57,21 +57,21 @@ semantic exist, `index-semantic.html` is not a dump, links `tokens.css`.
 `rebuild/index-raw.html`. Controller runs `raw_23_census.py`,
 `paper_23_disk_gold.py`, then `paper_23_clip_compare.py` so the numbered
 1.2 `NN-slug.png` clips at 1600 / 768 / 390 land as side-by-sides under
-`qa/paper-measure/compare/`. Default is serial; spawn at most **two**
-disk-only workers. **No Paper MCP** — do not fan out `get_computed_styles`
+`qa/paper-measure/compare/`. Measure/APPLY is serial (controller is the only
+`rebuild/` writer). **No Paper MCP** — do not fan out `get_computed_styles`
 / `get_screenshot` (Pitfall #202). Dump SVG/icon fills
 (`background-image: url(….svg)`) the author dropped get ported onto
-`index.html`, not invented Lucide icons. The controller is the only
-writer of `rebuild/index.html`. Pixel-perfect is a **one-pass assist**.
-After APPLY, the **VALIDATE walk** (`paper_23_validate.py`) re-shoots every
-band top to bottom, the agent **Reads** each side-by-side, patches that band,
-records what it saw, and repeats up to 3 rounds; a band still off at round 3
-gets a residual line. Receipt `qa/paper-measure/<id>.validate.json`.
-Recipe: `references/section-23-paper-loop.md`. Missing `index-raw.html`,
+`index.html`, not invented Lucide icons. Pixel-perfect is a **one-pass assist**.
+After APPLY, **VALIDATE LOOK**: `--shoot-open`, then **MUST** `wave.py
+prepare/start/wait/apply` (adapter from the probe), then apply printed
+patches and `--record` from the findings; ≤3 rounds; a band still off at
+round 3 gets a residual line. Receipt `qa/paper-measure/<id>.validate.json`
+plus an applied `qa/agent-runs/<run>/2.3/wave.json`. Recipe:
+`references/section-23-paper-loop.md`. Missing `index-raw.html`,
 `raw-census.json`, `disk-gold.json`, `clip-compare.json`, `rawCompared`,
-`diskCompared`, or `clipCompared` keeps 2.3 open. Receipts: `qa/paper-measure/_index.json` +
+`diskCompared`, `clipCompared`, or the wave keeps 2.3 open. Receipts: `qa/paper-measure/_index.json` +
 `qa/section-align-22.json`. **Do not return to chat until 2.4 is open.**
-Pitfall #185 #192 #195 #198 #201 #202 #216.
+Pitfall #185 #192 #195 #198 #201 #202 #216 #221.
 
 **2.4 checkpoint.** QA overlay pesticide outlines ON by default in TAGS
 mode. Human receipt. Overlay default is TAGS, not off and not a hidden

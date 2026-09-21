@@ -81,9 +81,13 @@ def main(argv: list[str] | None = None) -> int:
     print("NEXT          Continue → Session 3 polish at 3.1")
     print("NOT YET       index-polish.html is created when 3.1 starts.")
     if not args.no_open:
-        rc = subprocess.call(["open", "-a", "Google Chrome", uri])
-        if rc != 0:
-            return rc
+        import open_doc
+
+        result = open_doc.open_doc(uri, ["open", "-a", "Google Chrome", uri])
+        if not result.get("opened"):
+            print(f"FAIL: could not open the 2.4 review ({result.get('error')}). Open {uri} yourself.", file=sys.stderr)
+            return 1
+        print(f"opened in {open_doc.describe(result)}")
     receipt = root / "qa" / "build-checkpoint-opened.json"
     receipt.parent.mkdir(parents=True, exist_ok=True)
     receipt.write_text(

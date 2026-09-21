@@ -1,6 +1,6 @@
 # Model routing — three sessions, two handoffs
 
-**Orchestrator version (web2html):** **2.21.1**
+**Orchestrator version (web2html):** **2.23.0**
 
 A run spans three homepage sessions so the model can change per phase, plus optional all-pages Phase 4 (Paper) and Phase 5 (Astro site — chrome once, then page bodies).
 
@@ -72,7 +72,7 @@ Claude, Codex, Cursor and Grok, a model id does not.
 | 1.4 Human Paper checkpoint | human — walk Paper, `qa/paper-human-review.md`; `mark 1.4 active` opens Paper + the stamped Capture Tool tab (`open-capture` re-opens, `capture-doctor` checks the bridge) | T2 |
 | 2.1 Design System | machine — `emit-design-system.mjs` + `design_system_21_gate.py` | T2 *(inside the session)* |
 | **2.2 author the page** | **self** — `author_21_gate.py` is contamination-only | **T1** |
-| **2.3 section loop** | **self** — `section_22_gate.py` reads the receipts only (measure + VALIDATE rounds), never an image; the 2.3 agent itself must Read every side PNG in the VALIDATE walk | **T1** |
+| **2.3 section loop** | **self** — `section_22_gate.py` reads the receipts only (measure + VALIDATE rounds + applied 2.3 wave), never an image; LOOK is `wave.py` (workers Read the side PNGs; the controller shoots, applies, records) | **T1** |
 | 2.4 TAGS checkpoint | human — `build-checkpoint-opened.json` + receipt | T1 *(inside the session)* |
 | 3.1 QA pass 1 | self — `verify-polish-passes.py` checks receipts exist | T2 |
 | 3.2 QA pass 2 | machine — `inject-gsap-reveal.py` + `verify-gsap-reveal.py` + receipts | T2 |
@@ -100,6 +100,7 @@ both prompts live there:
 - `mark --step 1.4 --status done` → writes and prints `qa/handoff-2.0.md`
 - `mark --step 2.4 --status done` → writes and prints `qa/handoff-3.0.md`
 - `mark --step 4.4 --status done` with `qa/phase-5-opted.json` → writes and prints `qa/handoff-5.0.md`
+- `relay <project> --owner <held>` (mid-session, context budget armed) → writes and prints `qa/handoff-<step>.relayN.md`, releases the lease, and on a reachable Orca opens a terminal for the **same agent** that is running the predecessor (Pitfall #220). It never passes `--model`: the tier stays advice on every rung. Recipe `references/orca-relay.md`.
 
 Each fires only after the human has approved that checkpoint — exactly when the
 visuals are corrected and signed. Each also **releases the controller lease**, so

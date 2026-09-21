@@ -4,7 +4,11 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 
 | Script | Step | Role |
 |---|---|---|
-| `pipeline-progress.py` | all | `start` / `resume` / `mark` (1.4 active opens Paper + stamped Capture Tool tab) / `handoff` / `open-capture` (re-open) / `capture-doctor` (bridge check; FAIL = side panel OFFLINE) |
+| `pipeline-progress.py` | all | `start` / `resume` / `mark` (1.4 active opens Paper + stamped Capture Tool tab) / `handoff` / `open-capture` (re-open) / `capture-doctor` (bridge check; FAIL = side panel OFFLINE) / `relay` (mid-session handoff to a fresh agent of the **same source** at a receipt boundary; Orca terminal when reachable, else prints the prompt; never a human stop — Pitfall #218) |
+| `open_doc.py` | start / 2.4 / 3.4 / 5.6 | Open a pipeline document: Orca browser tab (`orca tab create --url`, `file://` works) when inside a reachable Orca, else the caller's fallback (Chrome / `open` / `xdg-open`). `WEB2HTML_BROWSER=auto\|orca\|default`. Used by `open_live_board`, `open-build-review.py`, `open-human-review.py`, `open-phase-5-review.py`. Never a gate |
+| `harness_probe.py` | start / resume | Which harness, whether Orca is reachable, which agent id is the same source (Pitfall #220), and the adapter rungs `waves orca\|subagent\|serial` / `relay orca-terminal\|print-prompt`. Writes `qa/harness-probe.json`. Always exit 0 (Pitfall #219) |
+| `context_budget.py` | every mark | Context spent: Claude Code transcript → statusline sidecar → spend ledger in `qa/pipeline-progress.json` (fed by `--shoot` / `--record` / `mark`). `--brief` one line; arm 50 % / force 75 % (`WEB2HTML_RELAY_ARM` / `_FORCE`, `WEB2HTML_CONTEXT_WINDOW`) |
+| `wave.py` | 2.3 (required) / 3.2 / 5.2 | 2.3 VALIDATE LOOK **MUST** run this after `--shoot-open`. `prepare` (snapshot + a reviewer lease per open band / companion / page) → `start` (`orca`: `run-create` + `worker-start --agent <same source>`; `subagent` / `serial`: prints the specs) → `wait` (one `check --wait`; validates `worker_done`, `worker-release`s, acks; exit 4 on a question) → `ready` → `apply` (2.3: patch + `--record` per band; 3.2: promote reports to `qa/<skill>.md`). Workers are read-only; `check --agent` is their self-check. Recipe `references/orca-relay.md`. Pitfall #221 |
 | `hover-reel/scripts/pull-desktop-specimens.mjs` | 1.3 | After seed, duplicate unique buttons + components from `home-desktop` onto FRAME `Buttons` / `Components`, then author button hover from source CSS. Review card: red `NN` badge is the source section. Receipts `qa/buttons-components-pull.json` + `qa/button-hover.json` |
 | `hover-reel/scripts/author-button-hover.mjs` | 1.3 | Light pass: mine source CSS `:hover` onto pulled Buttons. Usually invoked from the pull. Receipt `qa/button-hover.json` |
 | `scrape-web.sh` + `scrape_light.py` | 1.1 | One URL, images + Latin fonts, stub contract |
@@ -19,7 +23,7 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 | `paper_23_disk_gold.py` | 2.3 | Map ship bands → 1.2 `source-sections/NN-*.png` |
 | `paper_23_rebuild_shots.py` | 2.3 | `file://` rebuild PNGs at 1600 / 768 / 390 (includes footer) |
 | `paper_23_clip_compare.py` | 2.3 | Pull numbered 1.2 clips into `qa/paper-measure/compare/` + side-by-sides |
-| `paper_23_validate.py` | 2.3 | VALIDATE walk after APPLY: `--next` (first open band, ship order), `--id X --shoot` (re-shoot + side-by-sides), `--record --seen … --verdict … --miss … --patched` / `--residual`, `--status`. ≤3 rounds per band. Receipt `qa/paper-measure/<id>.validate.json` (Pitfall #216) |
+| `paper_23_validate.py` | 2.3 | VALIDATE after APPLY: `--shoot-open` (every open band), then `wave.py` LOOK, then `--record` from the findings / `--residual`, `--status`. `--next` / `--id X --shoot` remain for a single band. ≤3 rounds per band. Receipt `qa/paper-measure/<id>.validate.json` + applied 2.3 wave (Pitfall #216 #221) |
 | `inject-qa-overlay.py` | 2.4 | Outlines toggle. Always `rebuild/css` + `rebuild/js`. Never a sibling `css/` |
 | `open-build-review.py` | 2.4 | `--stage 2.4` TAGS on. `qa/build-checkpoint-opened.json` |
 | `verify-rebuild-trees.py` | 2.x | One `rebuild/`. Sibling `-semantic` / `-hover` fail |

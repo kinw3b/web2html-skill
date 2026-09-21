@@ -88,7 +88,7 @@ stop, ask, or fire a Continue CTA anywhere else.
 
 **Session 2:** do not stop after emitting 2.1, after authoring 2.2, or
 mid-2.3. Sign every homepage section at 1600 / 768 / 390 in this session
-(disk clips; serial or max two workers; no Paper MCP). The only stop is
+(disk clips; VALIDATE LOOK is `wave.py`; no Paper MCP). The only stop is
 2.4 (TAGS Chrome + Continue). Pitfall #192 #195.
 
 ## Human stop CTA (any harness)

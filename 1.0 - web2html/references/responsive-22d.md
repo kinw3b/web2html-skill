@@ -19,12 +19,13 @@ pc-id census:
 Do not freeze 1600 and “teach reflow later.” Do not invent a 1024 / 1320.
 
 **2.3** self-validates **each homepage section** against the 1.2
-source-section clips at those three widths plus `index-raw.html` (serial
-or at most two disk-only workers; no Paper MCP; pixel-perfect is a
+source-section clips at those three widths plus `index-raw.html` (measure
+serial; VALIDATE LOOK is `wave.py`; no Paper MCP; pixel-perfect is a
 one-pass assist). Section list from `rebuild/index.html`, not
-`layer-ids.json`. Fail is revert-that-section, then the VALIDATE walk
-re-shoots and Reads each band (≤3 rounds, Pitfall #216). Receipts:
-`qa/section-align-22.json` + `qa/paper-measure/<id>.validate.json`. Do not yield mid-2.3. Session 2 yields only at
+`layer-ids.json`. Fail is revert-that-section, then `--shoot-open` +
+`wave.py` LOOK (≤3 rounds, Pitfall #216 #221). Receipts:
+`qa/section-align-22.json` + `qa/paper-measure/<id>.validate.json` +
+applied 2.3 `wave.json`. Do not yield mid-2.3. Session 2 yields only at
 **2.4**.
 
 ## What 2.1 must already do

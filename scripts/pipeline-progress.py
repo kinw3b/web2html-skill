@@ -1990,9 +1990,9 @@ First actions, in order:
 
 Then: 2.1 emit Design System (tokens + rebuild/design-system.html) ->
 2.2 author index-semantic.html from Paper using those tokens -> 2.3 section loop
-(disk clips + index-raw; serial or max two workers; no Paper MCP), then the
-2.3 VALIDATE walk top-to-bottom (paper_23_validate.py: --shoot, Read the
-side-by-sides, patch that band, --record; <= 3 rounds per band, Pitfall #216)
+(disk clips + index-raw; no Paper MCP), then 2.3 VALIDATE LOOK
+(paper_23_validate.py --shoot-open, then MUST wave.py prepare/start/wait/apply;
+controller records; <= 3 rounds per band, Pitfall #216 #221)
 -> 2.4 Human checkpoint.
 Do not stop after 2.1, after 2.2, or mid-2.3. Sign every
 homepage section at 1600/768/390 in this session. The only stop is 2.4.
@@ -2204,6 +2204,379 @@ def emit_handoff(root: Path, data: dict, step: str) -> Path | None:
     print("")
     return dest
 
+# ------------------------------------------------------------------ relay ----
+# A relay is a mid-session handoff at a receipt boundary: the running agent is
+# near its context ceiling, so it writes the next-owner prompt, releases the
+# controller lease, and (when Orca is reachable) opens a fresh terminal for
+# the SAME agent and sends the prompt. It is a change of agent, never a stop
+# for the human (Pitfall #218). Without Orca it prints the prompt block, exactly
+# like the 1.4 / 2.4 handoffs (Pitfall #219). Same-source rule: Pitfall #220.
+
+RELAY_ADAPTERS = ("auto", "orca-terminal", "print-prompt")
+RELAY_WAIT_MS = 120_000
+STEP_REFERENCES = {
+    "1.1": "step-11.md", "1.2": "12-desktop-source.md + stage-p-notes.md",
+    "1.3": "pillars.md (1.3 rows) + 13-buttons-components.md", "1.4": "live-board.md",
+    "2.1": "paper-design-to-code.md", "2.2": "paper-design-to-code.md",
+    "2.3": "section-23-paper-loop.md + responsive-22d.md + orca-relay.md", "2.4": "paper-design-to-code.md",
+    "3.1": "polish-visual-restore.md",
+    "3.2": "gsap-inview.md + hover-22c.md + nav-drawer.md + faq.md + nav-dropdown.md + orca-relay.md",
+    "3.3": "semantics-pass.md", "3.4": "live-board.md",
+    "4.1": "scripts.md", "4.2": "scripts.md", "4.3": "scripts.md", "4.4": "live-board.md",
+    "5.1": "phase-5-astro.md", "5.2": "phase-5-astro.md + orca-relay.md", "5.3": "section-23-paper-loop.md",
+    "5.4": "section-23-paper-loop.md", "5.5": "phase-5-astro.md + semantics-pass.md", "5.6": "live-board.md",
+}
+SESSION_LOCK = {
+    1: "Paper is being built; never reuse another project's capture, library, or Paper file (Pitfall #187).",
+    2: "Paper desktop is gold. 2.1 tokens/classes as-is. No new palette, fonts, or copy. Homepage only, file://. "
+       "No get_jsx dump as the ship. No skip-link. Aesthetic-risk OFF. The only human stop is 2.4 (Pitfall #192).",
+    3: "2.4 is the fidelity freeze. rebuild/index.html is the lock — never mutate it (Pitfall #203). 3.x writes "
+       "index-polish.html only. No type-scale, class rename, or visual restore (Pitfall #196). The only human stop is 3.4.",
+    4: "Paper-only. Extra pages onto the HOME canvas of the 1.2 file; one sample per dynamic template; no second library.",
+    5: "astro/ only. Chrome pulled once at 5.1; each page authors its <main> only. Geometry, type, and library classes frozen.",
+}
+
+
+def _orca_run(argv: list[str], timeout_s: int = 60) -> tuple[int, str]:
+    """Module-level so tests can substitute a fake runner."""
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout_s)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return 127, str(exc)
+    return proc.returncode, proc.stdout
+
+
+def _dig(obj: object, *names: str) -> object:
+    queue: list[object] = [obj]
+    while queue:
+        cur = queue.pop(0)
+        if isinstance(cur, dict):
+            for name in names:
+                if name in cur and cur[name] not in (None, ""):
+                    return cur[name]
+            queue.extend(cur.values())
+        elif isinstance(cur, list):
+            queue.extend(cur)
+    return None
+
+
+def _json_or_empty(text: str) -> dict:
+    try:
+        data = json.loads(text)
+    except (TypeError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _budget_snapshot(root: Path) -> dict | None:
+    """Best-effort context budget (context_budget.py). Never raises."""
+    try:
+        import context_budget
+
+        return context_budget.budget(root)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _probe_report(root: Path, *, fresh: bool = False) -> dict | None:
+    """Best-effort harness/Orca probe (harness_probe.py). Writes qa/harness-probe.json. Never raises."""
+    try:
+        import harness_probe
+
+        report = None if fresh else harness_probe.load_report(root)
+        if report is None:
+            report = harness_probe.probe(root=root)
+            harness_probe.write_report(root, report)
+        return report
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def print_probe_line(root: Path) -> None:
+    if os.environ.get("WEB2HTML_NO_PROBE"):
+        return
+    report = _probe_report(root, fresh=True)
+    if not report:
+        return
+    try:
+        import harness_probe
+
+        print("probe: " + harness_probe.brief(report))
+    except Exception:  # noqa: BLE001
+        return
+
+
+def next_relay_owner(owner: str) -> str:
+    """session-2 → session-2b → session-2c … → session-2z → session-2z-r1 → -r2; anything else gets `b`."""
+    owner = owner.strip()
+    m = re.match(r"^(.*-r)(\d+)$", owner)
+    if m:
+        return m.group(1) + str(int(m.group(2)) + 1)
+    m = re.match(r"^(.*\d)([a-y])$", owner)
+    if m:
+        return m.group(1) + chr(ord(m.group(2)) + 1)
+    if re.match(r"^.*\dz$", owner):
+        return owner + "-r1"
+    return owner + "b"
+
+
+def relay_step(data: dict) -> str | None:
+    current = data.get("current")
+    if current in TITLES:
+        return str(current)
+    return next_pending_step(data)
+
+
+def relay_boundary_errors(root: Path, step: str) -> list[str]:
+    """A relay happens only where the disk is the truth: no shot-but-unrecorded round, no wave in flight."""
+    errors: list[str] = []
+    root = root.resolve()
+    if step == "2.3":
+        try:
+            import paper_23_validate as validate
+
+            for row in validate.ship_sections(root):
+                sid = str(row.get("id"))
+                payload = validate.load(root, sid)
+                last = validate.last_round(payload) if payload else None
+                if last and not validate.round_recorded(last):
+                    errors.append(f"band {sid}: round {last.get('round')} is shot but not recorded — --record it first")
+        except SystemExit:
+            pass
+        except Exception:  # noqa: BLE001 — cannot check → allow
+            pass
+    runs = root / AGENT_RUNS
+    if runs.is_dir():
+        for wave_file in sorted(runs.glob(f"*/{step}/wave.json")):
+            try:
+                wave = json.loads(wave_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            running = [t.get("id") for t in wave.get("tasks") or [] if t.get("status") == "running"]
+            if running:
+                errors.append(f"wave {wave.get('runId')} has workers running ({', '.join(map(str, running))}) — wave.py wait / apply first")
+    return errors
+
+
+def _relay_state_lines(root: Path, data: dict, step: str) -> list[str]:
+    lines: list[str] = []
+    root = root.resolve()
+    claimed = str((data.get("controller") or {}).get("claimedAt") or "")
+    done_here = [
+        sid for sid, row in (data.get("steps") or {}).items()
+        if row.get("status") == "done" and str(row.get("ended") or "") >= claimed and sid.split(".")[0] == step.split(".")[0]
+    ]
+    if done_here:
+        lines.append("done this session: " + ", ".join(sorted(done_here)))
+    if step == "2.3":
+        try:
+            import paper_23_validate as validate
+
+            for row in validate.status_rows(root):
+                flag = "" if row["state"] in {"match", "residual"} else "  <- open"
+                lines.append(f"band {row['id']:<24} {row['state']:<9} rounds={row['rounds']}{flag}")
+        except (Exception, SystemExit):  # noqa: BLE001 — ship_sections exits when index.html is missing
+            lines.append("bands: run  paper_23_validate.py <project> --status")
+    if step == "3.2":
+        for rel in ("qa/button-hover-css.json", "qa/nav-drawer.json", "qa/faq.json", "qa/nav-dropdown.json",
+                    "qa/gsap-reveal-qa.json", *COMPANION_RECEIPTS):
+            lines.append(f"{'have ' if (root / rel).is_file() else 'need '} {rel}")
+    runs = root / AGENT_RUNS
+    if runs.is_dir():
+        for wave_file in sorted(runs.glob(f"*/{step}/wave.json")):
+            try:
+                wave = json.loads(wave_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            states = {}
+            for task in wave.get("tasks") or []:
+                states[task.get("status")] = states.get(task.get("status"), 0) + 1
+            lines.append(f"wave {wave.get('runId')} ({wave.get('adapter')}): " + ", ".join(f"{k} {v}" for k, v in sorted(states.items())))
+    return lines or ["(no receipts yet for this step — start it from its first command)"]
+
+
+def _relay_prompt(root: Path, data: dict, step: str, next_owner: str, budget: dict | None, reason: str, agent: str | None) -> str:
+    root = root.resolve()
+    paper = read_paper_file(root)
+    board = (root / "pipeline.html").resolve().as_uri()
+    session = SESSION_OF.get(step, int(step.split(".")[0]))
+    pct = f"{budget.get('usedPct')}% of {int(budget.get('window') or 0) // 1000}k ({budget.get('source')})" if budget and budget.get("usedPct") is not None else "unknown"
+    started = str((data.get("steps") or {}).get(step, {}).get("started") or "—")
+    state = "\n  ".join(_relay_state_lines(root, data, step))
+    who = agent or "the same harness that ran the predecessor"
+    return f"""web2html — RELAY · continue {step} {TITLES[step]} · owner {next_owner}
+Model: same source as the predecessor ({who}). The tier is advice, never a gate.
+
+THIS IS A RELAY, NOT A HUMAN CHECKPOINT (Pitfall #218). The previous agent was at
+{pct} of its context and handed you the run mid-step{(' — ' + reason) if reason else ''}.
+Do not fire a CTA, do not ask the human, do not restart the step, do not `start`.
+Continue from the receipts on disk; they are the truth.
+
+Project   {root}
+Source    {paper.get('url') or paper.get('sourceUrl') or '<source url>'}
+Paper     {paper.get('fileId') or paper.get('paperFileId') or '<paperFileId>'}
+Board     {board}
+Step      {step} {TITLES[step]} · active since {started}
+
+First actions, in order:
+  1. cd "{root}"   then load the web2html skill. Read references/{STEP_REFERENCES.get(step, 'pillars.md')}.
+  2. python3 "$SKILLS/web2html/scripts/pipeline-progress.py" resume "{root}" \\
+       --at {step} --owner {next_owner}
+     NOT `start`. resume claims the controller lease the predecessor released.
+  3. python3 "$SKILLS/web2html/scripts/harness_probe.py" "{root}" --brief
+
+State on disk:
+  {state}
+
+Then finish {step} and walk to the session's only human stop
+({SESSION_YIELD_STEP.get(session, 'the next human checkpoint')}). Mark every boundary. If your own budget
+reaches the arm threshold, relay again: pipeline-progress.py relay "{root}" --owner {next_owner}.
+
+Fidelity lock: {SESSION_LOCK.get(session, '')}
+"""
+
+
+def _relay_via_orca(root: Path, prompt: str, step: str, next_owner: str, probe: dict) -> dict:
+    """Open a fresh terminal for the SAME agent in the coordinator's Orca worktree and send the prompt."""
+    orca = probe.get("orca") or {}
+    cli = str(orca.get("cli") or "orca")
+    worktree = str(orca.get("worktree") or "")
+    command = str(probe.get("agentCommand") or "")
+    result: dict = {"adapter": "orca-terminal", "started": False, "agent": probe.get("agent"), "command": command}
+    if not worktree or not command:
+        result["error"] = "orca worktree or agent command unknown (Pitfall #220)"
+        return result
+    code, text = _orca_run([cli, "terminal", "create", "--worktree", f"id:{worktree}", "--title",
+                            f"web2html · {step} relay · {next_owner}", "--command", command, "--json"])
+    handle = _dig(_json_or_empty(text), "handle")
+    if code != 0 or not handle:
+        result["error"] = f"terminal create exit {code}"
+        return result
+    result["terminal"] = str(handle)
+    satisfied = False
+    for timeout in (RELAY_WAIT_MS, RELAY_WAIT_MS * 2):
+        code, text = _orca_run([cli, "terminal", "wait", "--terminal", str(handle), "--for", "tui-idle",
+                                "--timeout-ms", str(timeout), "--json"], timeout // 1000 + 30)
+        satisfied = bool(_dig(_json_or_empty(text), "satisfied")) if code == 0 else False
+        if satisfied:
+            break
+    if not satisfied:
+        result["error"] = "agent TUI never became idle; a prompt typed into a starting TUI is lost"
+        return result
+    code, text = _orca_run([cli, "terminal", "send", "--terminal", str(handle), "--text", prompt, "--enter",
+                            "--wait-submit", "10", "--json"], 60)
+    receipt = _json_or_empty(text)
+    accepted = bool(_dig(receipt, "accepted")) if code == 0 else False
+    result["accepted"] = accepted
+    result["turnStarted"] = bool(_dig(receipt, "turn_started", "turnStarted"))
+    if not accepted:
+        result["error"] = f"terminal send not accepted (exit {code})"
+        return result
+    result["started"] = True
+    return result
+
+
+def cmd_relay(root: Path, owner: str, adapter: str = "auto", reason: str = "", force: bool = False) -> int:
+    """Hand the run to a fresh agent of the same source at a receipt boundary; never a human stop."""
+    root = root.resolve()
+    if is_spec_repo(root):
+        print("FAIL: do not relay the web2html spec repo. Pass the template project folder.", file=sys.stderr)
+        return 2
+    if adapter not in RELAY_ADAPTERS:
+        print(f"FAIL: --adapter must be one of {RELAY_ADAPTERS}", file=sys.stderr)
+        return 2
+    if not progress_path(root).is_file():
+        print("FAIL: no run to relay (missing qa/pipeline-progress.json).", file=sys.stderr)
+        return 2
+    data = load_progress(root)
+    controller = data.get("controller")
+    held = str((controller or {}).get("owner") or "") if isinstance(controller, dict) else ""
+    if not held or (controller or {}).get("status") != "active":
+        print("FAIL: no active controller lease — nothing to relay. resume first.", file=sys.stderr)
+        return 2
+    if held != owner:
+        print(f"FAIL: controller lease belongs to {held!r}; pass --owner {held}.", file=sys.stderr)
+        return 2
+    step = relay_step(data)
+    if step is None:
+        print("FAIL: run is complete — nothing to relay.", file=sys.stderr)
+        return 2
+    if step in HUMAN_CHECKPOINTS and (data.get("steps") or {}).get(step, {}).get("status") == "active":
+        print(f"FAIL: {step} is a human checkpoint. Yield to the human there; relay is for agent work (Pitfall #218).", file=sys.stderr)
+        return 2
+    boundary = relay_boundary_errors(root, step)
+    if boundary and not force:
+        print("FAIL: not at a receipt boundary (Pitfall #218):", file=sys.stderr)
+        for err in boundary:
+            print(f"  - {err}", file=sys.stderr)
+        print("  finish the open unit, or pass --force to relay anyway.", file=sys.stderr)
+        return 2
+    next_owner = next_relay_owner(owner)
+    budget = _budget_snapshot(root)
+    probe = _probe_report(root, fresh=True) or {}
+    chosen = str((probe.get("adapters") or {}).get("relay") or "print-prompt")
+    if adapter != "auto":
+        chosen = adapter if adapter == "print-prompt" or chosen == "orca-terminal" else "print-prompt"
+    prompt = _relay_prompt(root, data, step, next_owner, budget, reason, probe.get("agent"))
+    seq = len([r for r in (data.get("relays") or []) if r.get("step") == step]) + 1
+    dest = root / "qa" / f"handoff-{step}.relay{seq}.md"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(prompt, encoding="utf-8")
+
+    # Release the lease exactly as 1.4 / 2.4 done do, then record the relay.
+    revision = _revision(data.get("revision"))
+    data.pop("controller", None)
+    controller_lease_path(root).unlink(missing_ok=True)
+    record = {"step": step, "from": owner, "to": next_owner, "at": now_iso(), "adapter": chosen,
+              "usedPct": (budget or {}).get("usedPct"), "source": (budget or {}).get("source"),
+              "reason": reason or None, "prompt": dest.relative_to(root).as_posix()}
+    data.setdefault("relays", []).append(record)
+    try:
+        save_progress(root, data, revision)
+    except ProgressConflict as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    print(f"controller released -> {owner}   relay {owner} → {next_owner} at {step}")
+
+    started = False
+    record["started"] = False
+    if chosen == "orca-terminal":
+        result = _relay_via_orca(root, prompt, step, next_owner, probe)
+        record.update({k: v for k, v in result.items() if k != "adapter"})
+        started = bool(result.get("started"))
+    data = load_progress(root)
+    if chosen == "orca-terminal" and not started:
+        # Fail closed toward continuity: take the lease back so the run is never ownerless.
+        print(f"relay: Orca terminal did not start ({record.get('error')}). Falling back to print-prompt.", file=sys.stderr)
+        data["controller"] = {"owner": owner, "status": "active", "claimedAt": now_iso()}
+        record["leaseReturnedTo"] = owner
+    data["relays"][-1] = record
+    save_progress(root, data, _revision(data.get("revision")))
+    if chosen == "orca-terminal" and not started:
+        lease = controller_lease_path(root)
+        lease.parent.mkdir(parents=True, exist_ok=True)
+        lease.write_text(json.dumps({"role": "controller", "owner": owner, "status": "active",
+                                     "revision": _revision(data.get("revision"))}, indent=2) + "\n")
+        print(f"controller re-claimed -> {owner}. Continue in place, or paste the prompt below into a new session of the same agent.")
+    if started:
+        print(f"relay started \u2192 Orca terminal {record.get('terminal')} running {record.get('command')} "
+              f"({probe.get('agent')}, same source as this orchestrator)")
+        print("This session must now END ITS TURN with one line on the board. No CTA, no question (Pitfall #218).")
+    if not started:
+        bar = "=" * 72
+        print("")
+        print(bar)
+        print(f"  COPY THIS INTO A NEW SESSION OF THE SAME AGENT  —  relay {owner} → {next_owner} at {step}")
+        print(bar)
+        print(prompt.rstrip())
+        print(bar)
+    print(f"also written to {dest}")
+    write_live(root, load_progress(root))
+    return 0 if (started or chosen == "print-prompt") else 3
+
+
+SESSION_YIELD_STEP = {1: "1.4", 2: "2.4", 3: "3.4", 4: "4.4", 5: "5.6"}
+
 
 def cmd_handoff(root: Path) -> int:
     """Print a copy-ready next-session prompt. Does not release the lease.
@@ -2309,6 +2682,7 @@ def cmd_resume(root: Path, at: str, owner: str) -> int:
     print("Live board was opened at start — leave that tab. resume does not reopen it.")
     print("Progress was NOT reset. Do not run `start` on a run in flight.")
     print("IDs: " + " ".join(STEP_IDS))
+    print_probe_line(root)
     return 0
 
 
@@ -2352,6 +2726,7 @@ def cmd_start(root: Path) -> int:
     if not opened:
         print("FAIL: live board did not open. Open the URI above, then retry start.", file=sys.stderr)
         return 2
+    print_probe_line(root)
     return 0
 
 
@@ -2360,18 +2735,24 @@ def open_live_board(dest: Path) -> bool:
     path = dest.resolve()
     uri = path.as_uri()
     print(f"OPEN {uri}")
+    if sys.platform == "darwin":
+        fallback = ["open", str(path)]
+    elif sys.platform.startswith("linux"):
+        fallback = ["xdg-open", str(path)]
+    else:
+        fallback = None
     try:
-        if sys.platform == "darwin":
-            r = subprocess.run(["open", str(path)], check=False)
-            return r.returncode == 0
-        if sys.platform.startswith("linux"):
-            r = subprocess.run(["xdg-open", str(path)], check=False)
-            return r.returncode == 0
-        print(f"FAIL: no opener for {sys.platform}. Open {uri} yourself.", file=sys.stderr)
-        return False
-    except OSError as exc:
+        import open_doc
+
+        result = open_doc.open_doc(uri, fallback)
+    except Exception as exc:  # noqa: BLE001
         print(f"FAIL: could not open board: {exc}", file=sys.stderr)
         return False
+    if result.get("opened"):
+        print(f"board → {open_doc.describe(result)}")
+        return True
+    print(f"FAIL: could not open board ({result.get('error')}). Open {uri} yourself.", file=sys.stderr)
+    return False
 
 
 def cmd_mark(
@@ -2629,6 +3010,18 @@ def cmd_mark(
     data["steps"][step]["status"] = status
     if reason:
         data["steps"][step]["reason"] = reason
+    budget_row = None
+    try:
+        import context_budget
+
+        ledger = context_budget.ledger(data)
+        ledger["spendTokens"] = int(ledger.get("spendTokens") or 0) + context_budget.SPEND["mark"]
+        ledger["events"] = int(ledger.get("events") or 0) + 1
+        budget_row = context_budget.budget(root)
+        if budget_row:
+            data["budgetState"] = budget_row
+    except Exception:  # noqa: BLE001 — the budget never gates a mark
+        budget_row = None
     try:
         save_progress(root, data, actual_revision if expected_revision is not None else None)
     except ProgressConflict as exc:
@@ -2644,6 +3037,15 @@ def cmd_mark(
             extra = f"   NEXT {nxt} {TITLES[nxt]}"
     print(f"{step} → {status}   {done}/{total}{extra}")
     print(dest.resolve().as_uri())
+    if budget_row and budget_row.get("usedPct") is not None:
+        try:
+            import context_budget
+
+            print(context_budget.one_line(budget_row))
+            if budget_row.get("state") in {"armed", "force"} and step not in HUMAN_CHECKPOINTS:
+                print(f"  → pipeline-progress.py relay {root} --owner <this session>   at the next receipt boundary (Pitfall #218)")
+        except Exception:  # noqa: BLE001
+            pass
     if status == "active" and step == "2.4":
         print_24_hard_stop(root)
     if status == "done" and step == "2.2":
@@ -2723,6 +3125,15 @@ def main(argv: list[str] | None = None) -> int:
     rl.add_argument("root", type=Path)
     rl.add_argument("--owner", required=True)
     rl.add_argument("--expected-revision", type=int, required=True)
+    ry = sub.add_parser(
+        "relay",
+        help="Mid-session handoff at a receipt boundary to a fresh agent of the SAME source (Orca terminal when reachable, else print the prompt). Not a human stop.",
+    )
+    ry.add_argument("root", type=Path)
+    ry.add_argument("--owner", required=True, help="the controller lease you hold, e.g. session-2")
+    ry.add_argument("--adapter", default="auto", choices=RELAY_ADAPTERS)
+    ry.add_argument("--reason", default="", help="why (context budget, operator call)")
+    ry.add_argument("--force", action="store_true", help="relay even with an unrecorded round or a wave in flight")
     args = ap.parse_args(argv)
     if args.cmd == "ids":
         for sid, title in STEPS:
@@ -2751,6 +3162,8 @@ def main(argv: list[str] | None = None) -> int:
         return claim_controller(args.root, args.owner, args.expected_revision)
     if args.cmd == "release-controller":
         return release_controller(args.root, args.owner, args.expected_revision)
+    if args.cmd == "relay":
+        return cmd_relay(args.root, args.owner, args.adapter, args.reason, args.force)
     return cmd_mark(args.root, args.step, args.status, args.reason, args.expected_revision, args.owner)
 
 

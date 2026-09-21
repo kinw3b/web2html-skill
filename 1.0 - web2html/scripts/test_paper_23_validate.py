@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""2.21.0 — 2.3 VALIDATE walk: shoot, Read, record, cap, gate (Pitfall #216)."""
+"""2.23.0 — 2.3 VALIDATE: shoot-open, wave LOOK, record, cap, gate (Pitfall #216 #221)."""
 from __future__ import annotations
 
 import importlib.util
@@ -61,6 +61,41 @@ class ValidateWalkTest(unittest.TestCase):
             self.assertEqual(first["seen"], "")
             self.assertEqual(validate.main([str(root), "--status"]), 2)
             self.assertEqual(validate.main([str(root), "--next"]), 0)
+
+    def test_shoot_open_covers_every_missing_band_and_skips_unrecorded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _plant(root)
+            ship = root / "rebuild" / "index.html"
+            ship.write_text(
+                "<html><body><main>"
+                '<section id="hero"></section>'
+                '<section id="footer"></section>'
+                "</main></body></html>\n"
+            )
+            # disk gold must know footer too
+            gold = json.loads((root / "qa" / "paper-measure" / "disk-gold.json").read_text())
+            gold["sections"].append(
+                {
+                    "id": "footer",
+                    "nn": "10",
+                    "slug": "footer",
+                    "source": {
+                        "1600": "capture/home-desktop/source-sections/10-footer.png",
+                        "768": "capture/home-768/source-sections/10-footer.png",
+                        "390": "capture/home-390/source-sections/10-footer.png",
+                    },
+                }
+            )
+            (root / "qa" / "paper-measure" / "disk-gold.json").write_text(json.dumps(gold))
+            for folder in gate.SOURCE_DIRS:
+                (root / folder / "10-footer.png").write_bytes(gate.TINY_PNG)
+            shot, skipped = validate.shoot_open(root, capture=_fake_capture)
+            self.assertEqual(sorted(shot), ["footer", "hero"])
+            self.assertEqual(skipped, [])
+            again, skipped2 = validate.shoot_open(root, capture=_fake_capture)
+            self.assertEqual(again, [])
+            self.assertEqual(sorted(skipped2), ["footer", "hero"])
 
     def test_second_shoot_before_record_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

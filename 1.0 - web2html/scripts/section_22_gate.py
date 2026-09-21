@@ -11,6 +11,11 @@ fingerprint (rebuild/index.html + rebuild/css, minus the QA overlay and the 3.x
 sheets) equal to the one taken when that round was shot — no patch after the
 last look. Pitfall #216.
 
+2.23.0: LOOK is wave.py. An applied qa/agent-runs/<run>/2.3/wave.json must cover
+every ship band (findings on disk). Adapter orca / subagent / serial is how
+LOOK ran; skipping wave.py and --record'ing from the controller fails
+(Pitfall #221).
+
   python3 section_22_gate.py /path/to/project
 
 Exit 0 ok · 2 missing receipt / invented width / a section still open
@@ -49,6 +54,8 @@ REBUILD_SKIP = Path("qa/paper-measure/rebuild-shots-skip.json")
 VALIDATE_FROM = "web2html/section-23-validate"
 VALIDATE_MAX_ROUNDS = 3
 VALIDATE_MIN_SEEN = 12
+WAVE_FROM = "web2html/wave/v1"
+FINDINGS_FROM = "web2html/agent-findings/v1"
 WIDTHS = (1600, 768, 390)
 WIDTH_KEYS = tuple(str(width) for width in WIDTHS)
 FORBIDDEN_WIDTHS = frozenset({1320, 1024, 1440, 1280, 1920})
@@ -237,6 +244,54 @@ def _measure_errors(root: Path, sections: list) -> list[str]:
     errors.extend(_rebuild_shot_errors(root, sections))
     errors.extend(_clip_compare_errors(root, sections))
     errors.extend(_validate_errors(root, sections))
+    errors.extend(_wave_errors(root, sections))
+    return errors
+
+
+def _applied_waves(root: Path) -> list[dict]:
+    runs = root / "qa" / "agent-runs"
+    if not runs.is_dir():
+        return []
+    waves: list[dict] = []
+    for path in sorted(runs.glob("*/2.3/wave.json")):
+        payload = _read_json(path)
+        if payload and payload.get("appliedAt"):
+            waves.append(payload)
+    return waves
+
+
+def _wave_errors(root: Path, sections: list) -> list[str]:
+    """VALIDATE LOOK ran through wave.py for every band (Pitfall #221)."""
+    waves = _applied_waves(root)
+    if not waves:
+        return [
+            "missing 2.3 wave — after --shoot-open, run wave.py prepare/start/wait/apply. "
+            "LOOK is the wave (orca terminals / subagent / serial specs); the controller "
+            "records. Do not --record from a solo Read loop (Pitfall #221)"
+        ]
+    errors: list[str] = []
+    covered: set[str] = set()
+    for wave in waves:
+        for task in wave.get("tasks") or []:
+            if not isinstance(task, dict):
+                continue
+            band = str(task.get("band") or "").strip()
+            if band:
+                covered.add(band)
+            rel = str(task.get("findings") or "").strip()
+            if rel and not (root / rel).is_file():
+                errors.append(
+                    f"{task.get('id') or band}: missing wave finding {rel} (Pitfall #221)"
+                )
+    for index, row in enumerate(sections):
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("id") or row.get("slug") or f"section-{index}")
+        if sid not in covered:
+            errors.append(
+                f"{sid} has no 2.3 wave finding — LOOK is wave.py, not a solo "
+                "--record (Pitfall #221)"
+            )
     return errors
 
 
@@ -286,7 +341,7 @@ def ship_fingerprint(root: Path) -> str:
 
 
 def _validate_errors(root: Path, sections: list) -> list[str]:
-    """The VALIDATE walk ran on every band: shot, seen, verdict, fresh (Pitfall #216)."""
+    """VALIDATE ran on every band: shot, seen, verdict, fresh (Pitfall #216)."""
     errors: list[str] = []
     skip = _read_json(root / REBUILD_SKIP)
     shots_skipped = bool(skip and skip.get("skipped") is True)
@@ -298,8 +353,8 @@ def _validate_errors(root: Path, sections: list) -> list[str]:
         payload = _read_json(validate_receipt_path(root, sid))
         if payload is None:
             errors.append(
-                f"{sid} has no VALIDATE receipt — paper_23_validate.py . --id {sid} --shoot, "
-                "Read the side-by-sides, patch, --record (Pitfall #216)"
+                f"{sid} has no VALIDATE receipt — paper_23_validate.py . --shoot-open, "
+                "then wave.py prepare/start/wait/apply, then --record (Pitfall #216 #221)"
             )
             continue
         if payload.get("generatedFrom") != VALIDATE_FROM:
@@ -650,6 +705,7 @@ def install_passing_artifacts(root: Path) -> None:
         encoding="utf-8",
     )
     install_passing_validate(root, "hero", nn="01")
+    install_passing_wave(root, ["hero"])
 
 
 def install_passing_validate(root: Path, section_id: str, *, nn: str | None = None) -> Path:
@@ -697,6 +753,66 @@ def install_passing_validate(root: Path, section_id: str, *, nn: str | None = No
     dest = validate_receipt_path(root, section_id)
     dest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return dest
+
+
+def install_passing_wave(root: Path, section_ids: list[str] | None = None) -> Path:
+    """Plant an applied 2.3 wave covering `section_ids` (default: hero)."""
+    root = root.resolve()
+    ids = list(section_ids or ["hero"])
+    run_id = "r1"
+    phase = "2.3"
+    dest_dir = root / "qa" / "agent-runs" / run_id / phase
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    tasks: list[dict] = []
+    for sid in ids:
+        agent = f"band-{sid}"
+        finding_rel = f"qa/agent-findings/{run_id}/{phase}/{agent}.json"
+        finding_path = root / finding_rel
+        finding_path.parent.mkdir(parents=True, exist_ok=True)
+        finding_path.write_text(
+            json.dumps(
+                {
+                    "generatedFrom": FINDINGS_FROM,
+                    "phase": phase,
+                    "agent": agent,
+                    "inputSha256": "test",
+                    "band": sid,
+                    "verdict": {"1600": "match", "768": "match", "390": "match"},
+                    "seen": "All three side-by-sides match the 1.2 clip: split hero, two CTAs, overlay card.",
+                    "misses": [],
+                    "patch": "",
+                    "findings": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        tasks.append(
+            {
+                "id": agent,
+                "kind": "validate-band",
+                "band": sid,
+                "findings": finding_rel,
+                "status": "applied",
+            }
+        )
+    path = dest_dir / "wave.json"
+    path.write_text(
+        json.dumps(
+            {
+                "generatedFrom": WAVE_FROM,
+                "runId": run_id,
+                "phase": phase,
+                "appliedAt": _now_iso(),
+                "tasks": tasks,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def write_receipt(root: Path, errors: list[str]) -> Path:

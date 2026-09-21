@@ -21,8 +21,8 @@
     --line-strong: #4a5340;
     --accent: #c7ff52;
     --human: #ffd166;
-    /* one typeface across the whole design */
-    --sans: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    /* Geist for prose, Geist Mono for labels and code */
+    --sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
     --display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
     --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
@@ -35,7 +35,7 @@
   .mast { display: flex; justify-content: space-between; gap: 16px; margin: 0 0 48px; color: var(--muted); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
   .mast strong, .mast-tag { color: var(--accent); }
   h1, h2, h3, h4 { font-family: var(--display); }
-  h1 { margin: 0; color: var(--ink); font-size: clamp(2.1rem, 6vw, 3.6rem); font-weight: 500; line-height: 1; letter-spacing: -.035em; }
+  h1 { margin: 0; color: var(--ink); font-size: clamp(2.1rem, 6vw, 3.6rem); font-weight: 800; line-height: .92; letter-spacing: -.04em; }
   .run-title { display: flex; flex-wrap: wrap; align-items: center; gap: .14em; }
   .run-gear { width: .78em; height: .78em; overflow: visible; color: var(--accent); animation: gear-spin 3.4s linear infinite; transform-origin: 50% 50%; }
   .run-gear circle { fill: none; stroke: currentColor; stroke-width: 2; }
@@ -76,15 +76,6 @@
   }
   @keyframes gear-spin { to { transform: rotate(360deg); } }
   body[data-run="done"] .run-gear { animation-play-state: paused; color: var(--muted); }
-  body[data-run="yield"] .run-gear { animation-play-state: paused; color: var(--human); }
-  body[data-run="yield"] .converting-label {
-    animation: none;
-    color: var(--accent);
-    background: none;
-    -webkit-background-clip: unset;
-    background-clip: unset;
-  }
-  body[data-run="yield"] .loader-grid i { animation: none; opacity: .35; background: var(--human); }
   @media (prefers-reduced-motion: reduce) {
     .loader-grid i { animation: none; opacity: .15; }
     .converting-label { animation: none; color: var(--ink); background: none; -webkit-background-clip: unset; background-clip: unset; }
@@ -92,22 +83,6 @@
   }
   .bar { height: 3px; overflow: hidden; background: var(--line); }
   .bar i { display: block; width: var(--pct, 0%); height: 100%; background: var(--accent); }
-  .here-next {
-    display: grid;
-    gap: 6px;
-    margin: 12px 0 0;
-    padding: 12px 14px;
-    border: 1px solid var(--accent);
-    background: #1d2514;
-    font: 700 12px/1.45 var(--mono);
-    letter-spacing: .04em;
-    text-transform: uppercase;
-  }
-  .here-next[hidden] { display: none; }
-  .here-next-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; align-items: baseline; }
-  .here-next .k { color: var(--muted); }
-  .here-next .v { color: var(--ink); text-transform: none; font-weight: 600; letter-spacing: 0; }
-  .here-next .v.next { color: var(--accent); }
   .spine { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 48px; padding: 0; list-style: none; }
   .spine li { position: relative; padding: 13px 42px 13px 12px; border: 1px solid var(--line); background: var(--panel); transition: border-color 160ms ease, background 160ms ease; }
   .spine li + li { border-left: 0; }
@@ -157,35 +132,7 @@
   .timeline-head h3 { margin: 0; color: var(--ink); font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 500; line-height: 1.25; letter-spacing: -.02em; text-wrap: balance; }
   .timeline-copy > p { max-width: 52ch; margin: 10px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
   .timeline-status { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 7px 9px 6px; border: 1px solid var(--line); color: var(--muted); font: 800 9px/1 var(--mono); letter-spacing: .09em; white-space: nowrap; }
-  .timeline-status::before { content: "WAITING"; }
-  .timeline-item[data-status="pending"],
-  .timeline-item[data-status="skipped"] {
-    opacity: .32;
-    pointer-events: none;
-    filter: grayscale(.5);
-  }
-  .timeline-item[data-status="up-next"] {
-    opacity: .42;
-    pointer-events: none;
-    filter: grayscale(.25);
-  }
-  .timeline-item[data-status="pending"] .timeline-head h3,
-  .timeline-item[data-status="up-next"] .timeline-head h3,
-  .timeline-item[data-status="skipped"] .timeline-head h3 { color: var(--muted); }
-  .timeline-item[data-status="pending"] .timeline-key,
-  .timeline-item[data-status="up-next"] .timeline-key,
-  .timeline-item[data-status="skipped"] .timeline-key {
-    color: var(--muted);
-    border-color: var(--line);
-    background: var(--bg);
-  }
-  .timeline-item[data-status="pending"] .timeline-status,
-  .timeline-item[data-status="up-next"] .timeline-status,
-  .timeline-item[data-status="skipped"] .timeline-status { border-color: var(--line); color: var(--muted); }
-  .timeline-item[data-status="pending"] .dg svg,
-  .timeline-item[data-status="up-next"] .dg svg,
-  .timeline-item[data-status="skipped"] .dg svg { color: var(--muted); }
-  .timeline-item[data-status="up-next"] .timeline-status::before { content: "UP NEXT"; }
+  .timeline-status::before { content: "UP NEXT"; }
   .timeline-item[data-status="active"] .timeline-key { border-color: var(--accent); background: var(--accent); color: var(--bg); }
   .timeline-item[data-status="active"] .timeline-status { border-color: var(--accent); color: var(--accent); }
   .timeline-item[data-status="active"] .timeline-status::before { content: "IN PROGRESS"; }
@@ -237,10 +184,6 @@
       </span>
     </div>
     <div class="bar" aria-hidden="true"><i data-pipeline-bar style="--pct:0%"></i></div>
-    <div class="here-next" data-pipeline-here-next hidden>
-      <div class="here-next-row"><span class="k">Here</span><span class="v" data-pipeline-here></span></div>
-      <div class="here-next-row"><span class="k">Next</span><span class="v next" data-pipeline-next></span></div>
-    </div>
   </div>
 
   <ol class="spine" aria-label="Dependency chain">
@@ -312,7 +255,7 @@
     <div class="timeline">
       <article class="timeline-item" data-progress-step="1.1"><div class="timeline-key">1.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scope the page and keep the files honest</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Open the live board first. Scrape the homepage — images plus Latin fonts only. Do not write rebuild HTML.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M26 6h16l8 8v24H26z" stroke="var(--line-strong)"/><path d="M42 6v8h8" stroke="var(--line-strong)"/><path d="M18 22h40"/><circle cx="18" cy="22" r="2" fill="currentColor" stroke="none"/></svg><span>named, checked</span></div></div></article>
       <article class="timeline-item" data-progress-step="1.2"><div class="timeline-key">1.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Capture every breakpoint to Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Capture the homepage and Navigation at 1600, 768, and 390. Store a source clip next to each lander. Prove desktop geometry before moving on.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>1600 · 768 · 390</span></div></div></article>
-      <article class="timeline-item" data-progress-step="1.3"><div class="timeline-key">1.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Create the Design Library + Tokens</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Mine one set of colors, type, and spacing from the Paper frames. Bind them back without moving layout. Then copy unique buttons and cards from desktop into the Buttons and Components frames, and author button hover from source CSS.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>named once</span></div></div></article>
+            <article class="timeline-item" data-progress-step="1.3"><div class="timeline-key">1.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Create the Design Library + Tokens</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Mine one set of colors, type, and spacing from the Paper frames. Bind them back without moving layout. Then copy unique buttons and cards from desktop into the Buttons and Components frames, and author button hover from source CSS.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>named once</span></div></div></article>
         <article class="timeline-item" data-progress-step="1.4"><div class="timeline-key">1.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Review all three sizes, Navigation, Buttons, Components, and the Design Library in Paper. Pin every problem. Capture Tool stays optional leftover hover. Marking done prints the session 2 prompt.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>walk Paper, then sign off</span></div></div></article>
             <article class="timeline-item" data-progress-step="2.1"><div class="timeline-key">2.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Emit the Design System</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Write rebuild/design-system.html and tokens.css from the signed Design Library. Token contract, not the ship.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>system before page</span></div></div></article>
       <article class="timeline-item" data-progress-step="2.2"><div class="timeline-key">2.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Author the homepage from Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Author one semantic, responsive first pass from Paper desktop using the 2.1 tokens. Writes <code>index-semantic.html</code>. No new palette, fonts, or copy. file:// only.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="10" y="6" width="42" height="12" rx="2"/><rect x="14" y="18" width="42" height="12" rx="2"/><rect x="18" y="30" width="42" height="12" rx="2" stroke="currentColor"/></svg><span>Paper is the brief</span></div></div></article>

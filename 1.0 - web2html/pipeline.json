@@ -13,7 +13,7 @@
    "reference files nothing links to are reported (WARNING)"
   ]
  },
- "orchestratorVersion": "2.21.1",
+ "orchestratorVersion": "2.23.0",
  "versionStampSurfaces": [
   "AGENTS.md",
   "1.0 - web2html/SKILL.md",
@@ -32,7 +32,7 @@
   {
    "path": "1.0 - web2html",
    "role": "orchestrator",
-   "declaredSkillVersion": "2.21.1",
+   "declaredSkillVersion": "2.23.0",
    "tracksOrchestratorVersion": true
   },
   {
@@ -215,7 +215,8 @@
    "references": [
     "paper-design-to-code.md",
     "responsive-22d.md",
-    "section-23-paper-loop.md"
+    "section-23-paper-loop.md",
+    "orca-relay.md"
    ]
   },
   {
@@ -255,7 +256,8 @@
     "hover-22c.md",
     "nav-drawer.md",
     "faq.md",
-    "nav-dropdown.md"
+    "nav-dropdown.md",
+    "orca-relay.md"
    ]
   },
   {
@@ -351,7 +353,8 @@
    "gate": "self",
    "optional": true,
    "references": [
-    "phase-5-astro.md"
+    "phase-5-astro.md",
+    "orca-relay.md"
    ]
   },
   {

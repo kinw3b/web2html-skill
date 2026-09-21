@@ -1,4 +1,4 @@
-# 2.3 measure — disk gold, at most two workers, no live Paper MCP
+# 2.3 measure — disk gold, VALIDATE LOOK is wave.py, no live Paper MCP
 
 This file is the **2.3 driver**. Do **not** load `/pixel-perfect` as the
 step. Do **not** call Paper MCP from 2.3.
@@ -19,16 +19,18 @@ Eyeballing `rebuild/index.html` against a zoomed Paper screenshot is not
 self-validates against **disk gold + index-raw**, then a worker may call
 pixel-perfect **once** as an assist, still against those PNGs. Close
 enough fails. A 10-loop refine also fails (Pitfall #195). Eight Paper MCP
-workers in one spawn also fails (Pitfall #202).
+workers in one spawn also fails (Pitfall #202). Skipping `wave.py` at
+VALIDATE LOOK also fails (Pitfall #221).
 
 Load this file at 2.3. Do not invent 1024 / 1320. Do not restyle the whole
 page to fix one band. Pitfall #176 #185 #195 #202 #216.
 
 The one-pass loop below is the **measure**. It is not the end of 2.3. After
-APPLY comes the **VALIDATE walk** (§ below): every band, top to bottom,
-re-shot, **looked at**, fixed, re-shot, until it matches or round 3. That
-walk is what used to happen by hand at 2.4 from screenshots. It is now
-inside 2.3 and gated (Pitfall #216).
+APPLY comes **VALIDATE LOOK** (§ below): the controller shoots every open
+band, then **MUST** `wave.py` so LOOK fans out (Orca terminals when the
+probe says `waves orca`). The controller applies printed patches and
+`--record`s. That walk is what used to happen by hand at 2.4 from
+screenshots. It is now inside 2.3 and gated (Pitfall #216 #221).
 
 ## Why disk, not Paper MCP
 
@@ -57,15 +59,18 @@ Controller (this session — only rebuild/ writer):
   4. SHOOT    paper_23_rebuild_shots.py . --all
   5. PULL     paper_23_clip_compare.py .  (copies NN-slug.png at 1600/768/390
               next to rebuild shots; writes side-by-sides)
-  6. COMPARE  Read those pulled PNGs. Serial here, or at most TWO workers.
+  6. COMPARE  Read those pulled PNGs. Serial here (controller), or at most
+              TWO disk-only measure workers writing qa/paper-measure/<id>.*
   7. APPLY    merge each section patch serially onto rebuild/index.html
               (port missing dump SVG/icons — do not invent Lucide stand-ins)
   8. RESHOOT  only sections whose CSS changed (max 1 re-shoot each)
   9. INDEX    qa/paper-measure/_index.json + qa/section-align-22.json
- 10. VALIDATE paper_23_validate.py . --next → --id <band> --shoot →
-              Read the three side PNGs → patch that band → --record;
-              repeat ≤ 3 rounds per band, top to bottom, then --residual
- 11. GATE     section_22_gate.py .  (needs every <id>.validate.json)
+ 10. VALIDATE paper_23_validate.py . --shoot-open
+              then MUST wave.py prepare/start/wait/apply (LOOK)
+              then apply printed patches + --record from the findings
+              ≤ 3 rounds per band, then --residual
+ 11. GATE     section_22_gate.py .  (needs every <id>.validate.json
+              AND an applied qa/agent-runs/<run>/2.3/wave.json)
 
 Do not skip this loop. Missing rebuild/index-raw.html,
 qa/paper-measure/raw-census.json, qa/paper-measure/disk-gold.json, or
@@ -88,24 +93,25 @@ Each compare, for section S at 1600 / 768 / 390:
            and only against those PNGs — never Paper MCP
   PATCH    qa/paper-measure/<id>.patch.md  (S only) — or none
   STOP     one compare + one proposed fix here. The bounded re-check is
-           the VALIDATE walk below, not a second measure pass.
+           VALIDATE LOOK (wave.py) below, not a second measure pass.
 ```
 
 Hard caps:
 
 - **Paper MCP calls at 2.3: zero.** Workers and the controller. Comment
   remediation is 2.1 and after 2.4, not here.
-- **Task spawn: at most 2 live children.** Default is serial in this
-  session. Never one worker per section in a single fan-out. Never 8.
+- **Measure spawn: at most 2 live children** writing `qa/paper-measure/<id>.*`.
+  Never one Paper-bound worker per section. Never 8.
+- **VALIDATE LOOK is `wave.py`.** Required. Adapter from the probe
+  (`orca` → up to 4 Orca terminals, `subagent` → this harness's subagent
+  tool, `serial` → controller does each printed spec). Never skip it
+  because LOOK "fits in this session" (Pitfall #221).
 - Pixel-perfect: **at most once per section**, **one compare + one fix**.
   Skip it when MEASURE already matches the watch list.
 - No 10-loop refine. No full-page spec. No user-verification handoff.
-- Remaining drift after the one-pass cap goes to the **VALIDATE walk**
+- Remaining drift after the one-pass cap goes to **VALIDATE LOOK**
   (≤ 3 looked-at rounds per band), not to 3.x and not to the human at 2.4.
 - Workers **never** write `rebuild/`. The controller does, serially.
-
-If this harness has no parallel task tool, run the same contract
-serially. Still one-pass. Still no pixel-perfect loop. Still no Paper.
 
 ## Watch list (why pixel-perfect may fire)
 
@@ -127,17 +133,16 @@ Not polish. Not a restyle.
 Sub-2px noise is drift. A missing overlay card, a pill where the dump is
 10px, or a 3-line heading that the desktop dump wraps in 4 is a miss.
 
-## Controller — spawn
+## Controller — measure spawn
 
-Prefer **no spawn**. Walk the `disk-gold.json` section list here.
+Measure COMPARE may stay in this session. If you spawn measure workers:
+this harness’s parallel task tool, **at most two** children at a time,
+then the next pair. Never a single 8-way batch. Children know nothing of
+the parent chat. They receive disk paths only. They **must not** load
+Paper MCP, `get_guide`, or `get_basic_info`.
 
-If you do spawn: this harness’s parallel task tool, **at most two**
-children at a time, then the next pair. Never a single 8-way batch.
-Children know nothing of the parent chat. They receive disk paths only.
-They **must not** load Paper MCP, `get_guide`, or `get_basic_info`.
-
-Workers write only under `qa/paper-measure/<id>.*`. They are **not**
-reviewer-wave agents (those stay read-only under `qa/agent-findings/`).
+Measure workers write only under `qa/paper-measure/<id>.*`. They are
+**not** the VALIDATE wave (those stay read-only under `qa/agent-findings/`).
 Canonical `_index.json` / `section-align-22.json` stay controller-only.
 
 ### Child prompt (copy-ready)
@@ -210,53 +215,62 @@ One apply + one re-shoot per changed section. Then sign the receipt.
 Fail is revert-that-section, not a second pixel-perfect loop. Then walk
 VALIDATE.
 
-## VALIDATE — top-to-bottom self-correction (2.21.0)
+## VALIDATE — shoot all, then wave.py LOOK (2.23.0)
 
 This is the part that used to happen by hand: the operator sent one
-section screenshot at a time and the agent fixed what it saw. Do that
-here, before the gate, for every band in ship order. Pitfall #216.
+section screenshot at a time and the agent fixed what it saw. LOOK fans
+out through `wave.py`. The controller shoots, applies, and records.
+Pitfall #216 #221.
 
 ```
-for band in ship order (paper_23_validate.py . --next names it):
-  SHOOT    paper_23_validate.py . --id <band> --shoot
-           re-shoots <band> at 1600 / 768 / 390 (file://) and rebuilds
-           qa/paper-measure/compare/NN-<band>-{1600,768,390}-side.png
-  LOOK     Read all three side PNGs. 1.2 clip left, rebuild right.
-           Then index-raw.html for the numbers behind what you see.
-  JUDGE    per width: match | miss. A miss is layout / type / geometry /
-           missing icon or overlay / invented block — the watch list.
-           Sub-2px noise is not a miss.
-  FIX      patch <band> only (scoped selectors, tokens where the value is
-           a token, px literal where the dump painted off-token). Port
-           glyphs from index-raw. Controller writes rebuild/. No Paper MCP.
-  RECORD   paper_23_validate.py . --id <band> --record
-             --seen "<one line: what the three sides showed>"
-             --verdict 1600=match,768=miss,390=match
-             --miss "768|<what differs>|<scoped fix>" --patched
-  REPEAT   --shoot the next round until every width is match.
-  CAP      round 3 still misses → --record … --residual "<what stays off
-           and why>". One line. 2.4 reads it. No round 4.
+SHOOT    paper_23_validate.py . --shoot-open
+         re-shoots every open band at 1600 / 768 / 390 (file://) and
+         rebuilds qa/paper-measure/compare/NN-<band>-{1600,768,390}-side.png
+
+LOOK     MUST wave.py (adapter from qa/harness-probe.json):
+           python3 $SKILLS/web2html/scripts/wave.py prepare . --phase 2.3 --run-id rN
+           python3 $SKILLS/web2html/scripts/wave.py start   . --phase 2.3 --run-id rN
+           python3 $SKILLS/web2html/scripts/wave.py wait    . --phase 2.3 --run-id rN
+           python3 $SKILLS/web2html/scripts/wave.py ready   . --phase 2.3 --run-id rN
+           python3 $SKILLS/web2html/scripts/wave.py apply   . --phase 2.3 --run-id rN
+         waves orca     → Orca terminals of the same agent (up to 4)
+         waves subagent → dispatch each printed spec to this harness's subagent tool
+         waves serial   → do each printed spec yourself, same finding file
+         Workers Read the three side PNGs and write qa/agent-findings/… only.
+         When waves orca, load orchestration + orca-cli first
+         (`orca skills get orchestration`). Do not substitute spawn_subagent
+         for Orca worker-start.
+
+APPLY    For each printed action: patch that band on rebuild/ (scoped
+         selectors), then run the printed --record (seen + verdict from
+         the finding). Controller writes rebuild/. No Paper MCP.
+
+REPEAT   bands still open → --shoot-open again, new run-id, wave again.
+CAP      round 3 still misses → --record … --residual "<what stays off
+         and why>". One line. 2.4 reads it. No round 4.
 ```
 
 Rules of the walk:
 
-- **Look every round.** `--seen` is the proof. Empty or generic `seen`
-  fails the gate. Say what differed, or why all three match.
-- **One band at a time, ship order.** `--next` is the pointer. Do not
-  batch-record bands you did not re-shoot.
+- **Look every round, through the wave.** `--seen` is the proof and comes
+  from the finding. Empty or generic `seen` fails the gate. The finding
+  must say what differed, or why all three match (≥12 words).
+- **Shoot every open band before `wave.py prepare`.** `--shoot-open` is
+  the pointer. Do not batch-record bands you did not re-shoot. Do not
+  `--record` a band that has no finding in the applied wave.
 - **A miss before round 3 must be patched** (`--patched`). Recording a
   miss and moving on is the old drop-through; the script refuses it.
 - **No patch after the last look.** `--shoot` fingerprints the ship
   (`rebuild/index.html` + `rebuild/css/*.css`, minus the 2.4 QA overlay
   and the 3.x sheets). The gate recomputes it; a changed ship fails 2.3
-  until you `--shoot` and Read again. Round 3 refuses `--patched` for the
+  until you `--shoot` and LOOK again. Round 3 refuses `--patched` for the
   same reason — a fix nobody re-shot is invisible.
-- **Caps.** 3 rounds per band. Controller only. Serial. No pixel-perfect
-  inside the walk — VALIDATE replaces the second pass it was never allowed
-  to run. No Paper MCP. Not 1.1 `source-site/screenshots/`.
-- **No Playwright?** `--shoot` records `shotsSkipped`; compare on the
-  open `file://` tab in DevTools at 1600 / 768 / 390, still `--record`
-  with a real `seen`. The fingerprint rule still applies.
+- **Caps.** 3 rounds per band. Controller writes `rebuild/`. LOOK is the
+  wave. No pixel-perfect inside VALIDATE. No Paper MCP. Not 1.1
+  `source-site/screenshots/`.
+- **No Playwright?** `--shoot` records `shotsSkipped`; workers still
+  compare on the open `file://` tab in DevTools at 1600 / 768 / 390, still
+  `--record` with a real `seen`. The fingerprint rule still applies.
 
 Receipt: `qa/paper-measure/<id>.validate.json`
 
@@ -391,9 +405,10 @@ python3 $SKILLS/web2html/scripts/section_22_gate.py .
 
 `qa/section-align-22.json` stays the human-readable row list. The measure
 index is the proof the rows were not guessed. The `<id>.validate.json`
-receipts are the proof each band was **looked at** after its last patch
-(`seen` non-empty, last round match or capped residual, ship fingerprint
-unchanged since that round was shot). Pitfall #216.
+receipts plus an applied `qa/agent-runs/<run>/2.3/wave.json` are the proof
+each band was **looked at** after its last patch (`seen` non-empty, last
+round match or capped residual, ship fingerprint unchanged since that
+round was shot). Pitfall #216 #221.
 
 ## Not 2.3
 
@@ -408,8 +423,10 @@ unchanged since that round was shot). Pitfall #216.
 - Opening TAGS (that is 2.4)
 - A mega-pass that restyles tokens globally
 - Signing `"aligned"` from a zoomed shot without index-raw numbers
-- Skipping the VALIDATE walk, recording a round without Reading its side
-  PNGs, batch-recording bands, a fourth round, or a residual before round 3
-  (Pitfall #216)
-- Loading pixel-perfect inside VALIDATE — the walk is the controller's own
-  bounded re-check, not the assist's refine loop
+- Skipping `wave.py` at VALIDATE LOOK, Reading the sides yourself on the
+  orca/subagent rungs, or `--record`ing without an applied wave covering
+  that band (Pitfall #221)
+- Recording a round without a finding `seen`, batch-recording bands, a
+  fourth round, or a residual before round 3 (Pitfall #216)
+- Loading pixel-perfect inside VALIDATE — LOOK is the wave, not the
+  assist's refine loop

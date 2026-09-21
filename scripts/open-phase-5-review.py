@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -84,7 +83,10 @@ def main(argv: list[str] | None = None) -> int:
         uri = path.as_uri()
         opened.append(uri)
         if not args.no_open:
-            subprocess.call(["open", "-a", "Google Chrome", uri])
+            import open_doc
+
+            result = open_doc.open_doc(uri, ["open", "-a", "Google Chrome", uri])
+            print(f"{open_doc.describe(result)}: {uri}")
     receipt = root / "qa" / "phase-5-review-opened.json"
     receipt.write_text(
         json.dumps(

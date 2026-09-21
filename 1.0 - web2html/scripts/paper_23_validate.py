@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
-"""2.3 VALIDATE — top-to-bottom self-correction walk after APPLY (2.21.0).
+"""2.3 VALIDATE — shoot every open band, then wave.py LOOK (2.23.0).
 
-The one-pass section loop leaves layout misses that used to surface at 2.4
-and get fixed by hand from screenshots, one band at a time. VALIDATE does
-that walk inside 2.3: ship order, one band at a time, re-shoot → Read the
-side-by-sides → compare with the 1.2 clip + index-raw → patch that band →
-record → repeat until every width matches or round 3. Then one residual
-line. Controller only. No Paper MCP. No pixel-perfect inside the walk.
+The one-pass section loop leaves layout misses that used to surface at 2.4.
+VALIDATE does that walk inside 2.3. The controller shoots and records.
+LOOK is wave.py (orca terminals / subagent / serial specs) — the controller
+does not Read the sides itself on the orca or subagent rungs.
 
-  python3 paper_23_validate.py . --next                 # first open band, ship order
-  python3 paper_23_validate.py . --id hero --shoot      # open a round: shots + side-by-sides
-  #   Read qa/paper-measure/compare/NN-hero-{1600,768,390}-side.png  (1.2 left, rebuild right)
-  #   patch #hero only, then:
-  python3 paper_23_validate.py . --id hero --record \\
-      --seen "768: feature cards stack 1-col, Paper paints 2-col. 1600 + 390 match." \\
-      --verdict 1600=match,768=miss,390=match \\
-      --miss "768|cards 1-col|#hero .grid: repeat(2, 1fr) at 768" --patched
-  python3 paper_23_validate.py . --id hero --shoot      # round 2 … until all match
+  python3 paper_23_validate.py . --shoot-open           # shoot every open band
+  python3 $SKILLS/web2html/scripts/wave.py prepare . --phase 2.3 --run-id r1
+  python3 $SKILLS/web2html/scripts/wave.py start   . --phase 2.3 --run-id r1
+  python3 $SKILLS/web2html/scripts/wave.py wait    . --phase 2.3 --run-id r1
+  python3 $SKILLS/web2html/scripts/wave.py apply   . --phase 2.3 --run-id r1
+  # apply printed `patch` onto rebuild/, then each printed --record
   python3 paper_23_validate.py . --status               # exit 2 while any band is open
+  python3 paper_23_validate.py . --next                 # first open band (legacy pointer)
 
-Receipt: qa/paper-measure/<id>.validate.json (generatedFrom web2html/section-23-validate).
-section_22_gate.py fails a band without it, with an empty `seen`, an open last
-round, more than --max-rounds rounds, or a ship (rebuild/index.html +
-rebuild/css, minus the QA overlay and 3.x sheets) that changed after the last
-round was shot — a patch nobody looked at. Pitfall #216.
+Receipt: qa/paper-measure/<id>.validate.json (generatedFrom web2html/section-23-validate)
+plus an applied qa/agent-runs/<run>/2.3/wave.json covering every band.
+section_22_gate.py fails a band without the receipt, with an empty `seen`,
+an open last round, more than --max-rounds rounds, a ship that changed after
+the last look, or a missing wave (Pitfall #216 #221).
 """
 from __future__ import annotations
 
@@ -47,6 +43,16 @@ DEFAULT_MAX_ROUNDS = 3
 MIN_SEEN = 12
 VERDICTS = frozenset({"match", "miss"})
 STATUSES = frozenset({"open", "match", "residual"})
+
+
+def _spend(root: Path, kind: str) -> None:
+    """Best-effort context-budget ledger (context_budget.py). Never raises, never gates."""
+    try:
+        import context_budget
+
+        context_budget.add_spend(root, kind)
+    except Exception:  # noqa: BLE001
+        return
 
 
 def _now_iso() -> str:
@@ -292,6 +298,29 @@ def band_state(root: Path, section_id: str) -> str:
     return status if status in STATUSES else "open"
 
 
+def shoot_open(root: Path, *, max_rounds: int = DEFAULT_MAX_ROUNDS, capture=None) -> tuple[list[str], list[str]]:
+    """Open a round on every band that is missing or still open.
+
+    Skips a band whose last round is unrecorded (already shot). Returns
+    (shot ids, skipped ids).
+    """
+    root = root.resolve()
+    shot: list[str] = []
+    skipped: list[str] = []
+    for row in status_rows(root):
+        if row["state"] in {"match", "residual"}:
+            continue
+        sid = str(row["id"])
+        payload = load(root, sid)
+        previous = last_round(payload) if payload else None
+        if previous is not None and not round_recorded(previous):
+            skipped.append(sid)
+            continue
+        open_round(root, sid, max_rounds=max_rounds, capture=capture)
+        shot.append(sid)
+    return shot, skipped
+
+
 def next_open(root: Path) -> dict | None:
     for row in ship_sections(root):
         sid = str(row.get("id"))
@@ -328,10 +357,28 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--patched", action="store_true", help="this band's CSS/HTML was patched")
     ap.add_argument("--residual", default="", help="last round only: what stays off and why")
     ap.add_argument("--next", action="store_true", help="print the first open band in ship order")
+    ap.add_argument("--shoot-open", action="store_true", help="shoot every open band, then run wave.py")
     ap.add_argument("--status", action="store_true", help="table of every band; exit 2 while any is open")
     ap.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS)
     args = ap.parse_args(argv)
     root = args.root.resolve()
+
+    if args.shoot_open:
+        if args.id:
+            print("FAIL: --shoot-open shoots every open band; drop --id", file=sys.stderr)
+            return 2
+        shot, skipped = shoot_open(root, max_rounds=args.max_rounds)
+        for _ in shot:
+            _spend(root, "shoot")
+        if shot:
+            print("validate: shot " + ", ".join(shot))
+        if skipped:
+            print("validate: skipped (unrecorded round): " + ", ".join(skipped))
+        if not shot and not skipped:
+            print("validate: no open bands — run section_22_gate.py .")
+        else:
+            print("validate: next is wave.py prepare . --phase 2.3 --run-id rN")
+        return 0
 
     if args.next:
         row = next_open(root)
@@ -364,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.shoot:
         payload = open_round(root, args.id, max_rounds=args.max_rounds)
+        _spend(root, "shoot")
         current = last_round(payload) or {}
         number = current.get("round")
         cap = payload.get("maxRounds")
@@ -389,6 +437,7 @@ def main(argv: list[str] | None = None) -> int:
             patched=args.patched,
             residual=args.residual,
         )
+        _spend(root, "record")
         status = payload.get("status")
         number = (last_round(payload) or {}).get("round")
         if status == "match":

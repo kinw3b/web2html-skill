@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 
 
+os.environ.setdefault("WEB2HTML_NO_PROBE", "1")  # keep start/resume hermetic: no live Orca probe in tests
+
 MODULE_PATH = Path(__file__).with_name("pipeline-progress.py")
 SPEC = importlib.util.spec_from_file_location("pipeline_progress", MODULE_PATH)
 pipeline_progress = importlib.util.module_from_spec(SPEC)
@@ -1473,3 +1475,142 @@ class PipelineProgressTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RelayTests(unittest.TestCase):
+    """A relay is a change of agent at a receipt boundary — never a human stop (Pitfall #218 #219 #220)."""
+
+    def _run(self, tmp: str, current: str = "2.3", owner: str = "session-2") -> Path:
+        root = Path(tmp) / "demo"
+        data = pipeline_progress.empty_progress("demo")
+        for sid in ("1.1", "1.2", "1.3", "1.4", "2.1", "2.2"):
+            data["steps"][sid]["status"] = "done"
+            data["steps"][sid]["ended"] = "2026-09-20T10:00:00-06:00"
+        data["steps"][current]["status"] = "active"
+        data["steps"][current]["started"] = "2026-09-20T10:05:00-06:00"
+        data["current"] = current
+        data["controller"] = {"owner": owner, "status": "active", "claimedAt": "2026-09-20T09:00:00-06:00"}
+        pipeline_progress.save_progress(root, data, force=True)
+        (root / "qa" / "paper-file.json").write_text(json.dumps({"fileId": "paper-1", "url": "https://example.com"}))
+        return root
+
+    def _patch(self, probe: dict, orca_script: dict):
+        calls: list[list[str]] = []
+
+        def run(argv, timeout_s=60):
+            calls.append(argv)
+            key = " ".join(argv[1:3])
+            code, body = orca_script.get(key, (1, {}))
+            return code, json.dumps(body)
+
+        originals = (pipeline_progress._probe_report, pipeline_progress._orca_run, pipeline_progress._budget_snapshot)
+        pipeline_progress._probe_report = lambda root, fresh=False: probe
+        pipeline_progress._orca_run = run
+        pipeline_progress._budget_snapshot = lambda root: {"usedPct": 52.0, "window": 200000, "source": "transcript", "state": "armed"}
+        self.addCleanup(lambda: setattr(pipeline_progress, "_probe_report", originals[0]))
+        self.addCleanup(lambda: setattr(pipeline_progress, "_orca_run", originals[1]))
+        self.addCleanup(lambda: setattr(pipeline_progress, "_budget_snapshot", originals[2]))
+        return calls
+
+    ORCA_PROBE = {"harness": "codex", "agent": "codex", "agentCommand": "codex",
+                  "orca": {"cli": "/bin/orca", "reachable": True, "worktree": "repo::/wt"},
+                  "adapters": {"waves": "orca", "relay": "orca-terminal"}}
+    NO_ORCA = {"harness": "generic", "agent": None, "agentCommand": None, "orca": {"present": False},
+               "adapters": {"waves": "serial", "relay": "print-prompt"}}
+
+    def test_relay_without_orca_prints_the_prompt_and_frees_the_lease_for_the_successor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._run(tmp)
+            calls = self._patch(self.NO_ORCA, {})
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-2"), 0)
+            self.assertEqual(calls, [])
+            prompt = (root / "qa" / "handoff-2.3.relay1.md").read_text()
+            for needle in ("RELAY", "NOT A HUMAN CHECKPOINT", "--at 2.3 --owner session-2b", "resume", "52.0%", "paper-1", "Do not fire a CTA"):
+                self.assertIn(needle, prompt)
+            self.assertNotIn("`start`\n", prompt)
+            after = pipeline_progress.load_progress(root)
+            self.assertNotIn("controller", after)
+            self.assertFalse(pipeline_progress.controller_lease_path(root).is_file())
+            self.assertEqual(after["relays"][0]["to"], "session-2b")
+            self.assertEqual(after["relays"][0]["adapter"], "print-prompt")
+            self.assertEqual(after["steps"]["2.3"]["status"], "active", "the step stays active; the successor continues it")
+            # The successor claims the lease with resume, at the same step.
+            self.assertEqual(pipeline_progress.cmd_resume(root, "2.3", "session-2b"), 0)
+            self.assertEqual(pipeline_progress.load_progress(root)["controller"]["owner"], "session-2b")
+
+    def test_relay_via_orca_opens_a_terminal_for_the_same_agent_and_ends_the_turn(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._run(tmp)
+            calls = self._patch(self.ORCA_PROBE, {
+                "terminal create": (0, {"result": {"terminal": {"handle": "term_new"}}}),
+                "terminal wait": (0, {"result": {"wait": {"satisfied": True}}}),
+                "terminal send": (0, {"result": {"accepted": True, "stages": ["input_accepted", "turn_started"]}}),
+            })
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-2"), 0)
+            create = [c for c in calls if c[1:3] == ["terminal", "create"]][0]
+            self.assertEqual(create[create.index("--command") + 1], "codex", "same source as the orchestrator, never a hardcoded claude")
+            self.assertEqual(create[create.index("--worktree") + 1], "id:repo::/wt")
+            send = [c for c in calls if c[1:3] == ["terminal", "send"]][0]
+            self.assertIn("--owner session-2b", send[send.index("--text") + 1])
+            self.assertIn("--enter", send)
+            after = pipeline_progress.load_progress(root)
+            self.assertNotIn("controller", after)
+            self.assertEqual(after["relays"][0]["terminal"], "term_new")
+            self.assertTrue(after["relays"][0]["started"])
+
+    def test_relay_takes_the_lease_back_when_the_terminal_never_accepts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._run(tmp)
+            self._patch(self.ORCA_PROBE, {
+                "terminal create": (0, {"result": {"terminal": {"handle": "term_new"}}}),
+                "terminal wait": (0, {"result": {"wait": {"satisfied": False}}}),
+            })
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-2"), 3)
+            after = pipeline_progress.load_progress(root)
+            self.assertEqual(after["controller"]["owner"], "session-2", "a run is never left ownerless")
+            self.assertTrue(pipeline_progress.controller_lease_path(root).is_file())
+            self.assertFalse(after["relays"][0]["started"])
+            self.assertTrue((root / "qa" / "handoff-2.3.relay1.md").is_file())
+
+    def test_relay_refuses_a_foreign_owner_a_human_checkpoint_and_a_wave_in_flight(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._run(tmp)
+            self._patch(self.NO_ORCA, {})
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-3"), 2)
+            wave_dir = root / "qa" / "agent-runs" / "r1" / "2.3"
+            wave_dir.mkdir(parents=True)
+            (wave_dir / "wave.json").write_text(json.dumps({"runId": "r1", "tasks": [{"id": "band-hero", "status": "running"}]}))
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-2"), 2)
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-2", force=True), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._run(tmp, current="2.4")
+            self._patch(self.NO_ORCA, {})
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-2"), 2, "2.4 yields to the human, it is not relayed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            self.assertEqual(pipeline_progress.cmd_relay(root, "session-2"), 2)
+
+    def test_relay_owners_chain(self):
+        self.assertEqual(pipeline_progress.next_relay_owner("session-2"), "session-2b")
+        self.assertEqual(pipeline_progress.next_relay_owner("session-2b"), "session-2c")
+        self.assertEqual(pipeline_progress.next_relay_owner("session-2z"), "session-2z-r1")
+        self.assertEqual(pipeline_progress.next_relay_owner("session-2z-r1"), "session-2z-r2")
+
+    def test_mark_prints_the_budget_line_and_keeps_a_ledger(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._run(tmp, current="2.1")
+            self._patch(self.NO_ORCA, {})
+            data = pipeline_progress.load_progress(root)
+            data["steps"]["2.1"]["status"] = "pending"
+            data["current"] = None
+            pipeline_progress.save_progress(root, data)
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = pipeline_progress.cmd_mark(root, "2.1", "active", None, None, "session-2")
+            self.assertEqual(code, 0)
+            after = pipeline_progress.load_progress(root)
+            self.assertEqual(after["budget"]["owner"], "session-2")
+            self.assertGreater(after["budget"]["spendTokens"], 0)
+            self.assertIn("budget:", buf.getvalue())
+
