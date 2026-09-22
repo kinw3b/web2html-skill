@@ -16,9 +16,17 @@ export function paperAssembleWidths() {
   return [1600, 768, 390];
 }
 
-/** Disk shots (and optional --desktop-only skip of 768 / 390). */
-export function diskShotWidths({ desktopOnly = false } = {}) {
-  return desktopOnly ? [1600] : [1600, 768, 390];
+/** Disk shots. --desktop-only = 1600 alone; otherwise the run-config widths
+ *  (qa/run-config.json: full = 1600 / 768 / 390, fast = 1600 / 390). */
+export function diskShotWidths({ desktopOnly = false, widths = null } = {}) {
+  if (desktopOnly) return [1600];
+  const list = Array.isArray(widths) && widths.length ? widths.map(Number) : [1600, 768, 390];
+  return list.includes(1600) ? list : [1600, ...list];
+}
+
+/** Sub-desktop widths 1.2 shoots to disk (768 / 390 on a full run, 390 on fast). */
+export function breakpointWidths(widths) {
+  return widths.filter((w) => w < 1400);
 }
 
 /** Paper `Screenshots` is always the 1600 clips. 768 / 390 stay on disk. */
@@ -218,6 +226,7 @@ export async function collectHomepageToPaper({
   pageSlug = "home",
   force = false,
   desktopOnly = false,
+  widths = null,
   log = console.error,
 } = {}) {
   const { chromium } = await import("playwright-core");
@@ -247,13 +256,19 @@ export async function collectHomepageToPaper({
   const srcDir = sourceSectionsDirFor(desktopDir);
   fs.mkdirSync(desktopDir, { recursive: true });
   const projectRoot = path.dirname(captureRoot);
+  const { runWidths } = await importSibling("url-to-paper", "scripts/run-config.mjs");
+  const shotWidths = diskShotWidths({ desktopOnly, widths: widths || runWidths(projectRoot) });
+  const subWidths = breakpointWidths(shotWidths);
+  const widthLabel = shotWidths.join(" / ");
+  const missingShots = () => missingSourceSectionDirs(captureRoot, pageSlug, shotWidths);
 
   const gates = {
     sectionsOk: false,
     nav: "pending",
-    shots: missingSourceSectionDirs(captureRoot, pageSlug).length === 0,
-    w768: hasSourceSectionShots(sourceSectionsDirFor(path.join(captureRoot, `${pageSlug}-768`))),
-    w390: hasSourceSectionShots(sourceSectionsDirFor(path.join(captureRoot, `${pageSlug}-390`))),
+    shots: missingShots().length === 0,
+    // Unconfigured breakpoints read as satisfied — a fast run never shoots 768.
+    w768: !subWidths.includes(768) || hasSourceSectionShots(sourceSectionsDirFor(path.join(captureRoot, `${pageSlug}-768`))),
+    w390: !subWidths.includes(390) || hasSourceSectionShots(sourceSectionsDirFor(path.join(captureRoot, `${pageSlug}-390`))),
   };
 
   if (fileId) {
@@ -264,9 +279,9 @@ export async function collectHomepageToPaper({
     await ensureRulers({ call, fileId, boards: info.artboards || [], init: true, log });
   }
 
-  log(desktopOnly
+  log(subWidths.length === 0
     ? "collect homepage (hidden) — 1600 desktop-only. No 768/390 capture."
-    : "collect homepage (hidden) — serialize 1600 / 768 / 390 to Paper.");
+    : `collect homepage (hidden) — serialize ${widthLabel} to Paper.`);
   const hidden = await chromium.launch(launchOptions({ visible: false }));
   let walk = [];
   let lander = null;
@@ -297,7 +312,7 @@ export async function collectHomepageToPaper({
     walk = desktop.walk;
     writeReviewSequence(desktopDir, walk, { page: pageSlug, url });
     gates.sectionsOk = desktop.sections.length > 0 || walk.length === 0;
-    gates.shots = missingSourceSectionDirs(captureRoot, pageSlug).length === 0;
+    gates.shots = missingShots().length === 0;
 
     if (fileId) {
       const existing = await findArtboard(call, `${pageSlug}-desktop`);
@@ -323,12 +338,14 @@ export async function collectHomepageToPaper({
       });
     }
 
-    if (desktopOnly) {
+    if (subWidths.length === 0) {
       gates.w768 = true;
       gates.w390 = true;
       log("desktop-only: skip 768/390 capture");
+    } else if (subWidths.length < 2) {
+      log(`run-config: breakpoints ${subWidths.join(" / ")} only (fast run — no tablet)`);
     }
-    for (const width of desktopOnly ? [] : [768, 390]) {
+    for (const width of subWidths) {
       const key = width === 768 ? "w768" : "w390";
       const outDir = path.join(captureRoot, `${pageSlug}-${width}`);
       const srcDirAtWidth = sourceSectionsDirFor(outDir);
@@ -361,7 +378,7 @@ export async function collectHomepageToPaper({
       }
       log(`${width} captured to Paper (${captured.sections.length} sections)`);
     }
-    gates.shots = missingSourceSectionDirs(captureRoot, pageSlug).length === 0;
+    gates.shots = missingShots().length === 0;
   } finally {
     await hidden.close().catch(() => {});
   }
@@ -376,17 +393,19 @@ export async function collectHomepageToPaper({
       throw new Error(`Capture Tool cannot open: ${review.reason}`);
     }
     try {
+      const captureDirs = shotWidths.map((width) => ({
+        width,
+        dir: width === 1600 ? desktopDir : path.join(captureRoot, `${pageSlug}-${width}`),
+      }));
       const parked = await park12ChromeOnNavigation({
         call, fileId, projectRoot,
-        captureDirs: [
-          { width: 1600, dir: desktopDir },
-          { width: 768, dir: path.join(captureRoot, `${pageSlug}-768`) },
-          { width: 390, dir: path.join(captureRoot, `${pageSlug}-390`) },
-        ],
+        captureDirs,
         log, replace: force,
       });
-      if (parked.written !== 3) throw new Error(`1.2 Navigation requires three takes; wrote ${parked.written}`);
-      log("1.2 chrome → Navigation (1600 / 768 / 390)");
+      if (parked.written !== captureDirs.length) {
+        throw new Error(`1.2 Navigation requires ${captureDirs.length} takes (${widthLabel}); wrote ${parked.written}`);
+      }
+      log(`1.2 chrome → Navigation (${widthLabel})`);
     } catch (err) {
       throw new Error(`1.2 Navigation capture failed: ${String(err.message || err).split("\n")[0]}`);
     }
@@ -406,15 +425,9 @@ export async function collectHomepageToPaper({
   }
 
   log(`desktop sections ${walk.map((s) => s.paperName).join(" → ") || "(none)"}`);
-  const missing = desktopOnly
-    ? (hasSourceSectionShots(srcDir) ? [] : [srcDir])
-    : missingSourceSectionDirs(captureRoot, pageSlug);
+  const missing = missingShots();
   if (missing.length) {
-    throw new Error(
-      desktopOnly
-        ? `1.2 desktop-only needs source-sections at 1600 — missing ${missing.join(", ")}`
-        : `1.2 needs source-sections at 1600 / 768 / 390 — missing ${missing.join(", ")}`,
-    );
+    throw new Error(`1.2 needs source-sections at ${widthLabel} — missing ${missing.join(", ")}`);
   }
   return { walk, gates, lander, desktopDir, projectRoot, url, pageSlug };
 }

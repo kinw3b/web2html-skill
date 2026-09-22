@@ -45,7 +45,9 @@ qa/paper-human-review.md is written.
 Leftover rebuild/*.html is quarantined by start. mark --status active when you enter a step,
 mark --status done when you leave.
 TodoWrite / banners must use these same IDs, in this order.
-The live copy auto-refreshes so the bar moves as the JSON/HTML is stamped.
+The live copy auto-refreshes every 15s so the bar moves as the JSON/HTML is
+stamped. Once qa/paper-file.json exists, the Capture Tool URL is stamped
+under the progress bar so a pull can start anytime.
 """
 from __future__ import annotations
 
@@ -59,6 +61,7 @@ import re
 import sys
 import tempfile
 from datetime import datetime, timezone
+from html import escape as html_escape
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -74,6 +77,7 @@ from rebuild_write_gate import (
     gate_errors as rebuild_write_errors,
     quarantine_unauthorized_ship,
 )
+import run_config
 from seed_index import seed as seed_index_html
 from seed_index_polish import polish_path, seed as seed_index_polish
 
@@ -144,7 +148,7 @@ SPINE_GROUPS = {
     "qa": ("3.1", "3.2", "3.3", "3.4"),
 }
 STATUSES = {"pending", "active", "done", "skipped"}
-REFRESH = '<meta http-equiv="refresh" content="20" />'
+REFRESH = '<meta http-equiv="refresh" content="15" />'
 REFRESH_RE = re.compile(r"\s*<meta http-equiv=[\"']refresh[\"'][^>]*>\s*", re.I)
 
 
@@ -381,7 +385,7 @@ def authored_page_ready(root: Path) -> bool:
         return False
     if RAW_PAPER_EXPORT_RE.search(html):
         return False
-    if not (root / "rebuild" / "index-raw.html").is_file():
+    if run_config.raw_dump_enabled(root) and not (root / "rebuild" / "index-raw.html").is_file():
         return False
     return not ship_markup_errors(html)
 
@@ -394,7 +398,13 @@ def design_system_page_ready(root: Path) -> bool:
 
 
 def design_system_bound(root: Path) -> bool:
-    """2.2: first pass links 1.3-signed tokens.css; no invented --color/--font names."""
+    """2.2: first pass links 1.3-signed tokens.css; no invented --color/--font names.
+
+    Fast run: there is no 1.3 library and no 2.1 token sheet, so there is
+    nothing to bind against. The markup gates (authored_page_ready) still apply.
+    """
+    if not run_config.design_system_enabled(root):
+        return True
     ship = root / "rebuild" / "index-semantic.html"
     tokens = root / "rebuild" / "css" / "tokens.css"
     if not ship.is_file() or not tokens.is_file():
@@ -526,16 +536,17 @@ def has_source_section_shots(folder: Path) -> bool:
 
 
 def source_section_shots_done(root: Path, page_slug: str = "home") -> bool:
-    """1.2 stores per-section clips at 1600 / 768 / 390. Screenshots board stays 1600."""
+    """1.2 stores per-section clips at the configured widths. Screenshots board stays 1600."""
     capture = root / "capture"
-    for folder in (f"{page_slug}-desktop", f"{page_slug}-768", f"{page_slug}-390"):
+    for width in run_config.widths(root):
+        folder = f"{page_slug}-desktop" if width >= 1400 else f"{page_slug}-{width}"
         if not has_source_section_shots(capture / folder / "source-sections"):
             return False
     return True
 
 
 def breakpoint_shot_qa_done(root: Path) -> bool:
-    """Agent-authored home-768 / home-390 passed one screenshot pass."""
+    """Captured home-768 / home-390 (only the configured ones) passed one screenshot pass."""
     path = root / "qa" / "breakpoint-shot-qa.json"
     if not path.is_file():
         return False
@@ -543,10 +554,11 @@ def breakpoint_shot_qa_done(root: Path) -> bool:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
+    need = len([w for w in run_config.widths(root) if w < 1400])
     return (
         report.get("ok") is True
         and not report.get("missingFrames")
-        and len(report.get("frames") or []) >= 2
+        and len(report.get("frames") or []) >= need
     )
 
 
@@ -757,6 +769,9 @@ def artifact_done(root: Path, step: str) -> bool:
         # done-gate.
         return _any_exists(root, "qa/paper-human-review.md")
     if step == "1.3":
+        if not run_config.design_library_enabled(root):
+            # Fast run: 1.3 is skipped by contract; the intake wrote the receipt.
+            return (root / run_config.DESIGN_LIBRARY_SKIPPED).is_file()
         has_lib = _any_exists(
             root,
             "library.json",
@@ -786,6 +801,11 @@ def artifact_done(root: Path, step: str) -> bool:
         except Exception:
             return False
     if step == "2.1":
+        if not run_config.design_system_enabled(root):
+            # Fast run: no Design System page. Fonts still self-host (2.1 fast path).
+            return (root / run_config.DESIGN_SYSTEM_SKIPPED).is_file() and (
+                root / "rebuild" / "css" / "fonts.css"
+            ).is_file()
         return design_system_page_ready(root)
     if step == "2.2":
         return authored_page_ready(root) and design_system_bound(root)
@@ -794,6 +814,8 @@ def artifact_done(root: Path, step: str) -> bool:
 
         return section_22_ready(root)
     if step == "2.4":
+        if run_config.auto_accepts(root, "2.4"):
+            return _any_exists(root, "qa/build-checkpoint.md")
         opened = root / "qa" / "build-checkpoint-opened.json"
         try:
             opened_payload = json.loads(opened.read_text(encoding="utf-8"))
@@ -863,6 +885,25 @@ def artifact_done(root: Path, step: str) -> bool:
     if step == "5.6":
         return _any_exists(root, "qa/phase-5-review.md")
     return False
+
+
+def cmd_restamp(root: Path) -> int:
+    """Rewrite pipeline.html from current progress. Does not change step status.
+
+    1.2 calls this the moment qa/paper-file.json exists so the open board
+    picks up the Capture Tool URL on its next 15s refresh.
+    """
+    if is_spec_repo(root):
+        print("FAIL: do not stamp the web2html spec repo. Pass the template project folder.", file=sys.stderr)
+        return 2
+    if not progress_path(root).is_file():
+        print("restamp: no-op (no live board)")
+        return 0
+    dest = write_live(root, load_progress(root))
+    print(dest.resolve().as_uri())
+    url = capture_tool_board_url(root)
+    print(url or "capture: waiting for Paper (qa/paper-file.json)")
+    return 0
 
 
 def cmd_sync(root: Path) -> int:
@@ -1319,6 +1360,114 @@ def spine_status(data: dict, group: str) -> str:
     return "pending"
 
 
+def capture_tool_board_url(root: Path | None) -> str:
+    """Stamped Capture Tool URL, or empty until Paper + the source URL exist."""
+    if root is None:
+        return ""
+    try:
+        return build_capture_tool_page_url(root)
+    except ValueError:
+        return ""
+
+
+def stamp_capture_pull(html: str, root: Path | None) -> str:
+    """Put the pull URL under the progress bar once qa/paper-file.json is ready."""
+    url = capture_tool_board_url(root)
+    state = "ready" if url else "waiting"
+    html = re.sub(
+        r'(data-pipeline-capture)(?:\s+data-state="[^"]*")?',
+        lambda m: f'{m.group(1)} data-state="{state}"',
+        html,
+        count=1,
+    )
+    safe = html_escape(url, quote=True) if url else ""
+    html = re.sub(
+        r'(<a[^>]*data-pipeline-capture-url[^>]*href=")[^"]*(")',
+        lambda m: m.group(1) + safe + m.group(2),
+        html,
+        count=1,
+    )
+    html = re.sub(
+        r'(<a[^>]*data-pipeline-capture-url[^>]*>)(.*?)(</a>)',
+        lambda m: m.group(1) + safe + m.group(3),
+        html,
+        count=1,
+        flags=re.S,
+    )
+
+    def copy_button(match: re.Match) -> str:
+        tag = re.sub(r"\s+disabled(?:=\"[^\"]*\")?", "", match.group(1))
+        if not url:
+            tag += " disabled"
+        return tag + match.group(2)
+
+    html = re.sub(
+        r"(<button\b[^>]*data-pipeline-capture-copy[^>]*)(>)",
+        copy_button,
+        html,
+        count=1,
+    )
+    return html
+
+
+def stamp_run_mode(html: str, root: Path | None) -> str:
+    """Board reflects the intake: title badge + which rows are human stops.
+
+    data-mode on <body>: full | auto | fast. CSS hides the 1.4 / 2.4 grid rows
+    and timeline items when checkpoints are automatic, and relabels the 1.3 /
+    2.1 rows as skipped on a fast run. 3.4 is never touched — it is always a
+    human stop. Counts stay honest: auto-accepted steps are still marked done.
+    """
+    config = run_config.load(root) if root is not None else run_config.default_config()
+    fast = config.get("speed") == "fast"
+    auto = config.get("checkpoints") == "auto"
+    mode = "fast" if fast else ("auto" if auto else "full")
+    html = re.sub(r'(<body)(\s+data-mode="[^"]*")?', r"\1", html, count=1)
+    if mode != "full":
+        html = html.replace("<body", f'<body data-mode="{mode}"', 1)
+    # Per-row flags. Auto-accepting checkpoints hide; fast-skipped steps strike through.
+    flags: dict[str, str] = {}
+    if auto:
+        flags.update({sid: "auto" for sid in run_config.AUTO_ACCEPTABLE if run_config.auto_accepts(root, sid)})
+    if fast:
+        flags.update({"1.3": "skipped", "2.1": "skipped"})
+    assert "3.4" not in flags
+    def flag_rows(m: re.Match) -> str:
+        tag, attr, sid = m.group(1), m.group(2), m.group(3)
+        flag = flags.get(sid)
+        return f'{tag} {attr}="{sid}"' + (f' data-run-step="{flag}"' if flag else "")
+    html = re.sub(
+        r'(<article class="row[^"]*")\s+(data-step)="([^"]+)"(?:\s+data-run-step="[^"]*")?',
+        flag_rows, html)
+    html = re.sub(
+        r'(<article class="timeline-item")\s+(data-progress-step)="([^"]+)"(?:\s+data-run-step="[^"]*")?',
+        flag_rows, html)
+    if fast:
+        widths = "/".join(str(w) for w in config.get("widths") or [])
+        badge = f'<span class="run-mode run-mode-fast">Fast Run</span>'
+        sub = f"{widths} · no Design Library · 3.4 is the only stop"
+    elif auto:
+        badge = '<span class="run-mode run-mode-auto">Auto Run</span>'
+        sub = "1.4 / 2.4 auto-accept · 3.4 is the only stop"
+    else:
+        badge, sub = "", ""
+    html = re.sub(
+        r'(<h1 class="run-title">.*?<span>Run</span>)(<span class="run-mode[^"]*">[^<]*</span>)?(</h1>)',
+        lambda m: m.group(1) + badge + m.group(3),
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = re.sub(
+        r'(<p class="run-mode-note"[^>]*>)(.*?)(</p>)',
+        lambda m: m.group(1) + sub + m.group(3),
+        html,
+        count=1,
+        flags=re.S,
+    )
+    return html
+
+
 def stamp_html(html: str, data: dict, root: Path | None = None) -> str:
     done, total, current = counts(data, root)
     pct = round(100 * done / total) if total else 0
@@ -1326,6 +1475,7 @@ def stamp_html(html: str, data: dict, root: Path | None = None) -> str:
     label = hud_label(data, root)
     here, nxt = here_next_copy(data, root)
     html = stamp_run_state(html, complete, yielding=not complete and current is None)
+    html = stamp_run_mode(html, root)
     html = re.sub(
         r'<article class="row([^"]*)" data-step="([^"]+)"(?: data-status="[^"]*")?',
         lambda m: (
@@ -1389,7 +1539,7 @@ def stamp_html(html: str, data: dict, root: Path | None = None) -> str:
         count=1,
         flags=re.S,
     )
-    return html
+    return stamp_capture_pull(html, root)
 
 
 def run_is_complete(data: dict, root: Path | None = None) -> bool:
@@ -2034,6 +2184,83 @@ def seed_32_button_hover(root: Path) -> dict:
     return receipt
 
 
+def hover_light_script() -> Path:
+    """hover-reel/scripts/source-hover-light.mjs — prefixed checkout or installed name."""
+    for name in ("1.3 hover-reel", "hover-reel"):
+        candidate = skill_root() / name / "scripts" / "source-hover-light.mjs"
+        if candidate.is_file():
+            return candidate
+    return skill_root() / "hover-reel" / "scripts" / "source-hover-light.mjs"
+
+
+def seed_32_light_hover(root: Path) -> dict:
+    """Fast run (no 1.3): mine source CSS :hover onto qa/button-hover.json.
+
+    Runs the hover-reel light pass so apply_hover_css has the same receipt it
+    would have had after 1.3. Never invents a hover (Pitfall #33).
+    """
+    script = hover_light_script()
+    if not script.is_file():
+        raise FileNotFoundError(f"missing {script} — fast-run hover needs hover-reel/scripts/source-hover-light.mjs")
+    proc = subprocess.run(
+        ["node", str(script), "--project", str(root.resolve())],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        detail = tail[-1] if tail else "no output"
+        raise FileNotFoundError(f"source-hover-light.mjs failed: {detail}")
+    receipt = _json_or_empty(proc.stdout)
+    print(f"3.2 light hover (no 1.3) → {len(receipt.get('applied') or [])} applied  qa/button-hover.json")
+    return receipt
+
+
+def write_auto_accept_14(root: Path) -> Path:
+    """checkpoints=auto: 1.4 self-accepts. Nothing is opened; the receipt says so."""
+    dest = root / "qa" / "paper-human-review.md"
+    if not dest.is_file():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        config = run_config.load(root)
+        dest.write_text(
+            "# 1.4 — Paper checkpoint · AUTO-ACCEPTED\n\n"
+            f"- recorded: {now_iso()}\n"
+            f"- run-config: checkpoints={config.get('checkpoints')} speed={config.get('speed')}\n"
+            "- Paper and the Capture Tool tab were NOT opened — the intake chose automatic checkpoints.\n"
+            "- Frames 1600 / 768 / 390, FRAME Navigation, Buttons, Components, Design Library were not\n"
+            "  walked by a human. 3.4 is the first (and only) human stop in this run.\n",
+            encoding="utf-8",
+        )
+    print("1.4 auto-accepted (checkpoints=auto) → qa/paper-human-review.md · no Paper / browser opened")
+    return dest
+
+
+def write_auto_accept_24(root: Path) -> Path:
+    """checkpoints=auto: 2.4 self-accepts once the 2.3 gate is green. TAGS Chrome is not opened."""
+    from section_22_gate import gate_errors as section_errors
+
+    errors = section_errors(root)
+    if errors:
+        # Do not pretend the build is approved while 2.3 is red.
+        raise SystemExit(
+            "FAIL: 2.4 auto-accept refused — 2.3 is still red:\n  - " + "\n  - ".join(errors[:6])
+        )
+    dest = root / "qa" / "build-checkpoint.md"
+    if not dest.is_file():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(
+            "# 2.4 — TAGS checkpoint · AUTO-ACCEPTED\n\n"
+            f"- recorded: {now_iso()}\n"
+            "- section_22_gate: green at every configured width (2.3 receipts + wave findings on disk).\n"
+            "- TAGS Chrome review was NOT opened — the intake chose automatic checkpoints.\n"
+            "- rebuild/index.html is the lock from here. 3.4 is the first human stop.\n",
+            encoding="utf-8",
+        )
+    print("2.4 auto-accepted (checkpoints=auto) → qa/build-checkpoint.md · TAGS review not opened")
+    return dest
+
+
 def seed_32_nav_drawer(root: Path) -> dict:
     """Author a painted burger drawer on index-polish.html. 3.2 active."""
     receipt = _author_nav_drawer.author_nav_drawer(root)
@@ -2182,16 +2409,23 @@ def emit_handoff(root: Path, data: dict, step: str) -> Path | None:
     if session == 3:
         snapshot_fidelity_freeze(root)
 
+    dest = root / HANDOFF_FILE[session]
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(body, encoding="utf-8")
+
+    if run_config.auto_accepts(root, step):
+        # Automatic checkpoint: the SAME session keeps going. Keep the lease,
+        # skip the copy-me banner; the prompt still lands on disk for a relay.
+        nxt = "2.1" if session == 2 else "3.1"
+        print(f"{step} auto-accepted — continue into {nxt} in this session (lease kept). Prompt saved: {dest}")
+        return dest
+
     controller = data.get("controller")
     if isinstance(controller, dict) and controller.get("status") == "active":
         owner = str(controller.get("owner") or "")
         data.pop("controller", None)
         controller_lease_path(root).unlink(missing_ok=True)
         print(f"controller released -> {owner or '(unnamed)'}")
-
-    dest = root / HANDOFF_FILE[session]
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(body, encoding="utf-8")
 
     bar = "=" * 72
     print("")
@@ -2780,11 +3014,18 @@ def cmd_mark(
         )
         return 2
     if status == "done" and step == "2.1" and not artifact_done(root, step):
-        print(
-            "FAIL: cannot mark 2.1 done — rebuild/design-system.html is missing. "
-            "2.1 emits the Design System from library.json (not the ship).",
-            file=sys.stderr,
-        )
+        if run_config.design_system_enabled(root):
+            print(
+                "FAIL: cannot mark 2.1 done — rebuild/design-system.html is missing. "
+                "2.1 emits the Design System from library.json (not the ship).",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "FAIL: cannot mark 2.1 done — fast run still self-hosts fonts. "
+                "Run emit_fonts.py . (writes rebuild/css/fonts.css from source-site/assets).",
+                file=sys.stderr,
+            )
         return 2
     if status == "done" and step == "2.2" and not artifact_done(root, step):
         print(
@@ -2806,13 +3047,31 @@ def cmd_mark(
         )
         return 2
     if status == "done" and step == "2.4" and not artifact_done(root, step):
+        if run_config.auto_accepts(root, "2.4"):
+            print(
+                "FAIL: cannot mark 2.4 done — the auto-accept receipt qa/build-checkpoint.md "
+                "is missing. `mark --step 2.4 --status active` writes it (checkpoints=auto).",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "FAIL: cannot mark 2.4 done — inject the QA overlay with TAGS on, "
+                "run open-build-review.py . --stage 2.4, and write qa/build-checkpoint.md.",
+                file=sys.stderr,
+            )
+        return 2
+    data = load_progress(root)
+    # Intake gate — the three run questions are answered before 1.1 goes
+    # active (qa/run-config.json). A run without them is a run nobody scoped.
+    if step == "1.1" and status == "active" and not run_config.exists(root):
         print(
-            "FAIL: cannot mark 2.4 done — inject the QA overlay with TAGS on, "
-            "run open-build-review.py . --stage 2.4, and write qa/build-checkpoint.md.",
+            "FAIL: cannot mark 1.1 active — no run intake. Ask the three questions "
+            "(source folder? human checkpoints or auto? full or fast?) then record them:\n"
+            "  python3 $SKILLS/web2html/scripts/run_config.py intake <project> "
+            "--source none|/abs/path --checkpoints human|auto --speed full|fast",
             file=sys.stderr,
         )
         return 2
-    data = load_progress(root)
     actual_revision = _revision(data.get("revision"))
     if expected_revision is not None and expected_revision != actual_revision:
         print(_progress_conflict(expected_revision, actual_revision), file=sys.stderr)
@@ -2985,6 +3244,8 @@ def cmd_mark(
             snapshot_fidelity_freeze(root)
         if step == "3.2":
             try:
+                if not run_config.design_library_enabled(root):
+                    seed_32_light_hover(root)
                 seed_32_button_hover(root)
                 seed_32_nav_drawer(root)
                 seed_32_faq(root)
@@ -2993,7 +3254,9 @@ def cmd_mark(
                 print(f"FAIL: cannot mark 3.2 active — {exc}", file=sys.stderr)
                 return 2
         if step == "1.4":
-            if not open_paper_for_review(root):
+            if run_config.auto_accepts(root, "1.4"):
+                write_auto_accept_14(root)
+            elif not open_paper_for_review(root):
                 print(
                     "FAIL: cannot mark 1.4 active until Paper can open "
                     "(qa/paper-file.json fileId). 1.4 active opens Paper AND the "
@@ -3001,6 +3264,8 @@ def cmd_mark(
                     file=sys.stderr,
                 )
                 return 2
+        if step == "2.4" and run_config.auto_accepts(root, "2.4"):
+            write_auto_accept_24(root)
         data["current"] = step
         data["steps"][step]["started"] = data["steps"][step].get("started") or now_iso()
     if status in {"done", "skipped"}:
@@ -3047,7 +3312,10 @@ def cmd_mark(
         except Exception:  # noqa: BLE001
             pass
     if status == "active" and step == "2.4":
-        print_24_hard_stop(root)
+        if run_config.auto_accepts(root, "2.4"):
+            print("2.4 auto — no TAGS stop. Mark 2.4 done and continue into 3.1 in this session.")
+        else:
+            print_24_hard_stop(root)
     if status == "done" and step == "2.2":
         seed_22_index(root)
     if status == "done" and step in HANDOFF_AT:
@@ -3110,6 +3378,8 @@ def main(argv: list[str] | None = None) -> int:
     cd.add_argument("root", type=Path, nargs="?", default=None)
     ho = sub.add_parser("handoff", help="Print a copy-ready next-session prompt (does not mark the step done)")
     ho.add_argument("root", type=Path)
+    rp = sub.add_parser("restamp", help="Rewrite pipeline.html without changing step status (Capture Tool URL)")
+    rp.add_argument("root", type=Path)
     sy = sub.add_parser("sync", help="Catch the live board up from artifacts (never 1.4 / 3.4)")
     sy.add_argument("root", type=Path)
     fn = sub.add_parser(
@@ -3154,6 +3424,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_capture_doctor(args.root)
     if args.cmd == "handoff":
         return cmd_handoff(args.root)
+    if args.cmd == "restamp":
+        return cmd_restamp(args.root)
     if args.cmd == "sync":
         return cmd_sync(args.root)
     if args.cmd == "finish":

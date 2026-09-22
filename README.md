@@ -72,6 +72,14 @@ or use the shorthand:
 
 ## Pipeline
 
+Every run opens with a three-question intake before 1.1 starts:
+
+1. **Source folder?** Point at an exported HTML folder (Webflow export = clean HTML) and 2.2 ports it as structural truth. A Next.js / SSR dump is reference only — the agent authors clean semantic HTML.
+2. **Checkpoints?** `human` stops at 1.4, 2.4, and 3.4. `auto` self-accepts 1.4 and 2.4 and runs unattended. **3.4 always stops** — Phases 4 and 5 build off that source of truth.
+3. **Speed?** `full` captures 1600 / 768 / 390, mines a Design Library, and emits a Design System. `fast` captures 1600 / 390, skips the Design Library and Design System, authors strictly, keeps validation screenshots, and implies `auto`.
+
+The live board reflects the answers — title icon, badge, and which rows are stops.
+
 The run spans three sessions:
 
 1. **Capture** (1.1–1.4) — Scrape, Paper import, Design Library, human sign-off

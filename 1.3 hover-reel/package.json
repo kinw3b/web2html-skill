@@ -4,7 +4,7 @@
   "version": "1.2.15",
   "type": "module",
   "scripts": {
-    "test": "node --test test/component-state-utils.test.mjs test/validate.mjs test/visible-cursor.test.mjs test/trim-styles.test.mjs test/dropdown.test.mjs test/source-semantics.test.mjs test/capture-extension.test.mjs test/capture-extension-bridge.test.mjs test/capture-extension-targeting.test.mjs test/capture-extension-nav-breakpoints.test.mjs test/capture-extension-component-names.test.mjs test/capture-extension-tag-overlays.test.mjs test/pull-desktop-specimens.test.mjs test/source-button-hover.test.mjs",
+    "test": "node --test test/component-state-utils.test.mjs test/validate.mjs test/visible-cursor.test.mjs test/trim-styles.test.mjs test/dropdown.test.mjs test/source-semantics.test.mjs test/capture-extension.test.mjs test/capture-extension-bridge.test.mjs test/capture-extension-targeting.test.mjs test/capture-extension-nav-breakpoints.test.mjs test/capture-extension-component-names.test.mjs test/capture-extension-tag-overlays.test.mjs test/pull-desktop-specimens.test.mjs test/source-button-hover.test.mjs test/collect-desktop-source.test.mjs test/source-hover-light.test.mjs",
     "package:extension": "node scripts/build-capture-extension.mjs"
   },
   "devDependencies": {

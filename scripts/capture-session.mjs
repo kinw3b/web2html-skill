@@ -49,7 +49,7 @@ const pageSlug = String(PAGE || "home").toLowerCase().replace(/[^a-z0-9]+/g, "-"
 const projectRoot = path.dirname(CAPTURE);
 fs.mkdirSync(OUT, { recursive: true });
 
-const { createPaperFile } = await importSibling("url-to-paper", "scripts/create-paper-file.mjs");
+const { createPaperFile, restampLiveBoard } = await importSibling("url-to-paper", "scripts/create-paper-file.mjs");
 const paperFile = await createPaperFile({
   projectRoot,
   url: URL_,
@@ -99,6 +99,7 @@ const receipt = {
 };
 if (ENDPOINT) receipt.paperEndpoint = ENDPOINT;
 fs.writeFileSync(path.join(qaDir, "paper-file.json"), `${JSON.stringify(receipt, null, 2)}\n`);
+restampLiveBoard(activeRoot, (...a) => console.error(...a));
 
 console.error("1.2 collect done: home-desktop + home-768 + home-390 + Navigation takes + Screenshots board.");
 console.error("Run the single 1.3 Design Library mine next; no breakpoint authoring or retry loop is required.");

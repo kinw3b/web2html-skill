@@ -38,6 +38,20 @@ from section_22_gate import ship_fingerprint
 GENERATED_FROM = "web2html/section-23-validate"
 WIDTHS = (1600, 768, 390)
 WIDTH_KEYS = tuple(str(width) for width in WIDTHS)
+
+
+def run_widths(root: Path) -> tuple[int, ...]:
+    """Configured widths from qa/run-config.json (fast run = 1600 + 390)."""
+    try:
+        import run_config
+
+        return tuple(run_config.widths(root))
+    except Exception:  # noqa: BLE001
+        return WIDTHS
+
+
+def run_width_keys(root: Path) -> tuple[str, ...]:
+    return tuple(str(width) for width in run_widths(root))
 MEASURE_DIR = Path("qa/paper-measure")
 DEFAULT_MAX_ROUNDS = 3
 MIN_SEEN = 12
@@ -102,13 +116,13 @@ def _section_row(root: Path, section_id: str) -> dict:
     )
 
 
-def _new_receipt(row: dict, max_rounds: int) -> dict:
+def _new_receipt(row: dict, max_rounds: int, widths: tuple[int, ...] = WIDTHS) -> dict:
     return {
         "generatedFrom": GENERATED_FROM,
         "id": str(row.get("id")),
         "nn": row.get("nn"),
         "slug": row.get("slug") or row.get("id"),
-        "widths": list(WIDTHS),
+        "widths": list(widths),
         "maxRounds": max_rounds,
         "status": "open",
         "residual": "",
@@ -141,7 +155,7 @@ def open_round(
     root = root.resolve()
     capture = capture or shots.capture
     row = _section_row(root, section_id)
-    payload = load(root, section_id) or _new_receipt(row, max_rounds)
+    payload = load(root, section_id) or _new_receipt(row, max_rounds, run_widths(root))
     rounds = payload.setdefault("rounds", [])
     cap = int(payload.get("maxRounds") or max_rounds)
     previous = last_round(payload)
@@ -155,13 +169,14 @@ def open_round(
             f"FAIL: {section_id} already used {cap} rounds — record the residual "
             f"(--record … --residual \"…\") instead of a round {cap + 1}. Pitfall #216."
         )
-    result = capture(root, [section_id], widths=WIDTHS)
+    widths = run_widths(root)
+    result = capture(root, [section_id], widths=widths)
     skipped = bool(result.get("skipped"))
     source = row.get("source") if isinstance(row.get("source"), dict) else {}
     compare_dir = root / compare.COMPARE_DIR
     shot_paths: dict[str, str | None] = {}
     sides: dict[str, str | None] = {}
-    for width in WIDTHS:
+    for width in widths:
         key = str(width)
         shot = shots.shot_path(root, section_id, width)
         shot_paths[key] = shot.relative_to(root).as_posix() if shot.is_file() else None
@@ -198,31 +213,32 @@ def open_round(
     return payload
 
 
-def parse_verdict(raw: str) -> dict[str, str]:
+def parse_verdict(raw: str, width_keys: tuple[str, ...] = WIDTH_KEYS) -> dict[str, str]:
+    label = "/".join(width_keys)
     out: dict[str, str] = {}
     for part in (raw or "").split(","):
         part = part.strip()
         if not part:
             continue
         if "=" not in part:
-            raise SystemExit(f"FAIL: verdict {part!r} — use 1600=match,768=miss,390=match")
+            raise SystemExit(f"FAIL: verdict {part!r} — use " + ",".join(f"{k}=match" for k in width_keys))
         key, value = (item.strip().lower() for item in part.split("=", 1))
-        if key not in WIDTH_KEYS or value not in VERDICTS:
-            raise SystemExit(f"FAIL: verdict {part!r} — widths 1600/768/390, values match|miss")
+        if key not in width_keys or value not in VERDICTS:
+            raise SystemExit(f"FAIL: verdict {part!r} — widths {label}, values match|miss")
         out[key] = value
-    missing = [key for key in WIDTH_KEYS if key not in out]
+    missing = [key for key in width_keys if key not in out]
     if missing:
         raise SystemExit(f"FAIL: verdict missing {missing} — every width gets match or miss")
     return out
 
 
-def parse_miss(raw: str) -> dict:
+def parse_miss(raw: str, width_keys: tuple[str, ...] = WIDTH_KEYS) -> dict:
     parts = [item.strip() for item in (raw or "").split("|")]
     if len(parts) < 2 or not parts[1]:
         raise SystemExit(f"FAIL: miss {raw!r} — use \"<width>|<what differs>|<scoped fix>\"")
     width = parts[0]
-    if width not in WIDTH_KEYS:
-        raise SystemExit(f"FAIL: miss width {width!r} — 1600, 768, or 390")
+    if width not in width_keys:
+        raise SystemExit(f"FAIL: miss width {width!r} — one of {', '.join(width_keys)}")
     return {"width": int(width), "what": parts[1], "fix": parts[2] if len(parts) > 2 else ""}
 
 
@@ -416,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
         number = current.get("round")
         cap = payload.get("maxRounds")
         print(f"validate: {args.id} round {number}/{cap} — Read these, then --record:")
-        for key in WIDTH_KEYS:
+        for key in run_width_keys(root):
             side = (current.get("sides") or {}).get(key)
             shot = (current.get("shots") or {}).get(key)
             if side:
@@ -432,8 +448,8 @@ def main(argv: list[str] | None = None) -> int:
             root,
             args.id,
             seen=args.seen,
-            verdict=parse_verdict(args.verdict),
-            misses=[parse_miss(item) for item in args.miss],
+            verdict=parse_verdict(args.verdict, run_width_keys(root)),
+            misses=[parse_miss(item, run_width_keys(root)) for item in args.miss],
             patched=args.patched,
             residual=args.residual,
         )

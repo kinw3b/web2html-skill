@@ -13,7 +13,7 @@
    "reference files nothing links to are reported (WARNING)"
   ]
  },
- "orchestratorVersion": "2.23.0",
+ "orchestratorVersion": "2.24.0",
  "versionStampSurfaces": [
   "AGENTS.md",
   "1.0 - web2html/SKILL.md",
@@ -32,7 +32,7 @@
   {
    "path": "1.0 - web2html",
    "role": "orchestrator",
-   "declaredSkillVersion": "2.23.0",
+   "declaredSkillVersion": "2.24.0",
    "tracksOrchestratorVersion": true
   },
   {

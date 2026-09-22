@@ -293,7 +293,8 @@ test("disk clips live at 1600 / 768 / 390; Paper Screenshots stays 1600", () => 
   // 1.2 writes the Paper Screenshots board from the 1600 pass only; the 768 /
   // 390 passes clip to disk with no source board.
   const phase = readFileSync(join(__dir, "../../1.3 hover-reel/scripts/run-paper-phase.mjs"), "utf8");
-  assert.match(phase, /1\.2 needs source-sections at 1600 \/ 768 \/ 390/);
+  assert.match(phase, /1\.2 needs source-sections at \$\{widthLabel\}/);
+  assert.match(phase, /runWidths\(projectRoot\)/); // widths come from qa/run-config.json (fast = 1600 / 390)
   assert.match(phase, /sourceBoard: true/);
   assert.match(phase, /sourceBoard: false/);
   assert.doesNotMatch(phase, /No 768\/390 source-sections on disk/);

@@ -1,6 +1,6 @@
 # Model routing — three sessions, two handoffs
 
-**Orchestrator version (web2html):** **2.23.0**
+**Orchestrator version (web2html):** **2.24.0**
 
 A run spans three homepage sessions so the model can change per phase, plus optional all-pages Phase 4 (Paper) and Phase 5 (Astro site — chrome once, then page bodies).
 

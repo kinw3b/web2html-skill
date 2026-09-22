@@ -9,8 +9,11 @@
 //
 // Writes qa/paper-file.json and prints { fileId, fileName, created: true }.
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { call, setFileId } from "./mcp-client.mjs";
 import { ensurePaper } from "./ensure-paper.mjs";
 
@@ -33,6 +36,39 @@ function slugOf(projectRoot, url) {
     } catch { /* ignore */ }
   }
   return "web2html";
+}
+
+function pipelineProgressScript() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, "..", "..", "1.0 - web2html", "scripts", "pipeline-progress.py"),
+    process.env.SKILLS && join(process.env.SKILLS, "web2html", "scripts", "pipeline-progress.py"),
+    join(os.homedir(), ".claude", "skills", "web2html", "scripts", "pipeline-progress.py"),
+    join(os.homedir(), ".config", "opencode", "skills", "web2html", "scripts", "pipeline-progress.py"),
+  ].filter(Boolean);
+  try {
+    for (const entry of readdirSync(join(here, "..", ".."))) {
+      if (entry === "web2html" || entry.endsWith("web2html")) {
+        candidates.unshift(join(here, "..", "..", entry, "scripts", "pipeline-progress.py"));
+      }
+    }
+  } catch { /* missing checkout */ }
+  return candidates.find((p) => existsSync(p)) || null;
+}
+
+export function restampLiveBoard(projectRoot, log = console.error) {
+  const script = pipelineProgressScript();
+  if (!script) {
+    log("  board restamp skipped: pipeline-progress.py not found");
+    return;
+  }
+  const result = spawnSync("python3", [script, "restamp", projectRoot], { encoding: "utf8" });
+  if (result.status !== 0) {
+    log(`  board restamp failed: ${(result.stderr || result.stdout || "").trim()}`);
+    return;
+  }
+  const line = (result.stdout || "").split("\n").map((s) => s.trim()).find((s) => s.includes("paperFileId="));
+  if (line) log(`  capture ${line}`);
 }
 
 function payload(result) {
@@ -77,6 +113,7 @@ export async function createPaperFile({
   mkdirSync(qaDir, { recursive: true });
   writeFileSync(join(qaDir, "paper-file.json"), `${JSON.stringify(receipt, null, 2)}\n`);
   log(`  file ${fileId} (created)`);
+  restampLiveBoard(root, log);
   return receipt;
 }
 

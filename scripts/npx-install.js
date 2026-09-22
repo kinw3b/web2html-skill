@@ -63,7 +63,7 @@ log();
 for (const row of BANNER) log(cyan(row));
 log();
 log(`   ${bold("Web2HTML")} ${dim("— live URL to pixel-perfect static HTML, via Paper")}`);
-log(`   ${dim("github.com/kinw3b/web2html")}`);
+log(`   ${dim("github.com/kinw3b/w2h-private")}`);
 if (DRY) log(`\n   ${yellow("DRY RUN")} ${dim("— printing the plan, changing nothing")}`);
 
 // ------------------------------------------------------------- source ----

@@ -10,7 +10,7 @@ and its native bridge are NOT installed — they are a separate download
 ./scripts/install-skills.sh` opts in. `pipeline-progress.py capture-doctor`
 reports a bridge that would show OFFLINE (Pitfall #217).
 
-**Orchestrator version (web2html):** **2.23.0**
+**Orchestrator version (web2html):** **2.24.0**
 
 This file is the **repo** index. The agent-facing index is `1.0 - web2html/SKILL.md`
 (~130 lines). Detail lives in `web2html/references/` and is read **per step**,
@@ -213,8 +213,16 @@ step. 2.0 must not stamp, join, or retag on those ids.
 
 ## Hard rules
 
-1. **Never skip a numbered step** (1.1 → 3.4). 1.4's Paper-review, the
- 2.4 TAGS checkpoint, polish and 3.4 are not optional. **Capture Tool is
+1. **Never skip a numbered step** (1.1 → 3.4). **Run intake first (2.24.0):**
+ `mark 1.1 active` refuses until `run_config.py intake` has recorded the three
+ questions (source folder? human or auto checkpoints? full or fast?) in
+ `qa/run-config.json`. With `--checkpoints auto` (forced by `--speed fast`) 1.4 and
+ 2.4 self-accept — receipts stamped AUTO-ACCEPTED, nothing opened, same session
+ continues. **3.4 is never automatic.** A fast run marks 1.3 / 2.1 done on the
+ intake's skip receipts (no Design Library, `emit_fonts.py` only), authors 2.2
+ without `index-raw.html` or a token contract, and captures / validates at
+ 1600 / 390 (every 2.3 gate reads widths from the config). Otherwise 1.4's
+ Paper-review, the 2.4 TAGS checkpoint, polish and 3.4 are not optional. **Capture Tool is
  leftover live hover** — `mark 1.4 active` opens the stamped tab;
  `open-capture` re-opens it. It is not a 1.4 done-gate.
  **Phase 4 is optional after 3.4** — write `qa/phase-4-opted.json` or
@@ -225,7 +233,7 @@ step. 2.0 must not stamp, join, or retag on those ids.
  is closed, or 5.x while Phase 5 is closed. If blocked, stay on that
  step and stop.
  Pitfall #98 #148.
-2. **Stage L is never skippable.** No `rebuild/*.html` until Paper has a
+2. **Stage L is never skippable on a full run.** No `rebuild/*.html` until Paper has a
  `Design Library` artboard (foundations only), `get_tokens` is non-empty,
    the 1.2 geometry postflight passed, and `design-library/library.json` exists on disk. Disk-only
    does not count. If Paper MCP is down, stop the run.

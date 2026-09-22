@@ -19,6 +19,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 WIDTHS = (1600, 768, 390)
+
+
+def run_widths(root: Path) -> tuple[int, ...]:
+    """Configured widths from qa/run-config.json (fast run = 1600 + 390)."""
+    try:
+        import run_config
+
+        return tuple(run_config.widths(root))
+    except Exception:  # noqa: BLE001
+        return WIDTHS
 SHIP = Path("rebuild/index.html")
 OUT_DIR = Path("qa/paper-measure/rebuild")
 SKIP = Path("qa/paper-measure/rebuild-shots-skip.json")
@@ -92,9 +102,10 @@ def capture(
     *,
     ship: Path = SHIP,
     page: str = "home",
-    widths: tuple[int, ...] = WIDTHS,
+    widths: tuple[int, ...] | None = None,
 ) -> dict:
     """Screenshot each section at the requested widths. Requires Playwright."""
+    widths = tuple(widths) if widths else run_widths(root)
     try:
         from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
     except ImportError:
@@ -157,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     ship_rel = Path(args.ship) if args.ship else (
         SHIP if args.page == "home" else Path(f"rebuild/{args.page}.html")
     )
-    widths = tuple(int(part.strip()) for part in args.widths.split(",") if part.strip()) or WIDTHS
+    widths = tuple(int(part.strip()) for part in args.widths.split(",") if part.strip()) or run_widths(root)
     ship = root / ship_rel
     if not ship.is_file():
         print(f"FAIL: missing {ship_rel.as_posix()}", file=sys.stderr)

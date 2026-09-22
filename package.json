@@ -1,7 +1,7 @@
 {
   "name": "web2html-skill",
-  "version": "0.1.14",
-  "description": "Install Web2Html skills — point at a live URL, get semantic HTML agents can scale.",
+  "version": "0.1.15",
+  "description": "Install Web2Html skills \u2014 point at a live URL, get semantic HTML agents can scale.",
   "bin": {
     "web2html": "./scripts/npx-install.js"
   },
@@ -14,5 +14,12 @@
     "url": "git+https://github.com/kinw3b/web2html-skill.git"
   },
   "homepage": "https://web2html.com",
-  "keywords": ["web2html", "html", "agent", "skill", "paper", "design-system"]
+  "keywords": [
+    "web2html",
+    "html",
+    "agent",
+    "skill",
+    "paper",
+    "design-system"
+  ]
 }

@@ -404,7 +404,8 @@ test("paper-first seeds Buttons, Components, and Navigation before the picker", 
   assert.match(phase, /ensureCaptureReviewBoards/);
   assert.match(phase, /wantShots: true/);
   assert.match(phase, /shotsOnly = false/);
-  assert.match(phase, /1\.2 needs source-sections at 1600 \/ 768 \/ 390/);
+  assert.match(phase, /1\.2 needs source-sections at \$\{widthLabel\}/);
+  assert.match(phase, /runWidths\(projectRoot\)/); // widths come from qa/run-config.json (fast = 1600 / 390)
 });
 
 test("Navigation seed creates an empty titled frame before capture", async () => {

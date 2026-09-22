@@ -23,6 +23,16 @@ GENERATED_FROM = "web2html/section-23-disk-gold"
 OUT = Path("qa/paper-measure/disk-gold.json")
 WIDTHS = (1600, 768, 390)
 CLIP_RE = re.compile(r"^(\d{2})-(.+)\.png$", re.I)
+def run_widths(root: Path) -> tuple[int, ...]:
+    """Configured widths from qa/run-config.json (fast run = 1600 + 390)."""
+    try:
+        import run_config
+
+        return tuple(run_config.widths(root))
+    except Exception:  # noqa: BLE001
+        return WIDTHS
+
+
 LANDER = {
     1600: Path("capture/home-desktop/source-sections"),
     768: Path("capture/home-768/source-sections"),
@@ -30,9 +40,9 @@ LANDER = {
 }
 
 
-def parse_widths(raw: str | None) -> tuple[int, ...]:
+def parse_widths(raw: str | None, root: Path | None = None) -> tuple[int, ...]:
     if not raw:
-        return WIDTHS
+        return run_widths(root) if root is not None else WIDTHS
     out = tuple(int(part.strip()) for part in raw.split(",") if part.strip())
     return out or WIDTHS
 
@@ -129,10 +139,11 @@ def build_index(
     root: Path,
     *,
     page: str = "home",
-    widths: tuple[int, ...] = WIDTHS,
+    widths: tuple[int, ...] | None = None,
     ship_rel: Path | None = None,
 ) -> dict:
     root = root.resolve()
+    widths = tuple(widths) if widths else run_widths(root)
     ship = root / (ship_rel or ship_rel_for(page))
     html = ship.read_text(encoding="utf-8") if ship.is_file() else ""
     ids = shots.ship_section_ids(html) if html else []
@@ -189,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--receipt", default=str(OUT))
     args = ap.parse_args(argv)
     root = args.root.resolve()
-    widths = parse_widths(args.widths or None)
+    widths = parse_widths(args.widths or None, root)
     ship = ship_rel_for(args.page)
     if not (root / ship).is_file():
         print(f"FAIL: missing {ship.as_posix()}", file=sys.stderr)

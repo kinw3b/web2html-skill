@@ -70,6 +70,45 @@ SOURCE_DIRS = (
     Path("capture/home-768/source-sections"),
     Path("capture/home-390/source-sections"),
 )
+
+
+def capture_dir(width: int) -> Path:
+    return Path("capture/home-desktop" if width >= 1400 else f"capture/home-{width}")
+
+
+def run_widths(root: Path) -> tuple[int, ...]:
+    """Configured widths (qa/run-config.json); fast run = 1600 + 390."""
+    try:
+        import run_config
+
+        return tuple(run_config.widths(root))
+    except Exception:  # noqa: BLE001 — a missing module reads as the full set
+        return WIDTHS
+
+
+def run_width_keys(root: Path) -> tuple[str, ...]:
+    return tuple(str(width) for width in run_widths(root))
+
+
+def run_capture_dirs(root: Path) -> tuple[Path, ...]:
+    return tuple(capture_dir(width) for width in run_widths(root))
+
+
+def run_source_dirs(root: Path) -> tuple[Path, ...]:
+    return tuple(capture_dir(width) / "source-sections" for width in run_widths(root))
+
+
+def widths_label(root: Path) -> str:
+    return " / ".join(str(width) for width in run_widths(root))
+
+
+def raw_required(root: Path) -> bool:
+    try:
+        import run_config
+
+        return run_config.raw_dump_enabled(root)
+    except Exception:  # noqa: BLE001
+        return True
 # 1×1 PNG so tests can plant disk gold without Playwright.
 TINY_PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
@@ -116,17 +155,20 @@ def gate_errors(root: Path) -> list[str]:
             "missing rebuild/index-semantic.html — 2.2 first pass must stay on disk. "
             "Do not delete it after seeding index.html."
         )
-    if not (root / RAW).is_file():
+    if raw_required(root) and not (root / RAW).is_file():
         errors.append(
             "missing rebuild/index-raw.html — 2.3 compares the authored page "
             "to Paper and the 2.2 get_jsx dump. Do not skip 2.3."
         )
-    for folder in CAPTURE_DIRS:
+    widths = run_widths(root)
+    width_keys = run_width_keys(root)
+    label = widths_label(root)
+    for folder in run_capture_dirs(root):
         if not (root / folder).is_dir():
             errors.append(
                 f"missing {folder.as_posix()} — 2.3 compares rebuild shots to 1.2 source clips"
             )
-    for folder in SOURCE_DIRS:
+    for folder in run_source_dirs(root):
         if not (root / folder).is_dir():
             errors.append(
                 f"missing {folder.as_posix()} — 1.2 already parked NN-*.png clips; "
@@ -135,7 +177,7 @@ def gate_errors(root: Path) -> list[str]:
     payload = _read_json(root / RECEIPT)
     if payload is None:
         errors.append(
-            f"missing {RECEIPT} — walk each section against Paper 1600 / 768 / 390, "
+            f"missing {RECEIPT} — walk each section against Paper {label}, "
             "write a receipt, then the next section"
         )
         return errors
@@ -146,13 +188,13 @@ def gate_errors(root: Path) -> list[str]:
         )
     claimed = payload.get("widths") or []
     claimed_ints = [width for width in (_as_int(item) for item in claimed) if width is not None]
-    extra = sorted({width for width in claimed_ints if width in FORBIDDEN_WIDTHS or width not in WIDTHS})
+    extra = sorted({width for width in claimed_ints if width in FORBIDDEN_WIDTHS or width not in widths})
     if extra:
         errors.append(
-            f"invented breakpoint(s) {extra} — only 1600 / 768 / 390. Do not add 1320 or 1024"
+            f"invented breakpoint(s) {extra} — only {label}. Do not add 1320 or 1024"
         )
-    if not all(width in claimed_ints for width in WIDTHS):
-        errors.append("receipt widths must include 1600, 768, and 390")
+    if not all(width in claimed_ints for width in widths):
+        errors.append(f"receipt widths must include {', '.join(width_keys)}")
     sections = payload.get("sections")
     if not isinstance(sections, list) or not sections:
         errors.append("receipt has no sections — walk the page band by band")
@@ -163,7 +205,7 @@ def gate_errors(root: Path) -> list[str]:
             open_rows.append(f"sections[{index}]")
             continue
         sid = str(row.get("id") or row.get("slug") or f"section-{index}")
-        for key in WIDTH_KEYS:
+        for key in width_keys:
             status = str(row.get(key) or row.get(int(key)) or "").strip().lower()
             if status not in PASS:
                 open_rows.append(f"{sid}@{key}")
@@ -171,7 +213,7 @@ def gate_errors(root: Path) -> list[str]:
         errors.append(
             "sections still open: "
             + ", ".join(open_rows[:8])
-            + " — every section needs aligned at 1600 / 768 / 390"
+            + f" — every section needs aligned at {label}"
         )
     if payload.get("ok") is not True and not open_rows:
         errors.append(f"{RECEIPT} ok is not true")
@@ -374,12 +416,12 @@ def _validate_errors(root: Path, sections: list) -> list[str]:
                     "side-by-sides showed before signing (Pitfall #216)"
                 )
             verdict = r.get("verdict") if isinstance(r.get("verdict"), dict) else {}
-            bad = [key for key in WIDTH_KEYS if str(verdict.get(key) or "").lower() not in {"match", "miss"}]
+            bad = [key for key in run_width_keys(root) if str(verdict.get(key) or "").lower() not in {"match", "miss"}]
             if bad:
                 errors.append(f"{sid} VALIDATE round {r.get('round')} has no verdict at {bad}")
         last = rounds[-1]
         verdict = last.get("verdict") if isinstance(last.get("verdict"), dict) else {}
-        all_match = all(str(verdict.get(key) or "").lower() == "match" for key in WIDTH_KEYS)
+        all_match = all(str(verdict.get(key) or "").lower() == "match" for key in run_width_keys(root))
         status = str(payload.get("status") or "open")
         if status == "match" and not all_match:
             errors.append(f"{sid} VALIDATE says match but the last round still misses")
@@ -409,7 +451,7 @@ def _validate_errors(root: Path, sections: list) -> list[str]:
         if shots_skipped or round_skipped:
             continue
         shot_rows = last.get("shots") if isinstance(last.get("shots"), dict) else {}
-        for key in WIDTH_KEYS:
+        for key in run_width_keys(root):
             rel = shot_rows.get(key)
             if not rel or not (root / str(rel)).is_file():
                 errors.append(f"{sid} VALIDATE last round has no shot at {key} — --shoot again")
@@ -432,7 +474,7 @@ def _disk_gold_errors(root: Path, sections: list) -> list[str]:
     if gold.get("ok") is not True:
         errors.append(
             f"{DISK_GOLD} ok is not true — a homepage band is missing "
-            "source clips at 1600 / 768 / 390"
+            f"source clips at {widths_label(root)}"
         )
     rows = gold.get("sections")
     by_id: dict[str, dict] = {}
@@ -449,7 +491,7 @@ def _disk_gold_errors(root: Path, sections: list) -> list[str]:
             errors.append(f"{sid} missing from {DISK_GOLD}")
             continue
         source = mapped.get("source") if isinstance(mapped.get("source"), dict) else {}
-        for key in WIDTH_KEYS:
+        for key in run_width_keys(root):
             path = source.get(key)
             if not path or not (root / str(path)).is_file():
                 errors.append(f"{sid} missing 1.2 source clip at {key}")
@@ -465,7 +507,7 @@ def _rebuild_shot_errors(root: Path, sections: list) -> list[str]:
         if not isinstance(row, dict):
             continue
         sid = str(row.get("id") or row.get("slug") or f"section-{index}")
-        for width in WIDTHS:
+        for width in run_widths(root):
             dest = shots.shot_path(root, sid, width)
             if not dest.is_file():
                 errors.append(
@@ -480,7 +522,7 @@ def _clip_compare_errors(root: Path, sections: list) -> list[str]:
     if compare is None:
         return [
             f"missing {CLIP_COMPARE} — run paper_23_clip_compare.py to pull "
-            "the numbered 1.2 source-section clips (01-slug.png at 1600 / 768 / 390) "
+            f"the numbered 1.2 source-section clips (01-slug.png at {widths_label(root)}) "
             "and pair them with rebuild shots"
         ]
     errors: list[str] = []
@@ -507,7 +549,7 @@ def _clip_compare_errors(root: Path, sections: list) -> list[str]:
             continue
         sid = str(row.get("id") or row.get("slug") or f"section-{index}")
         pairs = by_id.get(sid) or {}
-        for key in WIDTH_KEYS:
+        for key in run_width_keys(root):
             pair = pairs.get(key)
             if pair is None:
                 errors.append(f"{sid} missing clip-compare pair at {key}")

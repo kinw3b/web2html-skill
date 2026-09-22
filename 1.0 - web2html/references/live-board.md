@@ -16,11 +16,21 @@ Continued session 2 or 3 — **never `start`** (it resets the board, Pitfall #17
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --at 2.1 --owner session-2
 ```
 
+**Right after `start`, run the intake** (2.24.0) — three questions through this
+harness's native question tool (source folder? human or auto checkpoints? full or
+fast?), then `run_config.py intake <project> --source none|/abs/path --checkpoints
+human|auto --speed full|fast`. `mark 1.1 active` refuses without `qa/run-config.json`.
+
 `start` writes **and opens** `<project>/pipeline.html` **once**. `resume`,
 `mark`, and later sessions never reopen it — assume that tab is still open.
 If **start** does not open the board, **stop**. Print the `file://` URI. Never overwrite the spec
 `web2html/pipeline.html`. Never pass the web2html repo as `start` root.
 Derive `<project>` from the URL slug under `Documents/templates/<project>`.
+
+The open board refreshes every 15 seconds. As soon as 1.2 writes
+`qa/paper-file.json`, the Capture Tool row under the progress bar gets the
+stamped URL. Copy it into Chrome to pull custom components anytime — do not
+wait for 1.4. The link, if opened, is a new tab.
 
 Stamp every boundary:
 
@@ -68,8 +78,8 @@ todo. Exit → `done` then next `in_progress`. Banner:
 NEXT  3.1  QA pass 1                     [after 2.4 done — Session 3 polish not started]
 ```
 
-Idle (no active step, run not finished) is **NEXT**, never Ready. After 2.4
-done the Here/Next strip is `2.4 signed` → `3.1 Session 3 polish — not started`.
+Idle (no active step, run not finished) is **NEXT** on the progress bar, never Ready. After 2.4
+done the bar reads `NEXT  3.1`. There is no Here/Next strip.
 
 Human stops: **1.4**, **2.4**, **3.4**, optional **4.4**, and optional **5.6**. Everything else runs.
 
@@ -80,9 +90,9 @@ stop, ask, or fire a Continue CTA anywhere else.
 
 | Session | Runs without yielding | Yields at |
 |---|---|---|
-| 1 · capture | 1.1 → 1.2 → 1.3 → 1.4 | **1.4** |
-| 2 · build | 2.1 → 2.2 → 2.3 → 2.4 | **2.4** |
-| 3 · QA | 3.1 → 3.2 → 3.3 → 3.4 | **3.4** |
+| 1 · capture | 1.1 → 1.2 → 1.3 → 1.4 | **1.4** (auto-accepted when `checkpoints=auto`) |
+| 2 · build | 2.1 → 2.2 → 2.3 → 2.4 | **2.4** (auto-accepted when `checkpoints=auto`) |
+| 3 · QA | 3.1 → 3.2 → 3.3 → 3.4 | **3.4** — always a human stop |
 | 4 · pages (optional) | 4.1 → 4.2 → 4.3 → 4.4 | **4.4** |
 | 5 · astro site (optional) | 5.1 → 5.2 → 5.3 → 5.4 → 5.5 → 5.6 | **5.6** |
 

@@ -37,9 +37,14 @@
   h1, h2, h3, h4 { font-family: var(--display); }
   h1 { margin: 0; color: var(--ink); font-size: clamp(2.1rem, 6vw, 3.6rem); font-weight: 500; line-height: 1; letter-spacing: -.035em; }
   .run-title { display: flex; flex-wrap: wrap; align-items: center; gap: .14em; }
-  .run-gear { width: .78em; height: .78em; overflow: visible; color: var(--accent); animation: gear-spin 3.4s linear infinite; transform-origin: 50% 50%; }
-  .run-gear circle { fill: none; stroke: currentColor; stroke-width: 2; }
-  .run-gear path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  /* Run icon — one per mode (qa/run-config.json). full: gear, slow. auto: orbit. fast: turbo arcs, quick. */
+  .run-icon { display: none; width: .78em; height: .78em; overflow: visible; color: var(--accent); transform-origin: 50% 50%; }
+  .run-icon circle, .run-icon path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .run-icon .dot { fill: currentColor; stroke: none; }
+  body:not([data-mode]) .run-gear,  body[data-mode="full"] .run-gear  { display: block; animation: gear-spin 7s linear infinite; }
+  body[data-mode="auto"] .run-orbit { display: block; }
+  body[data-mode="auto"] .run-orbit .sat { animation: gear-spin 3.2s linear infinite; transform-origin: 12px 12px; }
+  body[data-mode="fast"] .run-turbo { display: block; animation: gear-spin 1.1s linear infinite; }
   .lead { width: 100%; max-width: none; margin: 20px 0 36px; color: var(--text); font-size: 1.08rem; }
   .hud { margin-bottom: 44px; }
   .hud-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; color: var(--muted); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
@@ -75,8 +80,8 @@
     100% { background-position: -100% 0; }
   }
   @keyframes gear-spin { to { transform: rotate(360deg); } }
-  body[data-run="done"] .run-gear { animation-play-state: paused; color: var(--muted); }
-  body[data-run="yield"] .run-gear { animation-play-state: paused; color: var(--human); }
+  body[data-run="done"] .run-icon, body[data-run="done"] .run-icon .sat { animation-play-state: paused; color: var(--muted); }
+  body[data-run="yield"] .run-icon, body[data-run="yield"] .run-icon .sat { animation-play-state: paused; color: var(--human); }
   body[data-run="yield"] .converting-label {
     animation: none;
     color: var(--accent);
@@ -88,26 +93,56 @@
   @media (prefers-reduced-motion: reduce) {
     .loader-grid i { animation: none; opacity: .15; }
     .converting-label { animation: none; color: var(--ink); background: none; -webkit-background-clip: unset; background-clip: unset; }
-    .run-gear { animation: none; }
+    .run-icon, .run-icon .sat { animation: none; }
   }
   .bar { height: 3px; overflow: hidden; background: var(--line); }
   .bar i { display: block; width: var(--pct, 0%); height: 100%; background: var(--accent); }
-  .here-next {
-    display: grid;
-    gap: 6px;
+  .capture-pull {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
     margin: 12px 0 0;
     padding: 12px 14px;
-    border: 1px solid var(--accent);
-    background: #1d2514;
-    font: 700 12px/1.45 var(--mono);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    font: 500 12px/1.45 var(--mono);
+  }
+  .capture-main { display: flex; gap: 12px; min-width: 0; flex: 1; }
+  .capture-mark { width: 32px; height: 32px; flex: 0 0 auto; }
+  .capture-mark svg { display: block; width: 32px; height: 32px; overflow: visible; }
+  .capture-pull[data-state="ready"] .rec-dot { animation: rec-pulse 1.6s ease-in-out infinite; }
+  @keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+  .capture-name { margin: 0; color: var(--text); font: 600 12px/1.2 var(--mono); }
+  .capture-note { margin: 4px 0 0; color: var(--muted); font: 500 12px/1.45 var(--mono); }
+  .capture-pending { display: block; margin: 8px 0 0; color: var(--muted); }
+  .capture-url {
+    display: block;
+    margin: 8px 0 0;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+    text-decoration: none;
+  }
+  .capture-url:hover { color: var(--text); }
+  .capture-pull[data-state="ready"] .capture-pending { display: none; }
+  .capture-pull[data-state="waiting"] .capture-url { display: none; }
+  .capture-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    height: 36px;
+    padding: 0 14px;
+    border: 0;
+    background: var(--accent);
+    color: var(--bg);
+    font: 700 12px/1 var(--mono);
     letter-spacing: .04em;
     text-transform: uppercase;
+    cursor: pointer;
   }
-  .here-next[hidden] { display: none; }
-  .here-next-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; align-items: baseline; }
-  .here-next .k { color: var(--muted); }
-  .here-next .v { color: var(--ink); text-transform: none; font-weight: 600; letter-spacing: 0; }
-  .here-next .v.next { color: var(--accent); }
+  .capture-copy svg { width: 16px; height: 16px; }
+  .capture-copy[disabled] { background: var(--line); color: var(--muted); cursor: default; }
+  .capture-copy.is-copied { background: var(--ink); color: var(--accent); }
   .spine { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 48px; padding: 0; list-style: none; }
   .spine li { position: relative; padding: 13px 42px 13px 12px; border: 1px solid var(--line); background: var(--panel); transition: border-color 160ms ease, background 160ms ease; }
   .spine li + li { border-left: 0; }
@@ -120,8 +155,6 @@
   .section { margin-top: 48px; }
   .eyebrow { margin: 0 0 12px; color: var(--accent); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; }
   h2 { margin: 0 0 18px; color: var(--ink); font-size: 1.35rem; font-weight: 500; letter-spacing: -.02em; }
-  #run-title { margin-bottom: 8px; }
-  .run-split { max-width: 62ch; margin: 0 0 24px; color: var(--text); font-size: .95rem; line-height: 1.45; }
   .cards-wrap { display: grid; gap: 28px; }
   .card-band { margin: 0 0 8px; color: var(--accent); font: 700 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
   .card-band.is-optional { color: var(--muted); }
@@ -140,6 +173,20 @@
   .row .id { margin: 0; color: var(--muted); font: 700 10px/1 var(--mono); }
   .row h4 { margin: 0; min-width: 0; color: var(--text); font-size: .82rem; line-height: 1.35; font-weight: 500; text-wrap: pretty; }
   .row.check .id, .row.check h4 { color: var(--human); }
+  /* Run mode (qa/run-config.json). auto / fast: 1.4 + 2.4 self-accept → not shown as stops.
+     3.4 is never hidden. fast: 1.3 + 2.1 are skipped by contract. */
+  .run-mode { align-self: center; margin-left: .35em; padding: .18em .55em; border-radius: 999px; font: 700 .28em/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; vertical-align: middle; }
+  .run-mode-fast { color: var(--bg); background: var(--accent); }
+  .run-mode-auto { color: var(--accent); border: 1px solid var(--accent); }
+  .run-mode-note { margin: -6px 0 0; color: var(--muted); font: 500 12px/1.4 var(--mono); }
+  .run-mode-note:empty { display: none; }
+  /* pipeline-progress.py stamps data-run-step="auto" (self-accepting checkpoint) or "skipped"
+     (not part of this run) on grid rows + timeline items. 3.4 never receives either. */
+  .row[data-run-step="auto"], .timeline-item[data-run-step="auto"],
+  .timeline-item[data-run-step="skipped"] { display: none; }
+  .row[data-run-step="skipped"] h4 { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+  .row[data-run-step="skipped"] h4::after { content: " skipped"; text-decoration: none; display: inline-block; margin-left: .4em; font: 700 9px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .row[data-run-step="skipped"] .mark { border-style: dashed; }
   .row[data-status="done"] .mark { border-color: var(--accent); background: var(--accent); }
   .row[data-status="done"] h4 { color: var(--ink); }
   .row[data-status="active"] { background: #1d2514; }
@@ -207,6 +254,8 @@
     .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 720px) {
+    .capture-pull { display: block; }
+    .capture-copy { margin-top: 12px; }
     .spine, .cards { grid-template-columns: 1fr; }
     .spine li + li { border-left: 1px solid var(--line); border-top: 0; }
     .timeline-item::before { left: 21.5px; }
@@ -222,7 +271,8 @@
 <body>
 <main class="page">
   <p class="mast"><strong>Live pipeline</strong><span class="mast-tag" data-pipeline-count>0 / 12</span></p>
-  <h1 class="run-title"><span>Web2Html</span><svg class="run-gear" viewBox="0 0 24 24" role="img" aria-label="Run active"><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg><span>Run</span></h1>
+  <h1 class="run-title"><span>Web2Html</span><svg class="run-icon run-gear" viewBox="0 0 24 24" role="img" aria-label="Full run"><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg><svg class="run-icon run-orbit" viewBox="0 0 24 24" role="img" aria-label="Auto run"><circle cx="12" cy="12" r="9"/><circle class="dot" cx="12" cy="12" r="2.4"/><g class="sat"><circle class="dot" cx="12" cy="3" r="2"/></g></svg><svg class="run-icon run-turbo" viewBox="0 0 24 24" role="img" aria-label="Fast run"><path d="M12 3a9 9 0 0 1 8.5 6"/><path d="M20.8 14.5A9 9 0 0 1 14 20.8"/><path d="M8 20a9 9 0 0 1-4.7-7.5"/><path d="M5 7.5A9 9 0 0 1 8 4.3"/><circle class="dot" cx="12" cy="12" r="2"/></svg><span>Run</span></h1>
+  <p class="run-mode-note" data-pipeline-mode-note></p>
   <p class="lead">You'll need to install Paper MCP and keep the app open throughout the run.</p>
 
   <div class="hud" data-pipeline-hud>
@@ -237,9 +287,32 @@
       </span>
     </div>
     <div class="bar" aria-hidden="true"><i data-pipeline-bar style="--pct:0%"></i></div>
-    <div class="here-next" data-pipeline-here-next hidden>
-      <div class="here-next-row"><span class="k">Here</span><span class="v" data-pipeline-here></span></div>
-      <div class="here-next-row"><span class="k">Next</span><span class="v next" data-pipeline-next></span></div>
+    <div class="capture-pull" data-pipeline-capture data-state="waiting">
+      <div class="capture-main">
+        <span class="capture-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img" aria-label="Recording">
+            <defs>
+              <filter id="rec-glow" x="-100%" y="-100%" width="300%" height="300%">
+                <feGaussianBlur stdDeviation="2.5"/>
+              </filter>
+            </defs>
+            <rect x="1" y="1" width="30" height="30" rx="8" fill="#000"/>
+            <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="#2a2a2a"/>
+            <circle class="rec-dot" cx="16" cy="16" r="7" fill="#ff2a2a" opacity=".85" filter="url(#rec-glow)"/>
+            <circle class="rec-dot" cx="16" cy="16" r="5" fill="#ff3b3b"/>
+          </svg>
+        </span>
+        <div>
+          <p class="capture-name">Capture Tool</p>
+          <p class="capture-note">Chrome extension. If you need custom components, dropdowns, or buttons back in Paper, copy this address into Chrome to start Capture Tool.</p>
+          <span class="capture-pending">Waiting for Paper</span>
+          <a class="capture-url" data-pipeline-capture-url href="" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+      </div>
+      <button type="button" class="capture-copy" data-pipeline-capture-copy disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span data-copy-label>Copy</span>
+      </button>
     </div>
   </div>
 
@@ -251,10 +324,7 @@
     <li data-spine="qa"><strong>QA proof</strong><span>compare + review</span></li>
   </ol>
 
-  <section class="section" aria-labelledby="run-title">
-    <p class="eyebrow">The run</p>
-    <h2 id="run-title">Capture, Build, QA</h2>
-    <p class="run-split">1–3 rebuild the homepage (<code>/</code> only) and are required through 3.4. 4–5 are optional all-pages work: Paper the rest of the site, then bind it into Astro — navbar and footer pulled once from the signed homepage, one page body per Paper page.</p>
+  <section class="section">
     <div class="cards-wrap">
       <div>
         <p class="card-band">Homepage · required</p>
@@ -341,5 +411,40 @@
   </section>
 
 </main>
+<script>
+document.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-pipeline-capture-copy]");
+  if (!btn || btn.disabled) return;
+  const link = document.querySelector("[data-pipeline-capture-url]");
+  const url = link && link.getAttribute("href");
+  if (!url || !url.includes("paperFileId=")) return;
+  const label = btn.querySelector("[data-copy-label]");
+  const done = () => {
+    btn.classList.add("is-copied");
+    if (label) label.textContent = "Copied";
+    setTimeout(() => {
+      btn.classList.remove("is-copied");
+      if (label) label.textContent = "Copy";
+    }, 1600);
+  };
+  const fallback = () => {
+    const area = document.createElement("textarea");
+    area.value = url;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    done();
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(url).then(done).catch(fallback);
+  } else {
+    fallback();
+  }
+});
+</script>
 </body>
 </html>

@@ -191,10 +191,20 @@ def plan_tasks(root: Path, phase: str) -> list[dict]:
     raise ValueError(f"unknown wave phase {phase!r}")
 
 
+def _run_widths(root: Path) -> tuple[int, ...]:
+    """Configured widths (qa/run-config.json); fast run = 1600 + 390."""
+    try:
+        import run_config
+
+        return tuple(run_config.widths(root))
+    except Exception:  # noqa: BLE001
+        return (1600, 768, 390)
+
+
 def _side_pngs(root: Path, band: str) -> list[str]:
     compare = root / "qa" / "paper-measure" / "compare"
     found: list[str] = []
-    for width in (1600, 768, 390):
+    for width in _run_widths(root):
         hits = sorted(compare.glob(f"*-{band}-{width}-side.png")) if compare.is_dir() else []
         found.append(str(hits[0].relative_to(root)) if hits else f"qa/paper-measure/compare/NN-{band}-{width}-side.png")
     return found
@@ -447,8 +457,9 @@ def validate_task(root: Path, wave: dict, task: dict) -> list[str]:
     errors = agent_loop.validate_finding(root, snapshot, finding)
     if wave["phase"] == "2.3":
         verdict = finding.get("verdict") or {}
-        if not all(str(verdict.get(k)) in {"match", "miss"} for k in ("1600", "768", "390")):
-            errors.append("verdict must name match|miss at 1600, 768, and 390")
+        keys = tuple(str(w) for w in _run_widths(root))
+        if not all(str(verdict.get(k)) in {"match", "miss"} for k in keys):
+            errors.append("verdict must name match|miss at " + ", ".join(keys))
         if len(str(finding.get("seen") or "").split()) < 12:
             errors.append("seen must be at least 12 words")
     if wave["phase"] == "3.2":
@@ -552,7 +563,7 @@ def _record_command(root: Path, band: str, finding: dict) -> str:
     parts = [
         f'python3 "{skills}/web2html/scripts/paper_23_validate.py" "{root}" --id {shlex.quote(band)} --record',
         f"--seen {shlex.quote(str(finding.get('seen') or ''))}",
-        "--verdict " + ",".join(f"{k}={verdict.get(k)}" for k in ("1600", "768", "390")),
+        "--verdict " + ",".join(f"{k}={verdict.get(k)}" for k in (str(w) for w in _run_widths(root))),
     ]
     misses = finding.get("misses") or []
     for miss in misses:

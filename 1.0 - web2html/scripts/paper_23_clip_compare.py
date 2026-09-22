@@ -91,9 +91,10 @@ def compare_project(
     root: Path,
     *,
     page: str = "home",
-    widths: tuple[int, ...] = WIDTHS,
+    widths: tuple[int, ...] | None = None,
 ) -> dict:
     root = root.resolve()
+    widths = tuple(widths) if widths else gold.run_widths(root)
     mapped = gold.build_index(root, page=page, widths=widths)
     gold_rel = gold.OUT if page == "home" else Path(f"qa/paper-measure/disk-gold-{page}.json")
     gold.write_index(root, mapped, gold_rel)
@@ -171,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--receipt", default=str(OUT))
     args = ap.parse_args(argv)
     root = args.root.resolve()
-    widths = gold.parse_widths(args.widths or None)
+    widths = gold.parse_widths(args.widths or None, root)
     ship = gold.ship_rel_for(args.page)
     if not (root / ship).is_file():
         print(f"FAIL: missing {ship.as_posix()}", file=sys.stderr)

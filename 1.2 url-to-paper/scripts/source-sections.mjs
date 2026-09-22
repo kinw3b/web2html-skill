@@ -79,12 +79,12 @@ export function sourceSectionsDirForWidth(captureRoot, pageSlug = "home", width 
   return join(resolve(captureRoot), landerFolderForWidth(pageSlug, width), "source-sections");
 }
 
-export function requiredSourceSectionDirs(captureRoot, pageSlug = "home") {
-  return SOURCE_SHOT_VIEWPORTS.map((width) => sourceSectionsDirForWidth(captureRoot, pageSlug, width));
+export function requiredSourceSectionDirs(captureRoot, pageSlug = "home", widths = SOURCE_SHOT_VIEWPORTS) {
+  return widths.map((width) => sourceSectionsDirForWidth(captureRoot, pageSlug, width));
 }
 
-export function missingSourceSectionDirs(captureRoot, pageSlug = "home") {
-  return requiredSourceSectionDirs(captureRoot, pageSlug).filter((dir) => !hasSourceSectionShots(dir));
+export function missingSourceSectionDirs(captureRoot, pageSlug = "home", widths = SOURCE_SHOT_VIEWPORTS) {
+  return requiredSourceSectionDirs(captureRoot, pageSlug, widths).filter((dir) => !hasSourceSectionShots(dir));
 }
 
 // Paper write_html cannot load paper-asset:// or file:// — those become

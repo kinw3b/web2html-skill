@@ -21,11 +21,18 @@ import {
 import { call, setFileId } from "./mcp-client.mjs";
 import { mcpPayload } from "./write-paper-section.mjs";
 import { landerFolderForWidth, sourceSectionsDirForWidth } from "./source-sections.mjs";
+import { runWidths } from "./run-config.mjs";
 
 export const BREAKPOINT_WIDTHS = [768, 390];
 
-export function requiredAuthoredFrames(boards = [], pageSlug = "home") {
-  const need = BREAKPOINT_WIDTHS.map((w) => `${pageSlug}-${w}`);
+/** Sub-desktop widths this run captures (qa/run-config.json; fast = [390]). */
+export function breakpointWidthsFor(projectRoot) {
+  const list = runWidths(projectRoot).filter((w) => w < 1400);
+  return list.length ? list : [...BREAKPOINT_WIDTHS];
+}
+
+export function requiredAuthoredFrames(boards = [], pageSlug = "home", widths = BREAKPOINT_WIDTHS) {
+  const need = widths.map((w) => `${pageSlug}-${w}`);
   const have = new Set((boards || []).map((b) => b.name));
   const missing = need.filter((n) => !have.has(n));
   return { ok: missing.length === 0, missing, need };
@@ -41,10 +48,10 @@ export function summarizeShotQa(rows = []) {
   };
 }
 
-export function breakpointShotQaDone(report = {}) {
+export function breakpointShotQaDone(report = {}, widths = BREAKPOINT_WIDTHS) {
   return report?.ok === true
     && Array.isArray(report.frames)
-    && report.frames.length >= BREAKPOINT_WIDTHS.length
+    && report.frames.length >= widths.length
     && !(report.missingFrames || []).length;
 }
 
@@ -142,7 +149,8 @@ export async function runBreakpointShotQa({
   if (fileId) setFileId(fileId);
   const info = mcpPayload(await call("get_basic_info", { ...(fileId ? { fileId } : {}) }));
   const boards = info.artboards || [];
-  const frames = requiredAuthoredFrames(boards, pageSlug);
+  const widths = breakpointWidthsFor(root);
+  const frames = requiredAuthoredFrames(boards, pageSlug, widths);
   const qaDir = join(root, "qa");
   const shotOut = join(qaDir, "breakpoint-shot-qa");
   mkdirSync(shotOut, { recursive: true });
@@ -165,7 +173,7 @@ export async function runBreakpointShotQa({
     log(`breakpoint-shot-qa FAIL — missing ${frames.missing.join(", ")}`);
     return report;
   }
-  for (const width of BREAKPOINT_WIDTHS) {
+  for (const width of widths) {
     const name = `${pageSlug}-${width}`;
     const board = boards.find((b) => b.name === name);
     const one = await qaOneWidth({

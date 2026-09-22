@@ -1,7 +1,7 @@
 ---
 name: web2html
 description: "Convert a live URL to pixel-perfect static HTML via Paper. Invoke as /web2html or Convert <URL> to HTML. First tool: pipeline-progress.py start for a NEW run, resume for a continued session. Never write rebuild HTML before 2.1. Never scrape-to-site, Firecrawl-to-HTML, Tailwind CDN, or freehand a homepage. If rebuild/index.html exists without a live board and 1.4 sign-off, quarantine it and start from 1.1. 2.1 emits the Design System page from 1.3 tokens; 2.2 authors rebuild/index-semantic.html from Paper using those tokens. A run spans three sessions (1 capture / 2 build / 3 QA) plus optional Phase 4 (Paper) and Phase 5 (Astro site: shared chrome pulled once from the 3.4 polish, then each page's body); 2.0 and optional 5.0 are recommended on the strong model; the tier is advice, never a gate — run any session on whichever model the operator chose. Homepage only until 3.4. file:// preview. No GIFs, no local server."
-version: 2.23.0
+version: 2.24.0
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]
@@ -55,6 +55,33 @@ when `waves orca`, this harness's subagent tool when `subagent`, the printed spe
 when `serial`. Anything else → never load `orchestration` / `orca-cli`; still run
 `wave.py` at 2.3 (Pitfall #219 #220 #221).
 
+## Intake — three questions, once, right after `start` (2.24.0)
+
+`mark --step 1.1 --status active` **refuses** until `qa/run-config.json` exists.
+Fire this harness's native question tool with the three questions below, then record:
+
+```sh
+python3 $SKILLS/web2html/scripts/run_config.py intake /path/to/templates/<project> \
+  --source none|/abs/path/to/html-export --checkpoints human|auto --speed full|fast
+```
+
+1. **Source folder?** Most URL pulls have a source on disk (Webflow export, static
+   build). `--source /abs/path` copies it to `<project>/source-html/` and classifies it:
+   `clean-html` → 2.2 authors in **PORT mode** (source DOM order / copy / links / alt
+   are structural truth, Paper stays visual truth); `framework-dump` (`_next/`,
+   `__NEXT_DATA__`, Framer runtime, empty React root) → 2.2 authors from Paper as
+   usual, the folder is a copy/structure reference only. `none` → pull from the public URL.
+2. **Human checkpoints or auto?** `human` stops at 1.4 / 2.4 / 3.4. `auto` self-accepts
+   1.4 and 2.4 (receipts stamped AUTO-ACCEPTED, nothing opened, lease kept, same session
+   continues). **3.4 always stops** — no flag turns it off; 4.x / 5.x author from that result.
+3. **Full or fast?** `fast` forces `auto` and: 1.2 shoots **1600 + 390** (no tablet;
+   Screenshots board, section clips, stretch-root stay) · 1.3 **skipped** (no Design
+   Library) · 2.1 **skipped** except `emit_fonts.py` · 2.2 strict author (no `get_jsx` /
+   `index-raw.html`, no token-binding gate; markup gates stay) · 2.3 at the configured
+   widths with disk clips + `wave.py` LOOK · 3.2 button hover from source CSS
+   (`source-hover-light.mjs`). Every 2.3 gate reads widths from the config.
+   `run_config.py show <project>` prints the recorded contract.
+
 `start` is the only command that opens the live board. If **that** tab does
 not open, **stop**. Print the `file://` URI. `resume` / `mark` / later
 sessions never reopen it. Then read
@@ -74,12 +101,12 @@ Red means stop. Do not polish a quarantined file (Pitfall #148).
 
 ## Hard rules
 
-1. Never skip a numbered step (1.1 → 3.4). `skip` fails on required steps. Capture Tool is optional leftover hover at 1.4 (tab opened by `mark 1.4 active`; `open-capture` re-opens). Phase 4 is optional after 3.4 (`qa/phase-4-opted.json` or `qa/phase-4-skipped.json`). Phase 5 is optional after 4.4 (`qa/phase-5-opted.json` or `qa/phase-5-skipped.json`).
+1. Never skip a numbered step (1.1 → 3.4). `skip` fails on required steps. A **fast** run does not skip 1.3 / 2.1 — the intake writes `qa/design-library-skipped.json` / `qa/design-system-skipped.json` and those steps mark done on the receipt. Capture Tool is optional leftover hover at 1.4 (tab opened by `mark 1.4 active`; `open-capture` re-opens). Phase 4 is optional after 3.4 (`qa/phase-4-opted.json` or `qa/phase-4-skipped.json`). Phase 5 is optional after 4.4 (`qa/phase-5-opted.json` or `qa/phase-5-skipped.json`).
 2. No `rebuild/*.html` until 1.4 is signed and 2.1 is open. First rebuild HTML is 2.1 `design-system.html` (token contract). First authored write is 2.2 `index-semantic.html` — never scrape-to-site, never a get_jsx dump. 2.3 seeds `index.html` from that file.
 3. Homepage only through 3.4. Extra routes stay out of 1.2. Phase 4 is Paper-only. Phase 5 binds the site into `astro/` after 4.4 opt-in: 5.1 pulls Header / Footer / components **once** from the 3.4 polish, 5.2 authors only each page's `<main>` as `astro/src/pages/{slug}.astro`. 5.5 is the one post-3.4 href exception, plus 3.3-style scrape-only SEO per page. Exit if `plan.pages.length > 1` at 1.2 without `--allow-multi-page`.
-4. Stage L is never skippable. No ship HTML until Paper has a `Design Library` artboard (foundations only), `get_tokens` is non-empty, and `design-library/library.json` exists. Disk-only does not count.
+4. Stage L is never skippable on a **full** run. No ship HTML until Paper has a `Design Library` artboard (foundations only), `get_tokens` is non-empty, and `design-library/library.json` exists. Disk-only does not count. On a **fast** run the intake receipt stands in for the library and 2.2 authors without a token contract.
 5. One `rebuild/`. 2.2 first pass is `index-semantic.html`. 2.4 lock is `index.html`; 3.x writes `index-polish.html` only (created when 3.1 starts, not at 2.4). Optional Phase 5 writes `astro/` and does not replace `rebuild/`. No local HTTP server. Preview is `file://` — in **Orca's browser** when the probe says `orca reachable` (`open_doc.py`: the board, 2.4 review, 3.4 compare + polish report, 5.6 routes), else Chrome; `WEB2HTML_BROWSER=default|orca` overrides. 5.3+ relativizes `astro/dist` so built pages open on `file://`. The agent verifies with `astro build`, never `astro dev`; the human may run `npm run preview`.
-6. Human stops: **1.4**, **2.4**, **3.4**, optional **4.4**, optional **5.6**. Session 2 does not yield until **2.4**. **3.4** is finish vs Phase 4. **4.4** is finish vs Phase 5. **5.6** is finish (tidy). CTA only at those yields (Pitfall #190 #192). A **relay** (`pipeline-progress.py relay`, when `mark` prints `RELAY armed`) is a change of agent at a receipt boundary, not a yield: same-source agent, Orca terminal when reachable, else print the prompt; never a CTA (Pitfall #218 #219 #220).
+6. Human stops: **1.4**, **2.4**, **3.4**, optional **4.4**, optional **5.6**. With `--checkpoints auto` (or any fast run) 1.4 and 2.4 self-accept and the session keeps going; **3.4 is never automatic.** Session 2 does not yield until **2.4**. **3.4** is finish vs Phase 4. **4.4** is finish vs Phase 5. **5.6** is finish (tidy). CTA only at those yields (Pitfall #190 #192). A **relay** (`pipeline-progress.py relay`, when `mark` prints `RELAY armed`) is a change of agent at a receipt boundary, not a yield: same-source agent, Orca terminal when reachable, else print the prompt; never a CTA (Pitfall #218 #219 #220).
 7. Silent shell 20s → kill (Pitfall #112). Gate evidence must be truthful.
 8. **1.2 always `create_file` a new Paper document.** Never `list_files` / never open a similarly-named existing file (Pitfall #187).
 
@@ -105,7 +132,7 @@ switch. `mark --step 1.4/2.4 --status done` releases the lease and prints the ne
 Resume with `resume`, never `start`.
 
 **Homepage vs all pages.** Phases **1–3** are the required homepage run (`/` only):
-capture at 1600 / 768 / 390, mine one Design Library, author `rebuild/index-semantic.html`,
+capture at 1600 / 768 / 390 (fast: 1600 / 390), mine one Design Library (fast: none), author `rebuild/index-semantic.html`,
 seed `index.html` at 2.3, polish `index-polish.html` starting at 3.1. **3.4 can stop the run.** Phases **4–5** are optional
 all-pages work that reuse those tokens and chrome. They do not recapture `/`,
 do not mine a second library, and do not rewrite 2.3 geometry.
@@ -118,15 +145,15 @@ do not mine a second library, and do not rewrite 2.3 geometry.
 | Step | Do | Read |
 |---|---|---|
 | **1.1** | `scrape-web.sh` — URL + images + Latin fonts. Stub contract. | `references/step-11.md` |
-| **1.2** | Headless `hover-reel/scripts/capture-session.mjs` — **always `create_file` a new Paper document**. Never `list_files` / never open a similarly-named existing file. Then 1600/768/390 + Navigation + stretch-root. | `references/12-desktop-source.md` + `references/stage-p-notes.md` |
-| **1.3** | `run-design-library-step.mjs` once. Foundations only. Then pull unique buttons + components from token-seeded `home-desktop` onto FRAME `Buttons` and FRAME `Components`, and author button hover from source CSS. | `references/pillars.md` (1.3 rows) + `references/13-buttons-components.md` |
-| **1.4** | Required Paper sign-off. `mark 1.4 active` opens Paper **and** the browser on the stamped source URL (Capture Tool connects off that tab; `capture-doctor` FAIL = OFFLINE, relay its fix). Optional leftover hover only. Fire the two-option question modal. Stop. | `references/live-board.md` + pillars 1.4 row |
-| **2.1** | `emit-design-system.mjs` writes `rebuild/design-system.html` + `tokens.css` + `fonts.css`. Not the ship. | `references/paper-design-to-code.md` |
-| **2.2** | `get_jsx` → `dump_index_raw.py` → `rebuild/index-raw.html`. `frontend-design` authors `rebuild/index-semantic.html`. | same |
-| **2.3** | Pull numbered 1.2 `NN-slug.png` clips at 1600/768/390, side-by-side vs rebuild. Measure/APPLY is serial (controller is the only `rebuild/` writer). **No Paper MCP.** Never skip. Then VALIDATE: `paper_23_validate.py . --shoot-open`, **MUST** `wave.py prepare/start/wait/apply` for LOOK, apply printed patches, `--record` from the findings; ≤3 rounds per band, then `--residual`. Adapter from the probe: `orca` opens Orca terminals, `subagent` dispatches this harness's subagents, `serial` means the controller does each printed spec. Do not Read the sides yourself on the orca/subagent rungs (Pitfall #216 #221). | same + `references/responsive-22d.md` + `references/section-23-paper-loop.md` + `references/orca-relay.md` |
-| **2.4** | `open-build-review.py . --stage 2.4` (TAGS on). Stop. Continue starts Session 3 polish. `index-polish.html` does not exist yet. | same |
+| **1.2** | Headless `hover-reel/scripts/capture-session.mjs` — **always `create_file` a new Paper document**. Never `list_files` / never open a similarly-named existing file. Then the run-config widths (1600/768/390; fast 1600/390) + Navigation + stretch-root. | `references/12-desktop-source.md` + `references/stage-p-notes.md` |
+| **1.3** | **Fast run: skipped** (intake receipt). Otherwise `run-design-library-step.mjs` once. Foundations only. Then pull unique buttons + components from token-seeded `home-desktop` onto FRAME `Buttons` and FRAME `Components`, and author button hover from source CSS. | `references/pillars.md` (1.3 rows) + `references/13-buttons-components.md` |
+| **1.4** | `checkpoints=auto`: self-accepts, nothing opens, continue to 2.1. Otherwise required Paper sign-off. `mark 1.4 active` opens Paper **and** the browser on the stamped source URL (Capture Tool connects off that tab; `capture-doctor` FAIL = OFFLINE, relay its fix). Optional leftover hover only. Fire the two-option question modal. Stop. | `references/live-board.md` + pillars 1.4 row |
+| **2.1** | **Fast run:** `emit_fonts.py .` only. Otherwise `emit-design-system.mjs` writes `rebuild/design-system.html` + `tokens.css` + `fonts.css`. Not the ship. | `references/paper-design-to-code.md` |
+| **2.2** | `get_jsx` → `dump_index_raw.py` → `rebuild/index-raw.html` (**fast: skip the dump**). `frontend-design` authors `rebuild/index-semantic.html`. **PORT mode** when `source-html/` is `clean-html`: source DOM order / copy / links / alt are structural truth, Paper is visual truth. | same |
+| **2.3** | Pull numbered 1.2 `NN-slug.png` clips at the run-config widths, side-by-side vs rebuild. Measure/APPLY is serial (controller is the only `rebuild/` writer). **No Paper MCP.** Never skip. Then VALIDATE: `paper_23_validate.py . --shoot-open`, **MUST** `wave.py prepare/start/wait/apply` for LOOK, apply printed patches, `--record` from the findings; ≤3 rounds per band, then `--residual`. Adapter from the probe: `orca` opens Orca terminals, `subagent` dispatches this harness's subagents, `serial` means the controller does each printed spec. Do not Read the sides yourself on the orca/subagent rungs (Pitfall #216 #221). | same + `references/responsive-22d.md` + `references/section-23-paper-loop.md` + `references/orca-relay.md` |
+| **2.4** | `checkpoints=auto`: self-accepts once 2.3 is green, continue to 3.1. Otherwise `open-build-review.py . --stage 2.4` (TAGS on). Stop. Continue starts Session 3 polish. `index-polish.html` does not exist yet. | same |
 | **3.1** | `mark --step 3.1 --status active` copies `index.html` → `index-polish.html` (unpolished). Then Impeccable + Taste on that copy. Freeze the lock. | `references/polish-visual-restore.md` |
-| **3.2** | Hover from 1.3 source CSS (`apply-hover-css.py`) + **painted burger drawer** (`author-nav-drawer.py`) + **FAQ accordion** (`author-faq.py`) + **nav dropdowns** (`author-nav-dropdown.py`) + guidelines a11y + **mandatory GSAP in-view** on `index-polish.html`. Never skip hover, the drawer, FAQ, or dropdowns because Capture Tool did not run. Companion receipts `qa/web-design-guidelines.md` / `qa/find-animation-opportunities.md` / `qa/apple-design.md` before `mark --step 3.2 --status done` (Pitfall #215). | `references/gsap-inview.md` + `references/hover-22c.md` + `references/nav-drawer.md` + `references/faq.md` + `references/nav-dropdown.md` + `references/orca-relay.md` (companion wave) |
+| **3.2** | Hover from 1.3 source CSS (`apply-hover-css.py`; fast run: `mark 3.2 active` first mines it with `source-hover-light.mjs`) + **painted burger drawer** (`author-nav-drawer.py`) + **FAQ accordion** (`author-faq.py`) + **nav dropdowns** (`author-nav-dropdown.py`) + guidelines a11y + **mandatory GSAP in-view** on `index-polish.html`. Never skip hover, the drawer, FAQ, or dropdowns because Capture Tool did not run. Companion receipts `qa/web-design-guidelines.md` / `qa/find-animation-opportunities.md` / `qa/apple-design.md` before `mark --step 3.2 --status done` (Pitfall #215). | `references/gsap-inview.md` + `references/hover-22c.md` + `references/nav-drawer.md` + `references/faq.md` + `references/nav-dropdown.md` + `references/orca-relay.md` (companion wave) |
 | **3.3** | Semantics + scrape-only SEO on `index-polish.html` (`--freeze-structure`). | `references/semantics-pass.md` |
 | **3.4** | Compare `index.html` vs `index-polish.html`. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to Phase 4 (`qa/phase-4-opted.json`, no tidy). | `references/live-board.md` (handoff) |
 | **4.1** | Scrape sitemap.xml for extra URLs. Homepage stays out. Near-duplicate dynamic detail slugs (blog posts, case studies — a parent with 3+ children) collapse to ONE sample per template; never import every slug. | `references/scripts.md` |

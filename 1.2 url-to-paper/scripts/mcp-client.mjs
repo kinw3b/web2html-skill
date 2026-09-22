@@ -93,6 +93,28 @@ export function getFileId() {
   return pinnedFileId;
 }
 
+/** Paper now prefixes `{file, contentHash}` as the first text item. mcpPayload
+ *  (and every sibling copy) returns the first parse, so create_artboard looked
+ *  like it returned no id. Put the tool body first; keep the envelope after. */
+function preferToolBody(result) {
+  const items = result?.content;
+  if (!Array.isArray(items) || items.length < 2) return result;
+  const isEnvelope = (item) => {
+    if (item?.type !== "text") return false;
+    try {
+      const parsed = JSON.parse(item.text);
+      const keys = parsed && typeof parsed === "object" ? Object.keys(parsed) : [];
+      return keys.length > 0 && keys.every((k) => k === "file" || k === "contentHash") && parsed.file;
+    } catch {
+      return false;
+    }
+  };
+  const envelope = items.find(isEnvelope);
+  const body = items.find((item) => item?.type === "text" && !isEnvelope(item));
+  if (!envelope || !body) return result;
+  return { ...result, content: [body, ...items.filter((item) => item !== body)] };
+}
+
 export async function call(name, args = {}, { pinFile = true, timeoutMs } = {}) {
   await connect();
   const withFile =
@@ -100,7 +122,8 @@ export async function call(name, args = {}, { pinFile = true, timeoutMs } = {}) 
   // Heavy HTML inserts need more headroom; still fail closed so the HUD unlocks.
   const toolTimeout = timeoutMs
     ?? (name === "write_html" ? Math.max(DEFAULT_TIMEOUT_MS, 120_000) : DEFAULT_TIMEOUT_MS);
-  return rpc("tools/call", { name, arguments: withFile }, { timeoutMs: toolTimeout });
+  const result = await rpc("tools/call", { name, arguments: withFile }, { timeoutMs: toolTimeout });
+  return preferToolBody(result);
 }
 
 export async function listTools() {

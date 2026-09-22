@@ -1,10 +1,15 @@
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
 import tempfile
 import unittest
+from html import escape as html_escape
 from pathlib import Path
+
+import run_config
 
 
 os.environ.setdefault("WEB2HTML_NO_PROBE", "1")  # keep start/resume hermetic: no live Orca probe in tests
@@ -109,7 +114,8 @@ class PipelineProgressTests(unittest.TestCase):
             ],
         )
         self.assertIn("0 / 12", template)
-        self.assertIn("Capture, Build, QA", template)
+        self.assertNotIn("Capture, Build, QA", template)
+        self.assertNotIn("The run", template)
         self.assertIn("is-optional", template)
         self.assertEqual(
             re.findall(
@@ -128,14 +134,16 @@ class PipelineProgressTests(unittest.TestCase):
         self.assertIn("Take it wherever you build", template)
         self.assertIn("optional 4.0", template)
         self.assertIn("This board stays next to <code>rebuild/</code>.", template)
-        self.assertIn("data-pipeline-here-next", template)
-        self.assertIn("data-pipeline-here", template)
-        self.assertIn("data-pipeline-next", template)
+        self.assertNotIn("data-pipeline-here-next", template)
+        self.assertIn("data-pipeline-capture", template)
+        self.assertIn("data-pipeline-capture-copy", template)
+        self.assertIn('target="_blank"', template)
+        self.assertIn('data-state="waiting"', template)
         self.assertIn("data-finish", template)
         self.assertIn("Astro", template)
         self.assertIn('<h1 class="run-title">', template)
         self.assertIn("Web2Html", template)
-        self.assertIn('class="run-gear"', template)
+        self.assertIn('class="run-icon run-gear"', template)
         self.assertIn("<span>Run</span></h1>", template)
         self.assertNotIn("Five files control the package", template)
         self.assertNotIn("Eight rules prevent almost every failed run", template)
@@ -205,10 +213,39 @@ class PipelineProgressTests(unittest.TestCase):
             html,
         )
 
+    def test_capture_url_lands_under_the_bar_once_paper_exists(self):
+        data = pipeline_progress.empty_progress("demo")
+        waiting = pipeline_progress.stamp_html(pipeline_progress.live_template().read_text(), data)
+        self.assertIn('data-pipeline-capture data-state="waiting"', waiting)
+        self.assertIn('data-pipeline-capture-url href=""', waiting)
+        self.assertIn("data-pipeline-capture-copy disabled", waiting)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "example-site"
+            qa = root / "qa"
+            qa.mkdir(parents=True)
+            (qa / "paper-file.json").write_text(json.dumps({
+                "fileId": "FILE123",
+                "sourceUrl": "https://example.com/",
+            }))
+            html = pipeline_progress.stamp_html(
+                pipeline_progress.live_template().read_text(), data, root
+            )
+            url = html_escape(pipeline_progress.build_capture_tool_page_url(root), quote=True)
+            self.assertIn('data-pipeline-capture data-state="ready"', html)
+            self.assertIn(f'href="{url}"', html)
+            self.assertIn('target="_blank"', html)
+            self.assertIn(f">{url}</a>", html)
+            self.assertIn('data-pipeline-capture-copy>', html)
+            self.assertLess(
+                html.index("data-pipeline-capture"),
+                html.index('class="spine"'),
+            )
+
     def test_finished_run_drops_refresh_and_marks_the_board_done(self):
         data = pipeline_progress.empty_progress("demo")
         html = pipeline_progress.stamp_html(pipeline_progress.live_template().read_text(), data)
-        self.assertIn('http-equiv="refresh" content="20"', html)
+        self.assertIn('http-equiv="refresh" content="15"', html)
         self.assertNotRegex(html, r'<body[^>]*data-run="done"')
 
         for sid in pipeline_progress.STEP_IDS:
@@ -229,8 +266,6 @@ class PipelineProgressTests(unittest.TestCase):
         self.assertIn("NEXT  3.1", html)
         self.assertIn("Session 3 polish", html)
         self.assertRegex(html, r'<body[^>]*data-run="yield"')
-        self.assertIn("2.4  Sign-off → 3.0 polish  ·  signed", html)
-        self.assertIn("3.1  QA pass 1  ·  Session 3 polish — not started", html)
         self.assertIn(
             'data-progress-step="3.1" data-status="up-next"',
             html,
@@ -242,8 +277,6 @@ class PipelineProgressTests(unittest.TestCase):
             pipeline_progress.live_template().read_text(), data
         )
         self.assertIn("▶ 2.4  Sign-off → 3.0 polish", html)
-        self.assertIn("2.4  Sign-off → 3.0 polish  ·  in progress", html)
-        self.assertIn("Session 3 polish — not started", html)
 
     def test_start_and_write_live_do_not_ship_next_html(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -685,11 +718,22 @@ class PipelineProgressTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             pipeline_progress.save_progress(root, pipeline_progress.empty_progress("demo"))
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
 
             self.assertEqual(pipeline_progress.cmd_mark(root, "1.1", "active", None, 1), 0)
             before = pipeline_progress.progress_path(root).read_text()
             self.assertEqual(pipeline_progress.cmd_mark(root, "1.1", "done", None, 1), 2)
             self.assertEqual(pipeline_progress.progress_path(root).read_text(), before)
+
+    def test_mark_11_active_refuses_without_run_intake(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pipeline_progress.save_progress(root, pipeline_progress.empty_progress("demo"))
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.1", "active", None, 1), 2)
+            self.assertIn("run_config.py intake", err.getvalue())
+            self.assertEqual(pipeline_progress.load_progress(root)["steps"]["1.1"]["status"], "pending")
 
     def test_sync_ignores_noncanonical_agent_findings(self):
         with tempfile.TemporaryDirectory() as tmp:
