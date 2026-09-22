@@ -56,9 +56,16 @@
     return null;
   }
 
+  function isShipFinal() {
+    return document.documentElement.getAttribute("data-qa-ship") === "final";
+  }
+
   function mode() {
     var boot = bootMode();
     if (boot) return boot;
+    // 3.4 ship: outlines off unless ?qa-outlines= is on the URL. Ignore
+    // localStorage so a review visit cannot stick tags onto the demo.
+    if (isShipFinal()) return "off";
     try {
       return localStorage.getItem(KEY) || "tags";
     } catch (e) {
@@ -747,6 +754,11 @@
   }
 
   function mount() {
+    // Bare demo URL: no outlines, no corner chip. A query param mounts chrome.
+    if (isShipFinal() && !forcedMode()) {
+      apply("off");
+      return;
+    }
     if (document.getElementById("qa-outline-toggle")) {
       apply(mode());
       return;

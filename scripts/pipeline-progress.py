@@ -79,6 +79,7 @@ from rebuild_write_gate import (
 )
 import run_config
 from seed_index import seed as seed_index_html
+from promote_ship import promote as promote_ship, ship_ready
 from seed_index_polish import polish_path, seed as seed_index_polish
 
 _APPLY_HOVER = importlib.util.spec_from_file_location(
@@ -2340,7 +2341,10 @@ Then: 3.1 a11y + contrast + anti-slop (Impeccable + Taste) on
       qa/find-animation-opportunities.md, qa/apple-design.md (Pitfall #215) ->
       3.3 scrape-only SEO + a11y labels (semantics_pass --freeze-structure
       on index-polish.html) ->
-      3.4 compare index.html (2.4) vs index-polish.html (QA) + tidy.
+      3.4 compare index.html (2.4) vs index-polish.html (QA, outlines off;
+      ?qa-outlines=tags turns them on). Marking 3.4 done promotes the polish
+      file to index.html and archives index-raw / index-semantic / the 2.4 lock
+      under rebuild/archive/ (Pitfall #223).
 
 Receipts land in qa/polish-passes/ plus the three 3.2 companion .md files
 in qa/. verify-polish-passes.py green before 3.4.
@@ -2358,9 +2362,11 @@ Project   {root}
 Paper     {file_id}
 Board     {board}
 
-Sessions 1–4 are complete. The homepage is polished (rebuild/index-polish.html
-is the chrome lock). Extra routes are Paper pages on the home canvas. Do not
-recapture, re-mine, open a second Design Library, or rewrite the homepage.
+Sessions 1–4 are complete. The homepage ship is rebuild/index.html (3.4
+promoted the polish; outlines off unless ?qa-outlines=). Extra routes are
+Paper pages on the home canvas. Do not recapture, re-mine, open a second
+Design Library, or rewrite the homepage. 5.1 reads index.html when
+index-polish.html has been archived.
 
 First actions, in order:
   1. Load the web2html skill.
@@ -2370,7 +2376,7 @@ First actions, in order:
   3. Read references/phase-5-astro.md and the 5.1–5.6 rows in pillars.md.
 
 Then: 5.1 scaffold astro/ + pull Header / Footer / Paper components ONCE from
-the 3.4 polish + convert the homepage to src/pages/index.astro ->
+rebuild/index.html (the promoted polish) + convert the homepage to src/pages/index.astro ->
 5.2 serial get_jsx dumps + at most two author workers, each writing ONLY the
 <main> body of src/pages/{{slug}}.astro on that shared chrome ->
 5.3 astro build + desktop clip compare on astro/dist (4.2 1600 gold; no Paper MCP) ->
@@ -3085,11 +3091,12 @@ def cmd_mark(
     if status == "done" and step == "3.4" and active_reviewer_leases(root):
         print("FAIL: cannot complete 3.4 while reviewer leases are active.", file=sys.stderr)
         return 2
-    if status == "done" and step == "3.4" and not (root / "rebuild" / "index-polish.html").is_file():
+    if status == "done" and step == "3.4" and not ship_ready(root):
         print(
             "FAIL: cannot mark 3.4 done — missing rebuild/index-polish.html. "
             "3.x copies the 2.4 index and writes QA there. "
-            "open-human-review.py compares both files (Pitfall #203).",
+            "open-human-review.py compares both files (Pitfall #203). "
+            "mark 3.4 done promotes that file to index.html.",
             file=sys.stderr,
         )
         return 2
@@ -3287,6 +3294,15 @@ def cmd_mark(
             data["budgetState"] = budget_row
     except Exception:  # noqa: BLE001 — the budget never gates a mark
         budget_row = None
+    if status == "done" and step == "3.4":
+        try:
+            receipt = promote_ship(root)
+        except FileNotFoundError as exc:
+            print(f"FAIL: cannot mark 3.4 done — {exc}", file=sys.stderr)
+            return 2
+        if not receipt.get("already"):
+            archived = ", ".join(receipt.get("archived") or []) or "none"
+            print(f"ship promote → rebuild/index.html  outlines off  archived {archived}")
     try:
         save_progress(root, data, actual_revision if expected_revision is not None else None)
     except ProgressConflict as exc:

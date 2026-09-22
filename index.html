@@ -54,7 +54,7 @@
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
     --transition: 180ms;
-    /* dot grid — infographic stills only, never the page background */
+    /* dot grid — infographic stills; the page background is the .sonar canvas */
     --dot-grid-size: 12px;
     --dot-grid-color: color-mix(in srgb, var(--accent) 20%, transparent);
   }
@@ -87,6 +87,17 @@
     width: min(1040px, 100%);
     margin-inline: auto;
     padding: 36px 28px 120px;
+  }
+  /* Sonar field — fixed dot grid behind the page; ambient pings + a ping on
+     every click. Painted in the accent, at rest it reads as texture only. */
+  .sonar {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    color: var(--accent);
+    pointer-events: none;
   }
 
   .mast {
@@ -155,12 +166,79 @@
     stroke-linejoin: round;
   }
 
-  header.hero { margin: 0 0 56px; }
+  header.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title apps"
+      "lead  apps"
+      "setup setup";
+    align-items: start;
+    column-gap: 32px;
+    margin: 0 0 56px;
+  }
+  header.hero > h1 { grid-area: title; }
   .hero-lead {
+    grid-area: lead;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 14px;
+  }
+  /* Recommended apps — the three installs that sit next to the skill. Quiet
+     tiles: same 1px line as the setup boxes, mono logo that lifts to accent. */
+  .hero-apps {
+    grid-area: apps;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    margin: 10px 0 0;
+  }
+  .hero-apps-label {
+    color: var(--muted);
+    font: 700 9px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .hero-apps-list {
+    display: flex;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .hero-app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 96px;
+    height: 96px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg);
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color var(--transition) var(--ease-out), color var(--transition) var(--ease-out);
+  }
+  .hero-app:hover { border-color: var(--accent); color: var(--accent); }
+  .hero-app svg {
+    display: block;
+    width: 28px;
+    height: 28px;
+    fill: currentColor;
+  }
+  .hero-app-name {
+    font: 700 10px/1 var(--mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .hero-app-role {
+    margin-top: -4px;
+    color: var(--muted);
+    font: 500 9px/1 var(--mono);
+    letter-spacing: 0.04em;
   }
   .hero-examples {
     display: flex;
@@ -175,6 +253,7 @@
     text-transform: uppercase;
   }
   .hero-setup {
+    grid-area: setup;
     display: grid;
     grid-template-columns: minmax(0, 0.8fr) 22px minmax(0, 1.5fr) 22px minmax(0, 1.2fr);
     align-items: stretch;
@@ -345,7 +424,7 @@
   h1 {
     max-width: 12ch;
     margin: 0 0 18px;
-    color: var(--accent);
+    color: var(--ink);
     font: 800 clamp(2.75rem, 9vw, 6rem)/0.92 var(--display);
     letter-spacing: -0.04em;
     text-wrap: pretty;
@@ -377,7 +456,26 @@
     color: var(--text);
     font: 600 0.82rem/1.5 var(--sans);
   }
-  .hero-use-ico { font-size: 0.95rem; line-height: 1; }
+  .hero-use-ico {
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    color: var(--accent);
+  }
+  .hero-use-ico svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+  }
+  .hero-use-ico svg.is-stroke {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
 
   .pipe {
     margin: 28px 0 18px;
@@ -1912,6 +2010,15 @@
   .tree-row em { margin-left: 9px; color: var(--muted); font-style: normal; font-weight: 400; }
 
   @media (max-width: 920px) {
+    header.hero {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "title"
+        "lead"
+        "apps"
+        "setup";
+    }
+    .hero-apps { align-items: flex-start; margin: 24px 0 0; }
     .hero-setup {
       grid-template-columns: 1fr;
     }
@@ -2008,6 +2115,7 @@
 </style>
 </head>
 <body>
+<canvas class="sonar" aria-hidden="true"></canvas>
 <div class="page">
 <p class="mast"><a class="mast-by" href="https://kreativepro.io" target="_blank" rel="noreferrer"><strong>Created by Neff</strong></a><span class="mast-tags"><a class="mast-tag" href="https://github.com/kinw3b/web2html-skill" target="_blank" rel="noreferrer"><svg class="mast-gh" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.3.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.3-.82 2.3-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.3 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>v0.1.12</a><a class="mast-tag" href="https://buymeacoffee.com/kreativepro" target="_blank" rel="noreferrer"><svg class="mast-cup" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.4h8.2v3.2a3.2 3.2 0 0 1-3.2 3.2H6.2A3.2 3.2 0 0 1 3 9.6V6.4Z"/><path d="M11.2 7.4h1.3a1.6 1.6 0 0 1 0 3.2h-1.3"/><path d="M6.1 4.3V3.1M8.6 4.3V2.6"/></svg>Buy me a coffee</a></span></p>
 <header class="hero">
@@ -2017,12 +2125,20 @@
 <div class="hero-examples">
 <span class="hero-examples-label">Examples:</span>
 <ul class="hero-uses">
-<li><span class="hero-use-ico" aria-hidden="true">🎨</span> Framer → Astro</li>
-<li><span class="hero-use-ico" aria-hidden="true">📝</span> WordPress → Next.js</li>
-<li><span class="hero-use-ico" aria-hidden="true">🌐</span> Any site → HTML</li>
+<li><span class="hero-use-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 0h16v8h-8zM4 8h8l8 8H4zM4 16h8v8z"/></svg></span> Framer → Astro</li>
+<li><span class="hero-use-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21.469 6.825c.84 1.537 1.318 3.3 1.318 5.175 0 3.979-2.156 7.456-5.363 9.325l3.295-9.527c.615-1.54.82-2.771.82-3.864 0-.405-.026-.78-.07-1.11m-7.981.105c.647-.03 1.232-.105 1.232-.105.582-.075.514-.93-.067-.899 0 0-1.755.135-2.88.135-1.064 0-2.85-.15-2.85-.15-.585-.03-.661.855-.075.885 0 0 .54.061 1.125.09l1.68 4.605-2.37 7.08L5.354 6.9c.649-.03 1.234-.1 1.234-.1.585-.075.516-.93-.065-.896 0 0-1.746.138-2.874.138-.2 0-.438-.008-.69-.015C4.911 3.15 8.235 1.215 12 1.215c2.809 0 5.365 1.072 7.286 2.833-.046-.003-.091-.009-.141-.009-1.06 0-1.812.923-1.812 1.914 0 .89.513 1.643 1.06 2.531.411.72.89 1.643.89 2.977 0 .915-.354 1.994-.821 3.479l-1.075 3.585-3.9-11.61.001.014zM12 22.784c-1.059 0-2.081-.153-3.048-.437l3.237-9.406 3.315 9.087c.024.053.05.101.078.149-1.12.393-2.325.609-3.582.609M1.211 12c0-1.564.336-3.05.935-4.39L7.29 21.709C3.694 19.96 1.212 16.271 1.211 12M12 0C5.385 0 0 5.385 0 12s5.385 12 12 12 12-5.385 12-12S18.615 0 12 0"/></svg></span> WordPress → Next.js</li>
+<li><span class="hero-use-ico" aria-hidden="true"><svg class="is-stroke" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2"/><path d="M2.8 12h18.4M12 2.8c2.6 2.6 3.9 5.7 3.9 9.2s-1.3 6.6-3.9 9.2c-2.6-2.6-3.9-5.7-3.9-9.2S9.4 5.4 12 2.8Z"/></svg></span> Any site → HTML</li>
 </ul>
 </div>
 </div>
+<aside class="hero-apps" aria-label="Recommended apps">
+<span class="hero-apps-label">Recommended apps</span>
+<ul class="hero-apps-list">
+<li><a class="hero-app" href="https://paper.design/downloads" target="_blank" rel="noreferrer" title="Paper — the design canvas every capture lands on"><svg viewBox="0 0 21 21" aria-hidden="true"><path d="M3 0H21V13H13V3H3ZM0 3H3V13H13V21H0Z"/></svg><span class="hero-app-name">Paper</span><span class="hero-app-role">design canvas</span></a></li>
+<li><a class="hero-app" href="https://www.onorca.dev/" target="_blank" rel="noreferrer" title="Orca — runs the orchestration skills in parallel terminals"><svg viewBox="0 0 318.6 202.67" aria-hidden="true"><path transform="translate(-6.667 -70.667)" d="m177.813 248.333c23.823-41.298 40.54-66.846 49.512-75.667 6.817-6.702 10.074-8.737 20.073-12.545 34.578-13.166 61.047-26.787 72.372-37.243 9.629-8.89 9.343-9.011-23.437-9.964-35.718-1.038-43.73.421-62.175 11.323-16.721 9.883-34.201 30.112-42.747 49.472-2.574 5.83-14.813 44.306-27.964 87.907-2.86 9.484-3.025 11.716-.862 11.716.444 0 7.297-11.25 15.228-25zm-65.146-8.323c7.333-.748 17.833-2.56 23.333-4.11 5.5-1.55 12.25-3.138 15-3.529 2.75-.391 5-.955 5-1.253 0-.298 2.151-7.585 4.781-16.193 8.492-27.802 12.213-40.416 21.137-71.652 4.819-16.867 11.235-39.185 14.258-49.596 5.128-17.661 5.748-23.07 2.643-23.07-1.849 0-4.071 6.908-16.723 52-21.79 77.659-20.808 74.744-26.848 79.723-7.592 6.258-25.039 14.825-36.108 17.73-17.095 4.487-33.411 3.867-53.117-2.016-18.569-5.544-23.143-5.803-33.64-1.904-5.875 2.183-9.864 5.044-16.717 11.991-4.95 5.019-9 10.029-9 11.134 0 1.752 5.928 2.003 46.333 1.964 25.484-.025 52.334-.6 59.667-1.278zm140.028-135.373c12.183-3.487 15.773-7.896 9.638-11.836-10.193-6.547-36.198-1.773-41.194 7.562-1.256 2.346-.987 3.204 1.684 5.375 2.694 2.191 4.6 2.477 12.539 1.882 5.149-.386 12.949-1.728 17.333-2.983z"/></svg><span class="hero-app-name">Orca</span><span class="hero-app-role">orchestration</span></a></li>
+<li><a class="hero-app" href="https://github.com/kinw3b/paper-bridge" target="_blank" rel="noreferrer" title="Chrome — hosts the Capture Tool extension"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257c.206.01.413.016.621.016 6.627 0 12-5.373 12-12 0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728 4.364 4.364 0 0 1 0 8.728Z"/></svg><span class="hero-app-name">Chrome</span><span class="hero-app-role">capture tool</span></a></li>
+</ul>
+</aside>
 <div class="hero-setup">
 <div class="hero-box">
 <span class="install-kicker">Chrome Extension</span>
@@ -2226,7 +2342,7 @@
 <div class="dot">3.4</div>
 <div>
 <h2>Your last look, then optional pages</h2>
-<p>Compare the 2.4 page with the QA polish file. The homepage run can stop here, or continue to optional all-pages work.</p>
+<p>Compare the 2.4 page with the QA polish. Sign-off leaves one index.html, outlines off. The run can stop here or continue.</p>
 <div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" aria-hidden="true" fill="none" stroke="var(--line-strong)" stroke-width="1.5">
 <rect x="4" y="6" width="68" height="32" rx="2"/>
 <path d="M4 15h68"/>
@@ -2388,6 +2504,119 @@
       }
     });
   });
+
+  // Sonar field: dot grid on a fixed canvas; rings expand from ambient pings
+  // and from pointer taps. Idles when no ring is alive, pauses in hidden tabs,
+  // and paints a still grid under prefers-reduced-motion.
+  (() => {
+    const canvas = document.querySelector('.sonar');
+    const ctx = canvas && canvas.getContext('2d');
+    if (!ctx) return;
+    const o = { spacing: 26, dotRadius: 1.3, baseOpacity: 0.16, pingEvery: 2.8, speed: 260, ringWidth: 90, amplitude: 2.2, maxRings: 6, pingArea: [0.1, 0.1, 0.9, 0.9] };
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const TAU = Math.PI * 2;
+    let width = 0, height = 0, raf = 0, timer = 0, stroke = '';
+    let rings = [];
+    let nextPing = performance.now() + o.pingEvery * 1000;
+    const readColor = () => { stroke = getComputedStyle(canvas).color; };
+    const addRing = (x, y, born) => {
+      readColor();
+      rings.push({ x, y, born });
+      while (rings.length > o.maxRings) rings.shift();
+    };
+    const draw = (now) => {
+      const lifetime = (Math.hypot(width, height) + o.ringWidth) / o.speed;
+      rings = rings.filter((r) => (now - r.born) / 1000 < lifetime);
+      const live = rings.map((r) => {
+        const age = (now - r.born) / 1000;
+        const radius = age * o.speed;
+        return { x: r.x, y: r.y, radius, reach: radius + o.ringWidth, fade: 1 - age / lifetime };
+      });
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = stroke;
+      const cols = Math.ceil(width / o.spacing) + 1;
+      const rows = Math.ceil(height / o.spacing) + 1;
+      const offsetX = (width - (cols - 1) * o.spacing) / 2;
+      const offsetY = (height - (rows - 1) * o.spacing) / 2;
+      const hot = [];
+      ctx.globalAlpha = o.baseOpacity;
+      ctx.beginPath();
+      for (let i = 0; i < cols; i++) {
+        const cx = offsetX + i * o.spacing;
+        for (let j = 0; j < rows; j++) {
+          const cy = offsetY + j * o.spacing;
+          let energy = 0;
+          for (const r of live) {
+            if (Math.abs(cx - r.x) > r.reach || Math.abs(cy - r.y) > r.reach) continue;
+            const dist = Math.abs(Math.hypot(cx - r.x, cy - r.y) - r.radius);
+            if (dist >= o.ringWidth) continue;
+            const t = 1 - dist / o.ringWidth;
+            const k = t * t * (3 - 2 * t) * r.fade;
+            if (k > energy) energy = k;
+          }
+          if (energy < 0.01) {
+            ctx.moveTo(cx + o.dotRadius, cy);
+            ctx.arc(cx, cy, o.dotRadius, 0, TAU);
+          } else {
+            hot.push(cx, cy, energy);
+          }
+        }
+      }
+      ctx.fill();
+      for (let k = 0; k < hot.length; k += 3) {
+        const energy = hot[k + 2];
+        ctx.globalAlpha = o.baseOpacity + (1 - o.baseOpacity) * energy;
+        ctx.beginPath();
+        ctx.arc(hot[k], hot[k + 1], o.dotRadius * (1 + o.amplitude * energy), 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    };
+    const tick = (now) => {
+      raf = 0;
+      if (document.hidden) return;
+      if (reduceMotion.matches) { rings = []; draw(now); return; }
+      if (now >= nextPing) {
+        const [x0, y0, x1, y1] = o.pingArea;
+        addRing(width * (x0 + Math.random() * (x1 - x0)), height * (y0 + Math.random() * (y1 - y0)), now);
+        nextPing = now + o.pingEvery * 1000;
+      }
+      draw(now);
+      if (rings.length > 0) raf = requestAnimationFrame(tick);
+      else {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => tick(performance.now()), Math.max(16, nextPing - now));
+      }
+    };
+    const wake = () => {
+      if (!raf) { window.clearTimeout(timer); raf = requestAnimationFrame(tick); }
+    };
+    let seeded = false;
+    const resize = () => {
+      width = Math.max(1, window.innerWidth);
+      height = Math.max(1, window.innerHeight);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!seeded) {
+        seeded = true;
+        if (!reduceMotion.matches) addRing(width * 0.72, height * 0.32, performance.now() - 500);
+      }
+      draw(performance.now());
+    };
+    readColor();
+    resize();
+    window.addEventListener('resize', resize);
+    window.addEventListener('pointerdown', (e) => {
+      if (reduceMotion.matches) return;
+      addRing(e.clientX, e.clientY, performance.now());
+      wake();
+    });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+    reduceMotion.addEventListener('change', wake);
+    wake();
+  })();
 
 </script>
 </body>

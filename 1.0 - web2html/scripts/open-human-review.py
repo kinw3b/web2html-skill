@@ -8,7 +8,7 @@ receipts, links the polish page, verifies the polish contract, then opens
 Google Chrome on:
 
   rebuild/index.html              (2.4 lock)
-  rebuild/index-polish.html?qa-review=final
+  rebuild/index-polish.html?qa-review=final&qa-outlines=off
   rebuild/polish-report.html
 
 Do not stop at 3.4 without this. Exit 2 if the polish file, receipts, or
@@ -61,7 +61,7 @@ def open_chrome(lock: Path, polish: Path, report: Path) -> int:
     """Open the three 3.4 documents: Orca browser tabs when reachable, else Chrome (one call, all URIs)."""
     uris = [
         file_uri(lock),
-        file_uri(polish) + "?qa-review=final",
+        file_uri(polish) + "?qa-review=final&qa-outlines=off",
         file_uri(report),
     ]
     import open_doc
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             return rc
         print(f"opened: {file_uri(lock)}  (2.4 lock)")
-        print(f"opened: {file_uri(polish)}  (QA polish)")
+        print(f"opened: {file_uri(polish)}  (QA polish, outlines off — ?qa-outlines=tags turns them on)")
         print(f"opened: {file_uri(report)}")
     else:
         print(f"ready for 3.4: {lock} vs {polish}")

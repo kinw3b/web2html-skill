@@ -154,8 +154,8 @@ has not been worked.
 
 After the polish compare, fire **one** question:
 
-1. `Done — finish homepage run` → write `qa/phase-4-skipped.json`, `mark --step 3.4 --status done` (tidy).
-2. `Continue to optional Phase 4` → write `qa/phase-4-opted.json`, `mark --step 3.4 --status done` (no tidy), then `mark --step 4.1 --status active`.
+1. `Done — finish homepage run` → write `qa/phase-4-skipped.json`, `mark --step 3.4 --status done` (promotes polish to `index.html`, archives the other homepage HTML, tidy).
+2. `Continue to optional Phase 4` → write `qa/phase-4-opted.json`, `mark --step 3.4 --status done` (same promote, no tidy), then `mark --step 4.1 --status active`.
 
 ### 4.4 — two-option (Paper finish vs optional Phase 5)
 

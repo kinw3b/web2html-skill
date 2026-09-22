@@ -39,7 +39,8 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 | `author-faq.py` | 3.2 | If polish paints FAQ rows, wire accordion + fill empty answers from scrape. Receipt `qa/faq.json`. Never skip empty Paper bodies |
 | `author-nav-dropdown.py` | 3.2 | If polish paints a dropdown or scrape has a matching submenu, wire hover/click panel. Receipt `qa/nav-dropdown.json`. Never skip for Capture Tool |
 | `record-polish-pass.py` / `render-polish-report.py` / `verify-polish-passes.py` | 3.1–3.4 | Polish receipts. Receipt names `c3-3.1-impeccable` / `c3-3.2-design-taste-frontend` / `c3-3.3-emil-design-eng` are **C/3 sub-pass ids** (impeccable → taste → emil), not board steps: impeccable + taste land during board **3.1**, emil during board **3.2**. The 3.2 companions (`web-design-guidelines` / `find-animation-opportunities` / `apple-design`) take no C/3 receipt; each writes `qa/<skill>.md`, rendered as its own card and required by `verify-polish-passes.py` (Pitfall #215) |
-| `open-human-review.py` | 3.4 | Opens 2.4 `index.html` + `index-polish.html` + polish report in Chrome |
+| `open-human-review.py` | 3.4 | Opens 2.4 `index.html` + `index-polish.html?qa-outlines=off` + polish report. `?qa-outlines=tags` turns outlines on |
+| `promote_ship.py` | 3.4 done | Promotes `index-polish.html` → `index.html`, archives the other homepage HTML under `rebuild/archive/`, stamps outlines off (`data-qa-ship="final"`). `?qa-outlines=` toggles. Writes `rebuild/.vercelignore` (`archive`) |
 | `scrape-sitemap.py` | 4.1 | Extra same-origin URLs → `qa/phase-4-sitemap.json` |
 | `open-phase-4-review.py` | 4.4 | Writes `qa/phase-4-review.md` and opens Paper |
 | `scaffold-astro.py` | 5.1 | Writes `astro/` from the 3.4 rebuild + `qa/phase-5-scaffold.json` |

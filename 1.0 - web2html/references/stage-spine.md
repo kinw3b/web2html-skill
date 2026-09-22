@@ -257,8 +257,10 @@ Live board IDs for Design stay `1.1`–`1.4` — now (contract, capture + Naviga
   **3.3** is `semantics_pass.py --freeze-structure` + `verify-semantics.py`.
   Pitfall #93 #196.
   **3.4** is `open-human-review.py .` — Chrome opens `index.html` (2.4),
-  `index-polish.html` (QA), and the 3.1–3.3 report (Pitfall #63 #203).
-  Marking 3.4 done stops the live-board
+  `index-polish.html?qa-outlines=off` (QA; `?qa-outlines=tags` turns outlines
+  on), and the 3.1–3.3 report (Pitfall #63 #203 #223). Marking 3.4 done
+  promotes polish to `index.html` and archives the other homepage HTML, then
+  stops the live-board
   refresh, plays confetti, and shows port targets. Then tidy drops `qa/`,
   `capture/`, scrape trees, and run files. The finished `pipeline.html` stays
   at the project root next to `rebuild/`. Do not write `NEXT.html`. Tidy never

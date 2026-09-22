@@ -2,7 +2,8 @@
 
 Phase 5 turns the 3.4 homepage lock plus the 4.4 Paper pages into `astro/`.
 The move that makes it one phase: **Header, Footer, and every shared
-component are pulled ONCE from `rebuild/index-polish.html` at 5.1**. Every
+component are pulled ONCE from `rebuild/index.html` at 5.1** (the 3.4
+promote; falls back to `index-polish.html` if that file is still on disk). Every
 later page reuses them, so 5.2 authors only the `<main>` body (the sections
 that page actually has). Homepage 1.1–3.4 stays the lock. `rebuild/` stays
 the static homepage ship and is never replaced. No React. No Tailwind CDN.
