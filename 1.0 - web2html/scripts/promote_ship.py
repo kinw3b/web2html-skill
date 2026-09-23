@@ -49,7 +49,17 @@ def ship_is_final(root: Path) -> bool:
 
 
 def ship_ready(root: Path) -> bool:
-    """3.4 may finish when polish still exists, or when promote already ran."""
+    """3.4 may finish when polish still exists, when promote already ran, or when an adopted export is the ship."""
+    try:
+        import run_config
+
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            ship = root / "source-html" / "index.html"
+            return ship.is_file() and source_fidelity.load_snapshot(root) is not None and not source_fidelity.verify(root)
+    except Exception:  # noqa: BLE001
+        pass
     return polish_path(root).is_file() or ship_is_final(root)
 
 
@@ -114,8 +124,29 @@ def _write_note(archive: Path) -> None:
     )
 
 
+def _promote_adopted(root: Path) -> dict:
+    """Leave source-html/ as the ship. Do not copy it into rebuild/ or stamp the markup."""
+    import source_fidelity
+
+    ship = root / "source-html" / "index.html"
+    if not ship.is_file():
+        raise FileNotFoundError("need source-html/index.html — the provided folder is the ship")
+    errors = source_fidelity.verify(root)
+    if errors:
+        raise FileNotFoundError(errors[0])
+    if (root / "rebuild" / "index.html").is_file() or (root / "rebuild" / "index-polish.html").is_file():
+        raise FileNotFoundError("adopted run must not have rebuild/index.html — source-html/ is the ship")
+    return {"ok": True, "already": False, "ship": "source-html/index.html", "archived": [], "adopted": True}
+
+
 def promote(root: Path) -> dict:
     root = root.resolve()
+    try:
+        import run_config
+    except ImportError:
+        run_config = None  # type: ignore[assignment]
+    if run_config is not None and run_config.adopt_mode(root):
+        return _promote_adopted(root)
     rebuild = root / "rebuild"
     polish = polish_path(root)
     ship = ship_path(root)

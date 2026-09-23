@@ -74,6 +74,18 @@ def record(root: Path) -> dict:
         slug = str(row.get("slug") or "").strip()
         if not slug or slug in {"home", "index"}:
             continue
+        try:
+            import run_config
+
+            if run_config.adopt_mode(root):
+                allowed, why = run_config.author_page_allowed(root, slug)
+                page = root / f"astro/src/pages/{slug}.astro"
+                if not allowed:
+                    if page.is_file() or "missing-pages" in why:
+                        errors.append(why)
+                    continue
+        except ImportError:
+            pass
         astro_rel = f"astro/src/pages/{slug}.astro"
         raw_rel = f"rebuild/{slug}-raw.html"
         page = root / astro_rel
@@ -86,6 +98,17 @@ def record(root: Path) -> dict:
             continue
         text = page.read_text(encoding="utf-8", errors="replace")
         errors.extend(page_errors(slug, text))
+        try:
+            import run_config
+
+            if run_config.adopt_mode(root):
+                leaked_css = run_config.uses_pipeline_css(text)
+                if leaked_css:
+                    errors.append(
+                        f"{slug}.astro links pipeline CSS {leaked_css} — use the adopted source stylesheets"
+                    )
+        except ImportError:
+            pass
         pages.append(
             {
                 "slug": slug,

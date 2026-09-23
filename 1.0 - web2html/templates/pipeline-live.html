@@ -21,6 +21,7 @@
     --line-strong: #4a5340;
     --accent: #c7ff52;
     --human: #ffd166;
+    --skip: #ff4d4d;
     /* one typeface across the whole design */
     --sans: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -177,21 +178,40 @@
      3.4 is never hidden. fast: 1.3 + 2.1 are skipped by contract. */
   .run-mode { align-self: center; margin-left: .35em; padding: .18em .55em; border-radius: 999px; font: 700 .28em/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; vertical-align: middle; }
   .run-mode-fast { color: var(--bg); background: var(--accent); }
+  .run-mode-adopt { color: var(--bg); background: var(--ink); }
   .run-mode-auto { color: var(--accent); border: 1px solid var(--accent); }
   .run-mode-note { margin: -6px 0 0; color: var(--muted); font: 500 12px/1.4 var(--mono); }
   .run-mode-note:empty { display: none; }
   /* pipeline-progress.py stamps data-run-step="auto" (self-accepting checkpoint) or "skipped"
-     (not part of this run) on grid rows + timeline items. 3.4 never receives either. */
+     (not part of this run) on grid rows + timeline items. 3.4 never receives either.
+     Fast skips are also data-status="done" (receipt), so the skip paint must beat
+     the done rules or the row reads as completed. */
   .row[data-run-step="auto"], .timeline-item[data-run-step="auto"],
   .timeline-item[data-run-step="skipped"] { display: none; }
-  .row[data-run-step="skipped"] h4 { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
-  .row[data-run-step="skipped"] h4::after { content: " skipped"; text-decoration: none; display: inline-block; margin-left: .4em; font: 700 9px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-  .row[data-run-step="skipped"] .mark { border-style: dashed; }
   .row[data-status="done"] .mark { border-color: var(--accent); background: var(--accent); }
   .row[data-status="done"] h4 { color: var(--ink); }
   .row[data-status="active"] { background: #1d2514; }
   .row[data-status="active"] .mark { border-color: var(--accent); background: var(--accent); }
   .row[data-status="active"] .id, .row[data-status="active"] h4 { color: var(--accent); }
+  .row[data-run-step="skipped"] .id,
+  .row[data-status="done"][data-run-step="skipped"] .id,
+  .row[data-status="active"][data-run-step="skipped"] .id { color: var(--muted); }
+  .row[data-run-step="skipped"] h4,
+  .row[data-status="done"][data-run-step="skipped"] h4,
+  .row[data-status="active"][data-run-step="skipped"] h4 { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+  .row[data-run-step="skipped"] h4::after { content: " skipped"; text-decoration: none; display: inline-block; margin-left: .4em; font: 700 9px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--skip); }
+  .row[data-run-step="skipped"] .mark,
+  .row[data-status="done"][data-run-step="skipped"] .mark,
+  .row[data-status="active"][data-run-step="skipped"] .mark { border-style: solid; border-color: var(--skip); background: var(--skip); }
+  .row[data-status="done"][data-run-step="skipped"],
+  .row[data-status="active"][data-run-step="skipped"] { background: transparent; }
+  .row[data-run-step="off"] h4,
+  .row[data-status="done"][data-run-step="off"] h4 { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+  .row[data-run-step="off"] h4::after { content: " off"; text-decoration: none; display: inline-block; margin-left: .4em; font: 700 9px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .timeline-item[data-run-step="off"] { opacity: .45; }
+  .timeline-item[data-run-step="off"] h3::after { content: " — not applicable"; color: var(--muted); font-weight: 500; }
+  .card[data-phase-state="off"] { opacity: .5; }
+  .card[data-phase-state="off"] .scope::after { content: " · not applicable"; }
   .timeline { position: relative; margin-top: 24px; }
   .timeline-item { position: relative; display: grid; grid-template-columns: 108px minmax(0, 1fr); min-height: 190px; padding: 0 0 48px; }
   .timeline-item::before { content: ""; position: absolute; top: 0; bottom: 0; left: 26.5px; width: 1px; background: var(--line); }

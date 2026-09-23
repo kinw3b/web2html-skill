@@ -16,10 +16,12 @@ Continued session 2 or 3 — **never `start`** (it resets the board, Pitfall #17
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --at 2.1 --owner session-2
 ```
 
-**Right after `start`, run the intake** (2.24.0) — three questions through this
-harness's native question tool (source folder? human or auto checkpoints? full or
-fast?), then `run_config.py intake <project> --source none|/abs/path --checkpoints
-human|auto --speed full|fast`. `mark 1.1 active` refuses without `qa/run-config.json`.
+**Right after `start`, run the intake** (2.26.0) — two questions through this
+harness's native question tool (source folder? full or fast?), then
+`run_config.py intake <project> --source none|/abs/path --speed full|fast`.
+A clean HTML folder is copied to `source-html/` and that copy is the ship:
+do not create `rebuild/`, Phase 2 is marked off, Phase 3 is accessibility
+attributes only. `mark 1.1 active` refuses without `qa/run-config.json`.
 
 `start` writes **and opens** `<project>/pipeline.html` **once**. `resume`,
 `mark`, and later sessions never reopen it — assume that tab is still open.

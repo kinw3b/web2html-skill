@@ -103,6 +103,23 @@ if (invoked && argv.includes("--list-targets")) {
 }
 
 if (invoked) {
+  const bindRefusal = (() => {
+    const path = resolve(outRoot, "qa", "run-config.json");
+    if (!existsSync(path)) return null;
+    try {
+      const cfg = JSON.parse(readFileSync(path, "utf8"));
+      if (cfg && (cfg.adopt === true || cfg.bindTokens === false)) {
+        return "adopted clean HTML — do not seed variables onto Paper frames (Pitfall #224).";
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  })();
+  if (bindRefusal) {
+    console.error(bindRefusal);
+    process.exit(1);
+  }
 if (!exactOnly) {
   console.error("Paper step 1.4 requires --exact-only; nearest token snapping is forbidden.");
   process.exit(1);

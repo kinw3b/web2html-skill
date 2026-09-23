@@ -219,9 +219,15 @@ def ship_pages(root: Path) -> list[Path]:
 
 def unauthorized_ship_pages(root: Path, allow: str) -> list[Path]:
     pages = ship_pages(root)
-    keep = KEEP_WITH_ALLOW.get(allow, frozenset())
+    keep = set(KEEP_WITH_ALLOW.get(allow, frozenset()))
     if allow == ALLOW_PAGES:
-        keep = interior_keep_names(root)
+        keep = set(interior_keep_names(root))
+    try:
+        import run_config
+
+        keep.update(run_config.adopt_keep_html_names(root))
+    except Exception:  # noqa: BLE001
+        pass
     return [path for path in pages if path.name not in keep]
 
 

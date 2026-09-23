@@ -97,8 +97,17 @@ HTML_PAGE_RE = re.compile(r"^[./]*(?P<slug>[A-Za-z0-9_-]+)\.html(?:#(?P<frag>.*)
 def now_pages(root: Path) -> list[dict]:
     """Homepage (from the 3.4 polish) plus every 5.2 interior in astro/src/pages."""
     pages: list[dict] = []
-    polish = root / "rebuild" / "index-polish.html"
-    home = polish if polish.is_file() else root / "rebuild" / "index.html"
+    try:
+        import run_config
+
+        adopted = run_config.adopt_mode(root)
+    except Exception:  # noqa: BLE001
+        adopted = False
+    if adopted:
+        home = root / "source-html" / "index.html"
+    else:
+        polish = root / "rebuild" / "index-polish.html"
+        home = polish if polish.is_file() else root / "rebuild" / "index.html"
     if home.is_file():
         pages.append({
             "slug": "index",

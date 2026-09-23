@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 
-import {
-  mkdirSync,
-  writeFileSync,
-  realpathSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -175,6 +171,23 @@ function requiredArg(argv, name) {
   return value;
 }
 
+export function libraryMineRefusal(projectRoot) {
+  const path = join(resolve(projectRoot), "qa", "run-config.json");
+  if (!existsSync(path)) return null;
+  try {
+    const cfg = JSON.parse(readFileSync(path, "utf8"));
+    if (cfg && cfg.adopt === true) {
+      return "clean HTML source is adopted — do not mine a Design Library or bind tokens onto frames (Pitfall #224).";
+    }
+    if (cfg && cfg.designLibrary === false) {
+      return "run-config designLibrary is false — 1.3 is skipped.";
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export async function runDesignLibraryStep({
   projectRoot,
   fileId,
@@ -187,6 +200,10 @@ export async function runDesignLibraryStep({
   now = () => new Date().toISOString(),
 }) {
   const root = resolve(projectRoot);
+  const refused = libraryMineRefusal(root);
+  if (refused) {
+    throw new Error(refused);
+  }
   const info = payload(await paperCall("get_basic_info", { fileId }));
   if (!info.fileName || !String(info.fileName).includes(expectFile)) {
     throw new Error(

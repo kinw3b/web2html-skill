@@ -114,9 +114,16 @@ def _copy_dir(src: Path, dest: Path) -> int:
 
 def scaffold(root: Path) -> dict:
     root = root.resolve()
-    rebuild = root / "rebuild"
+    import run_config
+
+    adopted = run_config.adopt_mode(root)
+    rebuild = root / ("source-html" if adopted else "rebuild")
     if not rebuild.is_dir():
-        raise FileNotFoundError("need rebuild/ from the 3.4 homepage run")
+        raise FileNotFoundError(
+            "need source-html/ — the provided folder is the ship"
+            if adopted
+            else "need rebuild/ from the 3.4 homepage run"
+        )
     astro = root / "astro"
     public = astro / "public"
     styles = public / "styles"
@@ -154,18 +161,19 @@ def scaffold(root: Path) -> dict:
     ):
         (astro / name).write_text(body, encoding="utf-8")
     (astro / "src" / "layouts" / "BaseLayout.astro").write_text(BASE_LAYOUT, encoding="utf-8")
-    if not (styles / "hover.css").is_file():
+    if not adopted and not (styles / "hover.css").is_file():
         (styles / "hover.css").write_text("/* hover — copied when rebuild/css/hover.css exists */\n", encoding="utf-8")
-    if not (scripts / "main.js").is_file():
+    if not adopted and not (scripts / "main.js").is_file():
         (scripts / "main.js").write_text("/* client boot — copied when rebuild/js/main.js exists */\n", encoding="utf-8")
 
     receipt = {
         "generatedFrom": "web2html/phase-5-scaffold",
-        "ok": bool(copied["styles"]),
+        "ok": bool(copied["styles"]) or adopted,
         "astro": "astro",
         "copied": copied,
+        "ship": "source-html" if adopted else "rebuild",
         "updated": _now_iso(),
-        "errors": [] if copied["styles"] else ["missing rebuild/css tokens/site styles"],
+        "errors": [] if copied["styles"] or adopted else ["missing rebuild/css tokens/site styles"],
     }
     dest = root / "qa" / "phase-5-scaffold.json"
     dest.parent.mkdir(parents=True, exist_ok=True)

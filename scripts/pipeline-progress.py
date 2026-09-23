@@ -802,19 +802,35 @@ def artifact_done(root: Path, step: str) -> bool:
         except Exception:
             return False
     if step == "2.1":
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.phase_2_off(root)
         if not run_config.design_system_enabled(root):
-            # Fast run: no Design System page. Fonts still self-host (2.1 fast path).
+            # Fast still self-hosts fonts.
             return (root / run_config.DESIGN_SYSTEM_SKIPPED).is_file() and (
                 root / "rebuild" / "css" / "fonts.css"
             ).is_file()
         return design_system_page_ready(root)
     if step == "2.2":
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.phase_2_off(root)
         return authored_page_ready(root) and design_system_bound(root)
     if step == "2.3":
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.phase_2_off(root)
         from section_22_gate import ready as section_22_ready
 
         return section_22_ready(root)
     if step == "2.4":
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.phase_2_off(root)
         if run_config.auto_accepts(root, "2.4"):
             return _any_exists(root, "qa/build-checkpoint.md")
         opened = root / "qa" / "build-checkpoint-opened.json"
@@ -838,11 +854,19 @@ def artifact_done(root: Path, step: str) -> bool:
             and _any_exists(root, "qa/build-checkpoint.md")
         )
     if step == "3.1":
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.load_snapshot(root) is not None and not source_fidelity.verify(root)
         return (
             _any_exists(root, "qa/polish-passes/c3-3.1-impeccable.json")
             and _any_exists(root, "qa/polish-passes/c3-3.2-design-taste-frontend.json")
         )
     if step == "3.2":
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.load_snapshot(root) is not None and not source_fidelity.verify(root)
         gsap = root / "qa" / "gsap-reveal-qa.json"
         gsap_ok = False
         if gsap.is_file():
@@ -860,13 +884,26 @@ def artifact_done(root: Path, step: str) -> bool:
             and companion_receipts_done(root)
         )
     if step == "3.3":
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.load_snapshot(root) is not None and not source_fidelity.verify(root)
         return _any_exists(root, "qa/semantics-pass-qa.json")
     if step == "4.1":
+        if run_config.adopt_mode(root):
+            return _any_exists(root, "qa/phase-4-sitemap.json") and _any_exists(root, "qa/source-gaps.json")
         return _any_exists(root, "qa/phase-4-sitemap.json")
     if step == "4.2":
         return _any_exists(root, "qa/phase-4-pages.json")
     if step == "4.3":
-        return _any_exists(root, "qa/phase-4-token-seed.json")
+        seed = root / "qa" / "phase-4-token-seed.json"
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            return source_fidelity.gap_author_ready(root)
+        if not seed.is_file():
+            return False
+        return True
     if step == "4.4":
         return _any_exists(root, "qa/phase-4-review.md")
     if step == "5.1":
@@ -1432,6 +1469,10 @@ def stamp_run_mode(html: str, root: Path | None) -> str:
         flags.update({sid: "auto" for sid in run_config.AUTO_ACCEPTABLE if run_config.auto_accepts(root, sid)})
     if fast:
         flags.update({"1.3": "skipped", "2.1": "skipped"})
+    if config.get("adopt"):
+        flags["1.3"] = "skipped"
+        for sid in ("2.1", "2.2", "2.3", "2.4"):
+            flags[sid] = "off"
     assert "3.4" not in flags
     def flag_rows(m: re.Match) -> str:
         tag, attr, sid = m.group(1), m.group(2), m.group(3)
@@ -1443,10 +1484,37 @@ def stamp_run_mode(html: str, root: Path | None) -> str:
     html = re.sub(
         r'(<article class="timeline-item")\s+(data-progress-step)="([^"]+)"(?:\s+data-run-step="[^"]*")?',
         flag_rows, html)
+    if config.get("adopt"):
+        html = re.sub(
+            r'<section class="card"(?: data-phase-state="off")?>\s*'
+            r'(<div class="card-head"><span class="id">2</span>)',
+            r'<section class="card" data-phase-state="off">\1',
+            html,
+            count=1,
+        )
+        html = re.sub(
+            r'(data-step="4\.3"[^>]*>.*?<h4>)(.*?)(</h4>)',
+            r"\1Author missing layouts\3",
+            html,
+            count=1,
+            flags=re.S,
+        )
+        html = re.sub(
+            r'(data-step="3\.2"[^>]*>.*?<h4>)(.*?)(</h4>)',
+            r"\1A11y only\3",
+            html,
+            count=1,
+            flags=re.S,
+        )
     if fast:
         widths = "/".join(str(w) for w in config.get("widths") or [])
         badge = f'<span class="run-mode run-mode-fast">Fast Run</span>'
         sub = f"{widths} · no Design Library · 3.4 is the only stop"
+        if config.get("adopt"):
+            sub += " · Phase 2 off · source-html is the ship"
+    elif config.get("adopt"):
+        badge = '<span class="run-mode run-mode-adopt">Adopt</span>'
+        sub = "Phase 2 off · source-html is the ship · light a11y polish"
     elif auto:
         badge = '<span class="run-mode run-mode-auto">Auto Run</span>'
         sub = "1.4 / 2.4 auto-accept · 3.4 is the only stop"
@@ -2117,6 +2185,22 @@ SESSION_TIER = {
 }
 
 
+def _handoff_2_adopt(root: Path, paper: dict, board: str) -> str:
+    file_id = paper.get("fileId") or paper.get("id") or ""
+    file_url = paper.get("fileUrl") or (f"https://app.paper.design/file/{file_id}" if file_id else "")
+    return f"""/web2html 3.0 — continue this run. Phase 2 is not applicable.
+
+Project: {root}
+Board:   {board}
+Paper:   {file_url or "(qa/paper-file.json)"}
+
+source-html/ is the ship. Do not create rebuild/. Do not author a homepage.
+Resume at 3.1. Light polish only: accessibility attributes (alt, aria-*, role, lang, label for).
+Do not edit source CSS, JS, classes, or copy. qa/source-fidelity.json is the lock.
+After 3.4, Phase 4 captures the other pages and authors only the empty CMS layouts from Paper screenshots, before Astro.
+"""
+
+
 def _handoff_2(root: Path, paper: dict, board: str) -> str:
     return f"""web2html \u2014 SESSION 2 of 3 \u00b7 {SESSION_TITLE[2]}
 Model: {SESSION_TIER[2]}
@@ -2406,7 +2490,9 @@ def emit_handoff(root: Path, data: dict, step: str) -> Path | None:
         return None
     paper = read_paper_file(root)
     board = (root / "pipeline.html").resolve().as_uri()
-    if session == 2:
+    if session == 2 and run_config.adopt_mode(root):
+        body = _handoff_2_adopt(root, paper, board)
+    elif session == 2:
         body = _handoff_2(root, paper, board)
     elif session == 5:
         body = _handoff_5(root, paper, board)
@@ -3020,7 +3106,13 @@ def cmd_mark(
         )
         return 2
     if status == "done" and step == "2.1" and not artifact_done(root, step):
-        if run_config.design_system_enabled(root):
+        if run_config.adopt_mode(root):
+            print(
+                "FAIL: cannot mark 2.1 done — adopted source needs qa/design-system-skipped.json. "
+                "Do not emit a Design System page or fonts.css.",
+                file=sys.stderr,
+            )
+        elif run_config.design_system_enabled(root):
             print(
                 "FAIL: cannot mark 2.1 done — rebuild/design-system.html is missing. "
                 "2.1 emits the Design System from library.json (not the ship).",
@@ -3034,12 +3126,20 @@ def cmd_mark(
             )
         return 2
     if status == "done" and step == "2.2" and not artifact_done(root, step):
-        print(
-            "FAIL: cannot mark 2.2 done — rebuild/index-semantic.html is missing or is a "
-            "get_jsx dump, or it is not bound to the 2.1 tokens. Author from "
-            "Paper using design-system.html + tokens.css. No new --color/--font names.",
-            file=sys.stderr,
-        )
+        if run_config.adopt_mode(root):
+            print(
+                "FAIL: cannot mark 2.2 done — the adopted export is not rebuild/index.html, "
+                "or pipeline CSS was invented. mark 2.2 active copies source-html/. "
+                "Do not author index-semantic.html.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "FAIL: cannot mark 2.2 done — rebuild/index-semantic.html is missing or is a "
+                "get_jsx dump, or it is not bound to the 2.1 tokens. Author from "
+                "Paper using design-system.html + tokens.css. No new --color/--font names.",
+                file=sys.stderr,
+            )
         return 2
     if status == "done" and step == "2.3" and not artifact_done(root, step):
         print(
@@ -3071,10 +3171,10 @@ def cmd_mark(
     # active (qa/run-config.json). A run without them is a run nobody scoped.
     if step == "1.1" and status == "active" and not run_config.exists(root):
         print(
-            "FAIL: cannot mark 1.1 active — no run intake. Ask the three questions "
-            "(source folder? human checkpoints or auto? full or fast?) then record them:\n"
+            "FAIL: cannot mark 1.1 active — no run intake. Ask the two questions "
+            "(source folder, or should the agent author? full or fast?) then record them:\n"
             "  python3 $SKILLS/web2html/scripts/run_config.py intake <project> "
-            "--source none|/abs/path --checkpoints human|auto --speed full|fast",
+            "--source none|/abs/path --speed full|fast",
             file=sys.stderr,
         )
         return 2
@@ -3092,13 +3192,21 @@ def cmd_mark(
         print("FAIL: cannot complete 3.4 while reviewer leases are active.", file=sys.stderr)
         return 2
     if status == "done" and step == "3.4" and not ship_ready(root):
-        print(
-            "FAIL: cannot mark 3.4 done — missing rebuild/index-polish.html. "
-            "3.x copies the 2.4 index and writes QA there. "
-            "open-human-review.py compares both files (Pitfall #203). "
-            "mark 3.4 done promotes that file to index.html.",
-            file=sys.stderr,
-        )
+        if run_config.adopt_mode(root):
+            print(
+                "FAIL: cannot mark 3.4 done — source-html/index.html is missing, "
+                "or Phase 3 changed more than accessibility attributes. "
+                "Do not create rebuild/.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "FAIL: cannot mark 3.4 done — missing rebuild/index-polish.html. "
+                "3.x copies the 2.4 index and writes QA there. "
+                "open-human-review.py compares both files (Pitfall #203). "
+                "mark 3.4 done promotes that file to index.html.",
+                file=sys.stderr,
+            )
         return 2
     if status == "done" and step == "3.4" and not phase4_receipt(root):
         print(
@@ -3146,6 +3254,12 @@ def cmd_mark(
             file=sys.stderr,
         )
         return 2
+    if status == "done" and step == "4.1" and run_config.adopt_mode(root):
+        if (root / "qa" / "phase-4-sitemap.json").is_file() and not (root / "qa" / "source-gaps.json").is_file():
+            import source_fidelity
+
+            payload = source_fidelity.review_gaps(root)
+            print(f"source gaps → {len(payload.get('pages') or [])}  qa/source-gaps.json")
     if status == "done" and step in ARTIFACT_DONE_REQUIRED and not artifact_done(root, step):
         detail = ""
         if step == "1.3":
@@ -3164,14 +3278,19 @@ def cmd_mark(
             )
         if step == "2.1":
             detail = (
-                " 2.1 emits rebuild/design-system.html + css/tokens.css from "
-                "library.json. Not the ship."
+                " adopted source — Phase 2 is not applicable."
+                if run_config.adopt_mode(root)
+                else " 2.1 emits rebuild/design-system.html + css/tokens.css from library.json. Not the ship."
             )
         if step == "2.2":
             detail = (
-                " 2.2 authors rebuild/index-semantic.html from Paper using the 2.1 "
-                "tokens. Link tokens.css. No new --color/--font names. 2.3 seeds "
-                "index.html from that file."
+                " adopted source — do not copy into rebuild/ and do not author a homepage."
+                if run_config.adopt_mode(root)
+                else (
+                    " 2.2 authors rebuild/index-semantic.html from Paper using the 2.1 "
+                    "tokens. Link tokens.css. No new --color/--font names. 2.3 seeds "
+                    "index.html from that file."
+                )
             )
         if step == "2.3":
             detail = (
@@ -3196,7 +3315,11 @@ def cmd_mark(
         if step == "4.2":
             detail = " 4.2 writes qa/phase-4-pages.json after desktop Paper pages land."
         if step == "4.3":
-            detail = " 4.3 writes qa/phase-4-token-seed.json after a serial token bind."
+            detail = (
+                " adopted source — author qa/source-gaps.json pages from Paper into source-html/, then source_fidelity.py record-gaps."
+                if run_config.adopt_mode(root)
+                else " 4.3 writes qa/phase-4-token-seed.json after a serial token bind."
+            )
         if step == "5.1":
             detail = (
                 " 5.1 writes qa/phase-5-scaffold.json (scaffold-astro.py), "
@@ -3218,7 +3341,16 @@ def cmd_mark(
         )
         return 2
     if status == "active" and step in BUILD_STEPS:
-        if step.startswith("3."):
+        if run_config.adopt_mode(root) and step.startswith("3."):
+            run_config.write_adopt_qa(root)
+            if step == "3.1":
+                import source_fidelity
+
+                if source_fidelity.load_snapshot(root) is None:
+                    source_fidelity.snapshot(root)
+                    print("fidelity snapshot → qa/source-fidelity.json  accessibility attributes only")
+            allow = ALLOW_INDEX
+        elif step.startswith("3."):
             seed_24_polish(root)
             allow = ALLOW_POLISH
         elif step.startswith("5."):
@@ -3247,9 +3379,9 @@ def cmd_mark(
                 file=sys.stderr,
             )
             return 2
-        if step == "3.1":
+        if step == "3.1" and not run_config.adopt_mode(root):
             snapshot_fidelity_freeze(root)
-        if step == "3.2":
+        if step == "3.2" and not run_config.adopt_mode(root):
             try:
                 if not run_config.design_library_enabled(root):
                     seed_32_light_hover(root)
@@ -3271,8 +3403,29 @@ def cmd_mark(
                     file=sys.stderr,
                 )
                 return 2
-        if step == "2.4" and run_config.auto_accepts(root, "2.4"):
+        if step == "2.4" and run_config.adopt_mode(root):
+            print("2.4 off — Phase 2 is not applicable. source-html/ is the ship. Continue at 3.1.")
+        elif step == "2.4" and run_config.auto_accepts(root, "2.4"):
             write_auto_accept_24(root)
+        if step == "2.2" and run_config.adopt_mode(root):
+            print("2.2 off — do not copy source-html into rebuild/ and do not author a homepage.")
+        if step == "4.3" and run_config.adopt_mode(root):
+            import source_fidelity
+
+            run_config.write_adopt_token_seed(root)
+            gaps = source_fidelity.gap_slugs(root)
+            if not gaps:
+                plan = root / "qa" / "phase-4-gap-plan.json"
+                plan.write_text(json.dumps({"pages": []}, indent=2) + "\n", encoding="utf-8")
+                source_fidelity.record_gap_author(root)
+                print("4.3 adopt — no empty CMS layouts. Token bind refused.")
+            else:
+                listed = ", ".join(gaps[:8])
+                print(
+                    "4.3 adopt — author these missing layouts from Paper screenshots into "
+                    f"source-html/: {listed}. Write qa/phase-4-gap-plan.json then "
+                    "source_fidelity.py record-gaps. Do not bind tokens. Do not rewrite pages the export already has."
+                )
         data["current"] = step
         data["steps"][step]["started"] = data["steps"][step].get("started") or now_iso()
     if status in {"done", "skipped"}:
@@ -3301,8 +3454,20 @@ def cmd_mark(
             print(f"FAIL: cannot mark 3.4 done — {exc}", file=sys.stderr)
             return 2
         if not receipt.get("already"):
-            archived = ", ".join(receipt.get("archived") or []) or "none"
-            print(f"ship promote → rebuild/index.html  outlines off  archived {archived}")
+            if receipt.get("adopted"):
+                print("ship stays source-html/index.html  no rebuild/")
+            else:
+                archived = ", ".join(receipt.get("archived") or []) or "none"
+                print(f"ship promote → rebuild/index.html  outlines off  archived {archived}")
+    if status == "done" and step == "1.4" and run_config.adopt_mode(root):
+        for sid in ("2.1", "2.2", "2.3", "2.4"):
+            row = data["steps"].get(sid)
+            if not isinstance(row, dict):
+                continue
+            row["status"] = "done"
+            row["reason"] = "source folder — phase 2 not applicable"
+            row["ended"] = row.get("ended") or now_iso()
+        print("phase 2 → off   source-html/ is the ship")
     try:
         save_progress(root, data, actual_revision if expected_revision is not None else None)
     except ProgressConflict as exc:
@@ -3328,12 +3493,20 @@ def cmd_mark(
         except Exception:  # noqa: BLE001
             pass
     if status == "active" and step == "2.4":
-        if run_config.auto_accepts(root, "2.4"):
+        if run_config.adopt_mode(root):
+            print("2.4 off — Phase 2 is not applicable. Mark done and continue at 3.1.")
+        elif run_config.auto_accepts(root, "2.4"):
             print("2.4 auto — no TAGS stop. Mark 2.4 done and continue into 3.1 in this session.")
         else:
             print_24_hard_stop(root)
-    if status == "done" and step == "2.2":
+    if status == "done" and step == "2.2" and not run_config.adopt_mode(root):
         seed_22_index(root)
+    if status == "done" and step == "4.4" and run_config.adopt_mode(root):
+        print(
+            "adopt: missing layouts were authored at 4.3 from Paper screenshots.\n"
+            "  Design System print is optional. Do not bind tokens onto frames.\n"
+            "  python3 $SKILLS/web2html/scripts/run_config.py design-system . --choice skip|print|seed-from-source"
+        )
     if status == "done" and step in HANDOFF_AT:
         emit_handoff(root, data, step)
     if run_is_complete(data, root):

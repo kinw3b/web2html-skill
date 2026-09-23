@@ -137,6 +137,17 @@ def _as_int(value: object) -> int | None:
 
 def gate_errors(root: Path) -> list[str]:
     root = root.resolve()
+    try:
+        import run_config
+
+        if run_config.adopt_mode(root):
+            import source_fidelity
+
+            if source_fidelity.phase_2_off(root):
+                return []
+            return ["adopted source — Phase 2 is not applicable. qa/phase-2-off.json is missing."]
+    except Exception:  # noqa: BLE001 — a missing helper must not hide a real 2.3 failure
+        pass
     errors: list[str] = []
     if not (root / SHIP).is_file():
         semantic = root / "rebuild" / "index-semantic.html"

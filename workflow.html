@@ -69,14 +69,13 @@
 <pre><code>python3 $SKILLS/web2html/scripts/pipeline-progress.py start /path/to/templates/&lt;project&gt;</code></pre>
 <p class="muted"><code>start</code> writes and opens that folder’s <code>pipeline.html</code>, quarantines leftover <code>rebuild/*.html</code>, and never overwrites the spec <code>web2html/pipeline.html</code>.</p>
 
-<p class="lead">Second action (2.24.0): the run intake. <code>mark 1.1 active</code> refuses until it is recorded.</p>
+<p class="lead">Second action (2.26.0): the run intake. <code>mark 1.1 active</code> refuses until it is recorded.</p>
 <pre><code>python3 $SKILLS/web2html/scripts/run_config.py intake /path/to/templates/&lt;project&gt; \
-  --source none|/abs/path/to/html-export --checkpoints human|auto --speed full|fast
+  --source none|/abs/path/to/html-export --speed full|fast
 python3 $SKILLS/web2html/scripts/run_config.py show /path/to/templates/&lt;project&gt;</code></pre>
 <ul>
-  <li><strong>Source folder.</strong> Copied to <code>&lt;project&gt;/source-html/</code> and classified. <code>clean-html</code> (Webflow export / static build) → 2.2 authors in PORT mode: source DOM order, copy, links, alt text are structural truth; Paper stays visual truth. <code>framework-dump</code> (<code>_next/</code>, <code>__NEXT_DATA__</code>, Framer runtime, empty React root) → 2.2 authors from Paper; the folder is a copy / structure reference only. <code>none</code> → pull from the public URL.</li>
-  <li><strong>Checkpoints.</strong> <code>human</code> stops at 1.4 / 2.4 / 3.4. <code>auto</code> self-accepts 1.4 and 2.4 — receipts stamped AUTO-ACCEPTED, Paper / TAGS Chrome not opened, controller lease kept, the same session continues; 2.4 auto refuses while <code>section_22_gate.py</code> is red. <strong>3.4 always stops.</strong> No flag turns it off.</li>
-  <li><strong>Speed.</strong> <code>fast</code> forces <code>auto</code> and: 1.2 shoots <strong>1600 + 390</strong> (no tablet; Screenshots board, section clips, stretch-root stay) · 1.3 skipped (<code>qa/design-library-skipped.json</code>) · 2.1 skipped except <code>emit_fonts.py</code> (<code>qa/design-system-skipped.json</code> + <code>rebuild/css/fonts.css</code>) · 2.2 no <code>get_jsx</code> / <code>index-raw.html</code>, token-binding gate off, markup gates on · 2.3 disk clips + <code>wave.py</code> at the configured widths · 3.2 <code>source-hover-light.mjs</code> mines button hover from source CSS. Every width-aware gate reads <code>qa/run-config.json</code>.</li>
+  <li><strong>Source folder.</strong> Copied to <code>&lt;project&gt;/source-html/</code>. <code>clean-html</code> is the ship: do not create <code>rebuild/</code>, Phase 2 is marked off, Phase 3 may add accessibility attributes only, Phase 4 authors empty CMS layouts from Paper screenshots before Astro. <code>framework-dump</code> is not adopted. <code>none</code> authors from Paper into <code>rebuild/</code>.</li>
+  <li><strong>Speed.</strong> <code>fast</code> forces auto checkpoints and 1600/390, skips the Design Library, and still stops at 3.4. <code>full</code> keeps the human stops. <code>full</code> + <code>--checkpoints auto</code> is refused.</li>
 </ul>
 
 <nav class="toc">
