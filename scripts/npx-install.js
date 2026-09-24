@@ -179,8 +179,18 @@ for (const s of skipped) line(yellow("!"), `skipped: ${s}`);
 
 // ---------------------------------------------------------------- deps ----
 step(4, "Dependencies");
+
+// npx runs this installer as a child of npm, which exports the user's config
+// as `npm_config_*` env vars. A user `allow-scripts` entry then leaks into the
+// nested `npm install`, and npm >=11.19 rejects it there with EALLOWSCRIPTS
+// ("not allowed in project-scoped installs"). Drop just that key so the child
+// install falls back to npm's default script policy.
+const childEnv = () =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !/^npm_config_allow[_-]?scripts$/i.test(k))
+  );
 const run = (cmd, args, cwd) =>
-  spawnSync(cmd, args, { cwd, stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
+  spawnSync(cmd, args, { cwd, env: childEnv(), stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
 
 let depsFailed = 0;
 if (SKIP_DEPS) {
