@@ -10,7 +10,7 @@ and its native bridge are NOT installed — they are a separate download
 ./scripts/install-skills.sh` opts in. `pipeline-progress.py capture-doctor`
 reports a bridge that would show OFFLINE (Pitfall #217).
 
-**Orchestrator version (web2html):** **2.25.0**
+**Orchestrator version (web2html):** **2.26.0**
 
 This file is the **repo** index. The agent-facing index is `1.0 - web2html/SKILL.md`
 (~130 lines). Detail lives in `web2html/references/` and is read **per step**,
@@ -215,23 +215,25 @@ step. 2.0 must not stamp, join, or retag on those ids.
 
 1. **Never skip a numbered step** (1.1 → 3.4). **Run intake first (2.24.0):**
  `mark 1.1 active` refuses until `run_config.py intake` has recorded the three
- questions (source folder? human or auto checkpoints? full or fast?) in
+ questions (live URL, or Webflow / HTML source — then the folder path — then full or fast?) in
  `qa/run-config.json`. With `--checkpoints auto` (forced by `--speed fast`) 1.4 and
  2.4 self-accept — receipts stamped AUTO-ACCEPTED, nothing opened, same session
- continues. **3.4 is never automatic.** A fast run marks 1.3 / 2.1 done on the
+ continues. **3.4 is never automatic on a URL run.** A Webflow / HTML folder run
+ does not stop at 3.4: Phase 4 is required and the stop is 4.4. A fast run marks 1.3 / 2.1 done on the
  intake's skip receipts (no Design Library, `emit_fonts.py` only), authors 2.2
  without `index-raw.html` or a token contract, and captures / validates at
  1600 / 390 (every 2.3 gate reads widths from the config). Otherwise 1.4's
  Paper-review, the 2.4 TAGS checkpoint, polish and 3.4 are not optional. **Capture Tool is
  leftover live hover** — `mark 1.4 active` opens the stamped tab;
  `open-capture` re-opens it. It is not a 1.4 done-gate.
- **Phase 4 is optional after 3.4** — write `qa/phase-4-opted.json` or
- `qa/phase-4-skipped.json` before marking 3.4 done. **Phase 5 is optional after 4.4**
+ **Phase 4 is optional after 3.4 on a URL run** — write `qa/phase-4-opted.json` or
+ `qa/phase-4-skipped.json` before marking 3.4 done. **On a Webflow / HTML folder run Phase 4 is required** — do not ask, and `mark 3.4 done` writes `qa/phase-4-opted.json`. **Phase 5 is optional after 4.4**
  — write `qa/phase-5-opted.json` or `qa/phase-5-skipped.json` before marking 4.4
- done. `skip` fails on 1.1–3.4 and is allowed on 4.x / 5.x after that phase's
- opt-in. `mark` cannot open 2.1+ while 1.1–1.4 are unfinished, 4.x while Phase 4
- is closed, or 5.x while Phase 5 is closed. If blocked, stay on that
- step and stop.
+ done. `skip` fails on 1.1–3.4 and is allowed on 5.x after that phase's opt-in;
+ on 4.x it is allowed only on a URL run after Phase 4 opt-in and is refused
+ outright on a Webflow / HTML folder run (Phase 4 is required there). `mark`
+ cannot open 2.1+ while 1.1–1.4 are unfinished, 4.x while Phase 4 is closed, or
+ 5.x while Phase 5 is closed. If blocked, stay on that step and stop.
  Pitfall #98 #148.
 2. **Stage L is never skippable on a full run.** No `rebuild/*.html` until Paper has a
  `Design Library` artboard (foundations only), `get_tokens` is non-empty,
@@ -385,7 +387,7 @@ step. 2.0 must not stamp, join, or retag on those ids.
 | **1.2 postflight / A/5-R** | After the 1600 / 768 / 390 landers land, `run-geometry-postflight.mjs` runs `stretch-root.mjs --prove --artboard home-desktop` only. Fail 1.2 if stretch fails. Do not run `qa-paper` or `merge-split-headings` in this postflight (merge-after-census breaks `pc-#`). Evidence in `qa/stretch-root-evidence.md`. Failure keeps 1.2 open. Do not open Capture Tool until stretch is green. |
 | **2.3** | Agent loop — disk clips + index-raw at 1600 / 768 / 390. VALIDATE LOOK is `wave.py` (adapter from the probe). No Paper MCP. Pixel-perfect is a one-pass assist, not a loop. `section_22_gate.py` green. Not a human stop. |
 | **2.4** | After overlay inject, run `open-build-review.py . --stage 2.4`. Chrome must open with TAGS on and write `qa/build-checkpoint-opened.json`. Stop for review. Write `qa/build-checkpoint.md` only after approval. No 3.x before sign-off. **Marking 2.4 done releases the lease and prints the SESSION 3 prompt** (`qa/handoff-3.0.md`). Continue starts 3.0 polish at 3.1. `index-polish.html` is created then, not at 2.4. |
-| **3.4 / C/4** | Compare `rebuild/index.html` (2.4 lock) with `rebuild/index-polish.html` (3.1–3.3, outlines off; `?qa-outlines=` toggles) plus the polish report. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to optional Phase 4 (`qa/phase-4-opted.json`, no tidy). **Marking 3.4 done** promotes polish to `index.html` and archives the other homepage HTML under `rebuild/archive/` (Pitfall #223). Do not write `NEXT.html`. Never tidy mid-flow (Pitfall #151 #203). |
+| **3.4 / C/4** | **URL run:** compare `rebuild/index.html` (2.4 lock) with `rebuild/index-polish.html` (3.1–3.3, outlines off; `?qa-outlines=` toggles) plus the polish report. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to optional Phase 4 (`qa/phase-4-opted.json`, no tidy). **Marking 3.4 done** promotes polish to `index.html` and archives the other homepage HTML under `rebuild/archive/` (Pitfall #223). **Webflow / HTML folder:** do not ask. Ship stays `source-html/index.html`. `mark 3.4 done` writes `qa/phase-4-opted.json` and the run continues through 4.4 (Pitfall #225). Do not write `NEXT.html`. Never tidy mid-flow (Pitfall #151 #203). |
 | **4.4** | Review extra Paper pages. Two-option: finish (`qa/phase-5-skipped.json`, tidy) or continue to optional Phase 5 (`qa/phase-5-opted.json`, no tidy). Marking 4.4 done without one of those receipts fails. |
 | **5.6** | Review the built Astro routes (`open-phase-5-review.py`, `file://` on `astro/dist`). Marking 5.6 done without `qa/phase-5-review.md` fails; done tidies and keeps `rebuild/` + `astro/` + finished `pipeline.html`. |
 | **Stop-at-every-level** | Only when asked: write `qa/runs/<run-id>/STOP-<stage>.md` after A/1, A/2, A/4, A/8, B/1, B/2a, B/2b, B/4, C/1. |

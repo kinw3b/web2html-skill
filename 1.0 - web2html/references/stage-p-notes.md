@@ -7,13 +7,14 @@ Split out of `AGENTS.md`. Read when entering that stage.
 Paper-first **pages** are **2.8.10** (B/2b). This section is still the Stage P
 capture/import notes.
 
-**One NEW Paper file per 1.2 run.** `hover-reel/scripts/capture-session.mjs` always `create_file`.
-Never `list_files` / never `open_file` a similarly-named existing document
-(Pitfall #187). Pin the **created** id from `qa/paper-file.json` for the rest
-of this run only. Desktop, tablet, and mobile landers, QA pairs, hover/component
-states, and the Design Library are named artboards/pages in **that new file**.
-Do not invent a second file later in the same run, and do not resume last
-week's Paper project because the slug matches.
+**One Paper file per run.** The first `capture-session.mjs` calls `create_file`.
+A retry reopens `qa/paper-file.json` from this project. Never `list_files` /
+never `open_file` a similarly-named document from another project
+(Pitfall #187 #224). Pin that id for the rest of this run. Desktop, tablet,
+and mobile landers, QA pairs, hover/component states, and the Design Library
+are named artboards/pages in **that file**. Do not invent a second file later
+in the same run. `--new-file` is the only fresh document. `start` clears a
+leftover receipt.
 
 ### Homepage-only / lander path (first-class)
 

@@ -13,7 +13,7 @@
    "reference files nothing links to are reported (WARNING)"
   ]
  },
- "orchestratorVersion": "2.25.0",
+ "orchestratorVersion": "2.26.0",
  "versionStampSurfaces": [
   "AGENTS.md",
   "1.0 - web2html/SKILL.md",
@@ -32,18 +32,18 @@
   {
    "path": "1.0 - web2html",
    "role": "orchestrator",
-   "declaredSkillVersion": "2.25.0",
+   "declaredSkillVersion": "2.26.0",
    "tracksOrchestratorVersion": true
   },
   {
    "path": "1.2 url-to-paper",
    "role": "capture",
-   "declaredSkillVersion": "1.2.86"
+   "declaredSkillVersion": "1.2.87"
   },
   {
    "path": "1.3 hover-reel",
    "role": "components",
-   "declaredSkillVersion": "1.1.108",
+   "declaredSkillVersion": "1.1.109",
    "note": "SKILL.md, package.json (1.2.15), and the extension manifest are legitimately different artifacts (Review R1); only the SKILL.md frontmatter is linted here."
   }
  ],

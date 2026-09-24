@@ -4,7 +4,7 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 
 | Script | Step | Role |
 |---|---|---|
-| `run_config.py` | 1.0 | `intake <project> --source … --speed …` records the two run questions to `qa/run-config.json` (copies + classifies a source folder into `source-html/`). Clean HTML is adopted: that folder is the ship, Phase 2 is off. Fast writes the 1.3 / 2.1 skip receipts. `show` prints the contract. |
+| `run_config.py` | 1.0 | `intake <project> --source … --speed …` records the run questions to `qa/run-config.json` (copies + classifies a source folder into `source-html/`). Question 1 is live URL or Webflow / HTML source; a folder choice is followed by the absolute path. Clean HTML is adopted: that folder is the ship, Phase 2 is off, Phase 4 is required through 4.4. Fast writes the 1.3 / 2.1 skip receipts. `show` prints the contract. |
 | `source_fidelity.py` | 3.1 / 4.3 | Adopt only. `snapshot` locks `source-html/` before the light polish. `verify` fails a class, copy, CSS, or JS change. `gaps` writes `qa/source-gaps.json`. `record-gaps` checks `qa/phase-4-gap-plan.json` and locks every page that was not a gap. |
 | `hover-reel/scripts/source-hover-light.mjs` | 3.2 (fast) | No 1.3 receipt → mine source CSS `:hover` for the ship's CTAs into `qa/button-hover.json` (same shape `apply-hover-css.py` reads). Run by `mark 3.2 active` when the library was skipped. Never invents a hover. |
 | `pipeline-progress.py` | all | `start` / `resume` / `mark` (1.4 active opens Paper + stamped Capture Tool tab) / `handoff` / `open-capture` (re-open) / `capture-doctor` (bridge check; FAIL = side panel OFFLINE) / `relay` (mid-session handoff to a fresh agent of the **same source** at a receipt boundary; Orca terminal when reachable, else prints the prompt; never a human stop — Pitfall #218) |
@@ -60,7 +60,7 @@ Sibling packages (load the skill, then its scripts):
 
 | Package | Step |
 |---|---|
-| `url-to-paper` | 1.2 capture + `create-paper-file.mjs` (always new file) + geometry + Design Library mine + 2.1 `emit-design-system.mjs` + 4.3 `seed-interior-page-tokens.mjs` + 5.2 `dump-interior-raw.mjs` |
+| `url-to-paper` | 1.2 capture + `create-paper-file.mjs` (reuses `qa/paper-file.json`; `--new-file` opts out) + geometry + Design Library mine + 2.1 `emit-design-system.mjs` + 4.3 `seed-interior-page-tokens.mjs` + 5.2 `dump-interior-raw.mjs` |
 | `hover-reel` | 1.2 `capture-session.mjs`; 1.3 `pull-desktop-specimens.mjs` + `author-button-hover.mjs`; 1.4 optional Capture Tool; 4.2 `capture-extra-pages.mjs`; 5.4 `capture-interior-breakpoints.mjs` |
 | `frontend-design` | 2.2 author · 5.2 interior bodies |
 | `pixel-perfect` | 2.3 one-pass assist (disk-clip gold). Not a refine loop. Not 3.x. |

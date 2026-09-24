@@ -1351,6 +1351,46 @@ class PipelineProgressTests(unittest.TestCase):
             self.assertIn('data-run="done"', (root / "pipeline.html").read_text())
             self.assertFalse((root / "qa").exists())
 
+    def test_adopt_34_requires_phase4_and_does_not_ask(self):
+        import source_fidelity
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "project"
+            src = Path(tmp) / "export"
+            src.mkdir()
+            (src / "index.html").write_text(
+                '<!DOCTYPE html><html data-wf-site="x"><body><section class="w-section">Hi</section></body></html>',
+                encoding="utf-8",
+            )
+            run_config.intake(root, source=str(src), checkpoints="human", speed="fast")
+            self.assertEqual(run_config.load(root)["humanStops"], ["4.4"])
+            self._homepage_ready(root)
+            (root / "rebuild" / "index-polish.html").unlink()
+            source_fidelity.snapshot(root)
+            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 0)
+            self.assertTrue((root / "qa" / "phase-4-opted.json").is_file())
+            self.assertTrue((root / "qa").is_dir())
+            self.assertEqual(pipeline_progress.cmd_mark(root, "4.1", "active", None), 0)
+            self.assertEqual(pipeline_progress.main(["skip", str(root), "--step", "4.2", "--reason", "no"]), 2)
+
+    def test_adopt_34_refuses_a_skip_receipt(self):
+        import source_fidelity
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "project"
+            src = Path(tmp) / "export"
+            src.mkdir()
+            (src / "index.html").write_text(
+                '<!DOCTYPE html><html data-wf-site="x"><body><section class="w-section">Hi</section></body></html>',
+                encoding="utf-8",
+            )
+            run_config.intake(root, source=str(src), checkpoints="human", speed="full")
+            self._homepage_ready(root)
+            (root / "rebuild" / "index-polish.html").unlink()
+            source_fidelity.snapshot(root)
+            (root / "qa" / "phase-4-skipped.json").write_text("{}\n")
+            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 2)
+
     def test_34_opted_does_not_tidy_and_opens_41(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

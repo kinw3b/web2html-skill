@@ -16,12 +16,15 @@ Continued session 2 or 3 — **never `start`** (it resets the board, Pitfall #17
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --at 2.1 --owner session-2
 ```
 
-**Right after `start`, run the intake** (2.26.0) — two questions through this
-harness's native question tool (source folder? full or fast?), then
-`run_config.py intake <project> --source none|/abs/path --speed full|fast`.
+**Right after `start`, run the intake** (2.26.0). `start` prints the questions.
+Question 1 is one choice: `Live URL — author from Paper` or `Webflow / HTML source`.
+If they choose the folder, the next question is `Paste the absolute path to the HTML folder.`
+The answer is that path, typed in the text field. Then full or fast.
+Record with `run_config.py intake <project> --source none|/abs/path --speed full|fast`.
 A clean HTML folder is copied to `source-html/` and that copy is the ship:
 do not create `rebuild/`, Phase 2 is marked off, Phase 3 is accessibility
-attributes only. `mark 1.1 active` refuses without `qa/run-config.json`.
+attributes only, and Phase 4 is required through 4.4 (do not ask at 3.4).
+`mark 1.1 active` refuses without `qa/run-config.json`.
 
 `start` writes **and opens** `<project>/pipeline.html` **once**. `resume`,
 `mark`, and later sessions never reopen it — assume that tab is still open.
@@ -94,8 +97,8 @@ stop, ask, or fire a Continue CTA anywhere else.
 |---|---|---|
 | 1 · capture | 1.1 → 1.2 → 1.3 → 1.4 | **1.4** (auto-accepted when `checkpoints=auto`) |
 | 2 · build | 2.1 → 2.2 → 2.3 → 2.4 | **2.4** (auto-accepted when `checkpoints=auto`) |
-| 3 · QA | 3.1 → 3.2 → 3.3 → 3.4 | **3.4** — always a human stop |
-| 4 · pages (optional) | 4.1 → 4.2 → 4.3 → 4.4 | **4.4** |
+| 3 · QA | 3.1 → 3.2 → 3.3 → 3.4 | **3.4** — human stop on a URL run. A Webflow / HTML folder run does not stop here |
+| 4 · pages | 4.1 → 4.2 → 4.3 → 4.4 | **4.4** — optional after a URL run's 3.4. Required on a Webflow / HTML folder run |
 | 5 · astro site (optional) | 5.1 → 5.2 → 5.3 → 5.4 → 5.5 → 5.6 | **5.6** |
 
 **Session 2:** do not stop after emitting 2.1, after authoring 2.2, or
@@ -152,9 +155,14 @@ The live board after 2.4 done must read **NEXT 3.1** (Session 3 polish —
 not started), never a vague Ready, and must not show a polish file that
 has not been worked.
 
-### 3.4 — two-option (homepage finish vs optional Phase 4)
+### 3.4 — URL run: two-option. Folder run: do not ask
 
-After the polish compare, fire **one** question:
+**Webflow / HTML folder** (`clean-html` adopt): do not fire a question. Ship stays
+`source-html/index.html`. `mark --step 3.4 --status done` writes
+`qa/phase-4-opted.json`. Continue at 4.1 in this session. The next human stop
+is 4.4. `qa/phase-4-skipped.json` fails. Pitfall #225.
+
+**URL run**, after the polish compare, fire **one** question:
 
 1. `Done — finish homepage run` → write `qa/phase-4-skipped.json`, `mark --step 3.4 --status done` (promotes polish to `index.html`, archives the other homepage HTML, tidy).
 2. `Continue to optional Phase 4` → write `qa/phase-4-opted.json`, `mark --step 3.4 --status done` (same promote, no tidy), then `mark --step 4.1 --status active`.
@@ -186,7 +194,7 @@ Every run builds from **this** project's capture. Forbidden: `cp`/`rsync` of
 another `rebuild/`, `tokens.css`, `capture/`, `design-library/`, Paper file,
 `source-site/assets/`, or stale `qa/`. Skills (this package) are reusable;
 project evidence is not. Paper files are not reusable either — 1.2 always
-`create_file` (Pitfall #187).
+`create_file` once (Pitfall #187). A retry of the same run reopens `qa/paper-file.json` and does not create a second document (Pitfall #224).
 
 Before 1.1 writes: `pwd`, `ls`, `ls ..` — similarly-named siblings are the trap.
 

@@ -8,7 +8,7 @@ is the table in `SKILL.md` — read **one** reference, then act. Do not page
 
 First action of a **new run**: `pipeline-progress.py start <template-project>` — the script writes and opens that folder's `pipeline.html`. First action of a **continued session (2 or 3)**: `pipeline-progress.py resume <project> --at <step> --owner <session>` — same board, never reset. `start` on a run in flight throws the run away. If the tab does not open, **stop**. Invoke `/web2html` / `Convert <URL> to HTML`. Before each step, read that step's **Findings to watch**. They are built-in, not optional. Caught = gate. Watch = you.
 Never overwrite the repository `pipeline.html`.
-Never skip a child (1.1 → 3.4). `skip` fails on required steps. Phase 4 is optional after 3.4. Phase 5 is optional after 4.4. A get_jsx dump is not a finished run (Pitfall #98).
+Never skip a child (1.1 → 3.4). `skip` fails on required steps. Phase 4 is optional after 3.4 on a URL run. On a Webflow / HTML folder run Phase 4 is required through 4.4 (Pitfall #225). Phase 5 is optional after 4.4. A get_jsx dump is not a finished run (Pitfall #98).
 Do not write `rebuild/*.html` from a scrape or from memory. `rebuild_write_gate.py` is red until 1.4 is signed off. First allowed write is 2.1. Leftover ship HTML is quarantined (Pitfall #148).
 Stamp `mark --step <id> --status active|done` at every boundary. Every step marks the live board; a frozen board is Pitfall #96.
 Todos use these same IDs.

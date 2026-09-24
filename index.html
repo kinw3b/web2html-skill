@@ -89,7 +89,7 @@
     padding: 36px 28px 120px;
   }
   /* Sonar field — fixed dot grid behind the page; ambient pings + a ping on
-     every click. Painted in the accent, at rest it reads as texture only. */
+     every click. Accent, but capped so a passing ring never competes with type. */
   .sonar {
     position: fixed;
     inset: 0;
@@ -2117,7 +2117,7 @@
 <body>
 <canvas class="sonar" aria-hidden="true"></canvas>
 <div class="page">
-<p class="mast"><a class="mast-by" href="https://kreativepro.io" target="_blank" rel="noreferrer"><strong>Created by Neff</strong></a><span class="mast-tags"><a class="mast-tag" href="https://github.com/kinw3b/web2html-skill" target="_blank" rel="noreferrer"><svg class="mast-gh" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.3.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.3-.82 2.3-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.3 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>v0.1.12</a><a class="mast-tag" href="https://buymeacoffee.com/kreativepro" target="_blank" rel="noreferrer"><svg class="mast-cup" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.4h8.2v3.2a3.2 3.2 0 0 1-3.2 3.2H6.2A3.2 3.2 0 0 1 3 9.6V6.4Z"/><path d="M11.2 7.4h1.3a1.6 1.6 0 0 1 0 3.2h-1.3"/><path d="M6.1 4.3V3.1M8.6 4.3V2.6"/></svg>Buy me a coffee</a></span></p>
+<p class="mast"><a class="mast-by" href="https://kreativepro.io" target="_blank" rel="noreferrer"><strong>Created by Neff</strong></a><span class="mast-tags"><a class="mast-tag" id="skill-release" href="https://github.com/kinw3b/web2html-skill/releases/latest" target="_blank" rel="noreferrer"><svg class="mast-gh" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.3.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.3-.82 2.3-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.3 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span data-skill-tag>v0.1.18</span></a><a class="mast-tag" href="https://buymeacoffee.com/kreativepro" target="_blank" rel="noreferrer"><svg class="mast-cup" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6.4h8.2v3.2a3.2 3.2 0 0 1-3.2 3.2H6.2A3.2 3.2 0 0 1 3 9.6V6.4Z"/><path d="M11.2 7.4h1.3a1.6 1.6 0 0 1 0 3.2h-1.3"/><path d="M6.1 4.3V3.1M8.6 4.3V2.6"/></svg>Buy me a coffee</a></span></p>
 <header class="hero">
 <h1>Web2Html</h1>
 <div class="hero-lead">
@@ -2342,7 +2342,7 @@
 <div class="dot">3.4</div>
 <div>
 <h2>Your last look, then optional pages</h2>
-<p>Compare the 2.4 page with the QA polish. Sign-off leaves one index.html, outlines off. The run can stop here or continue.</p>
+<p>Compare the 2.4 page with the polish. A URL run can stop here. A folder run continues.</p>
 <div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" aria-hidden="true" fill="none" stroke="var(--line-strong)" stroke-width="1.5">
 <rect x="4" y="6" width="68" height="32" rx="2"/>
 <path d="M4 15h68"/>
@@ -2355,7 +2355,7 @@
 <div class="dot">4.0</div>
 <div>
 <h2>Optional: import the rest of the site</h2>
-<p>Sitemap the extra URLs, capture each as a desktop Paper page, and seed the signed tokens. Homepage stays out.</p>
+<p>Sitemap extra URLs into Paper. Homepage stays out. A folder run continues through 4.4.</p>
 <div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" aria-hidden="true" fill="none" stroke="var(--line-strong)" stroke-width="1.5">
 <rect x="6" y="8" width="28" height="28" rx="2"/>
 <rect x="42" y="8" width="28" height="28" rx="2" stroke="currentColor"/>
@@ -2484,6 +2484,25 @@
     });
   }
 
+  // Mast tag tracks the latest public release. The href already points at
+  // /releases/latest, so a click is current even if this fetch fails.
+  (() => {
+    const label = document.querySelector('[data-skill-tag]');
+    const link = document.getElementById('skill-release');
+    if (!label) return;
+    fetch('https://api.github.com/repos/kinw3b/web2html-skill/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const tag = data && data.tag_name;
+        if (!tag) return;
+        label.textContent = tag;
+        if (link && data.html_url) link.href = data.html_url;
+      })
+      .catch(() => {});
+  })();
+
   // Icon-only copy buttons: point at a code element and flash a check on success.
   document.querySelectorAll('[data-copy-cmd]').forEach((btn) => {
     const target = document.querySelector(btn.dataset.copyCmd);
@@ -2512,7 +2531,7 @@
     const canvas = document.querySelector('.sonar');
     const ctx = canvas && canvas.getContext('2d');
     if (!ctx) return;
-    const o = { spacing: 26, dotRadius: 1.3, baseOpacity: 0.16, pingEvery: 2.8, speed: 260, ringWidth: 90, amplitude: 2.2, maxRings: 6, pingArea: [0.1, 0.1, 0.9, 0.9] };
+    const o = { spacing: 26, dotRadius: 1.05, baseOpacity: 0.06, peakOpacity: 0.2, pingEvery: 2.8, speed: 260, ringWidth: 90, amplitude: 0.4, maxRings: 6, pingArea: [0.1, 0.1, 0.9, 0.9] };
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const TAU = Math.PI * 2;
     let width = 0, height = 0, raf = 0, timer = 0, stroke = '';
@@ -2565,7 +2584,7 @@
       ctx.fill();
       for (let k = 0; k < hot.length; k += 3) {
         const energy = hot[k + 2];
-        ctx.globalAlpha = o.baseOpacity + (1 - o.baseOpacity) * energy;
+        ctx.globalAlpha = o.baseOpacity + (o.peakOpacity - o.baseOpacity) * energy;
         ctx.beginPath();
         ctx.arc(hot[k], hot[k + 1], o.dotRadius * (1 + o.amplitude * energy), 0, TAU);
         ctx.fill();

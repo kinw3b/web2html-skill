@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
 """Run intake — qa/run-config.json is the run's contract (2.26.0).
 
-Two questions, asked ONCE right after `pipeline-progress.py start`, before
-1.1 goes active. `mark --step 1.1 --status active` refuses without this file.
+Three answers, collected ONCE right after `pipeline-progress.py start`, before
+1.1 goes active: where the run starts (URL, or a Webflow / HTML folder + its
+path), then speed (`full` or `fast`). `mark --step 1.1 --status active` refuses without this file.
 
   python3 run_config.py intake <project> --source none|/abs/path --speed full|fast
   python3 run_config.py show   <project>
   python3 run_config.py missing-pages <project>
   python3 run_config.py design-system <project> --choice skip|print|seed-from-source
 
-Question 1 — source folder.  `--source none` (the agent authors semantic HTML
-from Paper) or an absolute folder of existing HTML. The folder is COPIED into
-<project>/source-html/ and classified:
+Question 1 — where the run starts. One choice:
+  1. Live URL — author from Paper (`--source none`)
+  2. Webflow / HTML source
+If they choose 2, the NEXT question is the absolute folder path (the
+type-your-answer field). Do not record intake until that path exists.
+`--source none` authors from Paper. `--source /abs/path` copies the folder into
+<project>/source-html/ and classifies it:
 
   clean-html      Webflow export / static build. The copy in source-html/ IS the
                   ship. Do not create rebuild/. Phase 2 is not applicable.
-                  Phase 3 may add accessibility attributes only. Phase 4
-                  authors CMS pages the export left empty, from Paper, before
-                  Astro. Tokens are never bound back onto Paper frames.
+                  Phase 3 may add accessibility attributes only. Phase 4 is
+                  required: the run continues through 4.4 (no finish-vs-optional
+                  question at 3.4). 4.4 still chooses whether to continue to
+                  Phase 5. Tokens are never bound back onto Paper frames.
   framework-dump  _next/, __NEXT_DATA__, _nuxt/, Framer runtime, an empty React
                   root. Not adopted. 2.2 authors from Paper; the folder is a
                   copy/structure reference only.
@@ -27,7 +33,8 @@ Question 2 — speed.  `full` stops at 1.4 / 2.4 / 3.4 and (when the agent
 authors) keeps the Design Library. `fast` is today's fast run: checkpoints
 auto, widths 1600/390, 1.3 and 2.1 skipped, no Buttons/Components pull.
 The separate checkpoints question is retired. Full always means human stops.
-Fast is the only automatic path. 3.4 always stops.
+Fast is the only automatic path. A URL run stops at 3.4. A Webflow / HTML
+folder run does not: Phase 4 is required and the stop is 4.4.
 
 `--checkpoints` is accepted for old commands. `auto` with `--speed full` is
 refused. Fast still forces auto.
@@ -136,6 +143,7 @@ def default_config() -> dict:
         "adopt": False,
         "bindTokens": True,
         "designSystemPrint": None,
+        "phase4": "optional",
         "recordedAt": None,
     }
 
@@ -156,6 +164,11 @@ def load(root: Path) -> dict:
         merged["checkpoints"] = "auto"
     if merged.get("adopt"):
         merged["bindTokens"] = False
+        merged["phase4"] = "required"
+        merged["humanStops"] = human_stops(
+            adopt=True,
+            checkpoints="auto" if merged.get("checkpoints") == "auto" else "human",
+        )
     return merged
 
 
@@ -332,6 +345,13 @@ def _skip_payload(step: str, reason: str, mode: str) -> str:
 # ------------------------------------------------------------------ intake --
 
 
+def human_stops(*, adopt: bool, checkpoints: str) -> list[str]:
+    """URL runs stop at 3.4. A folder / Webflow run continues through 4.4."""
+    if adopt:
+        return ["4.4"] if checkpoints == "auto" else ["1.4", "4.4"]
+    return ["3.4"] if checkpoints == "auto" else ["1.4", "2.4", "3.4"]
+
+
 def build_config(*, source_kind_: str, source_path: str | None, source_meta: dict | None,
                  checkpoints: str, speed: str) -> dict:
     if checkpoints not in CHECKPOINTS:
@@ -343,7 +363,7 @@ def build_config(*, source_kind_: str, source_path: str | None, source_meta: dic
     if speed == "full" and checkpoints == "auto":
         raise ValueError(
             "checkpoints=auto is retired on a full run. Fast is the only automatic "
-            "path. A full run stops at 1.4, 2.4, and 3.4."
+            "path. A full URL run stops at 1.4, 2.4, and 3.4."
         )
     fast = speed == "fast"
     if fast:
@@ -371,7 +391,8 @@ def build_config(*, source_kind_: str, source_path: str | None, source_meta: dic
         "adopt": adopt,
         "bindTokens": not adopt,
         "designSystemPrint": "after-4.4" if adopt else None,
-        "humanStops": ["3.4"] if checkpoints == "auto" else ["1.4", "2.4", "3.4"],
+        "humanStops": human_stops(adopt=adopt, checkpoints=checkpoints),
+        "phase4": "required" if adopt else "optional",
         "recordedAt": _now_iso(),
     }
 
@@ -433,7 +454,7 @@ def summary_lines(config: dict) -> list[str]:
     if config.get("adopt") and kind == "clean-html":
         lines.append("source: clean-html ADOPT ← " + f"{src.get('path')}  ({src.get('reason')})")
         lines.append("ship: source-html/ — do not create rebuild/. Phase 2 is not applicable.")
-        lines.append("3.x: accessibility attributes only. 4.x authors empty CMS layouts from Paper.")
+        lines.append("3.x: accessibility attributes only. Phase 4 is required — continue through 4.4. Do not ask.")
     elif kind == "none":
         lines.append("source: none — 2.2 authors from Paper")
     elif kind == "framework-dump":
@@ -443,6 +464,8 @@ def summary_lines(config: dict) -> list[str]:
         lines.append(f"source: {kind} ← {src.get('path')}  ({src.get('reason')})")
     if config.get("speed") == "fast":
         lines.append("fast: 1.3 + 2.1 skipped · 1600/390 · no Buttons/Components pull · 1.4 / 2.4 auto-accept")
+    if config.get("phase4") == "required":
+        lines.append("phase 4: required — do not offer finish-homepage. Stop at 4.4.")
     stops = config.get("humanStops") or ["1.4", "2.4", "3.4"]
     lines.append("human stops: " + " ".join(stops) + ("   (1.4 / 2.4 auto-accept)" if config.get("checkpoints") == "auto" else ""))
     return lines

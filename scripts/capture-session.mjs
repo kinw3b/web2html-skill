@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Step 1.2 runner — headless only.
 //
-// Always create_file a brand-new Paper document. Never list_files / never
-// open a similarly-named existing file. Omit --file and PAPER_FILE_ID.
+// The first 1.2 of a run create_file's a brand-new Paper document.
+// A retry reopens qa/paper-file.json. Never list_files. Never open a
+// similarly-named file from another project. Omit --file and PAPER_FILE_ID.
+// --new-file forces a second document.
 //
 // Collect the real 1600 / 768 / 390 DOM onto Paper, clip source shots, write
 // the Paper Screenshots board from the 1600 clips, park Navigation at every
@@ -29,6 +31,7 @@ const OUT = path.resolve(arg("out", "source-site/components"));
 const ENDPOINT = arg("paper-endpoint", process.env.PAPER_MCP_ENDPOINT || "");
 const FORCE = process.argv.includes("--force");
 const DESKTOP_ONLY = process.argv.includes("--desktop-only");
+const NEW_FILE = process.argv.includes("--new-file");
 const PASSED_FILE = arg("file", "");
 
 if (!URL_) {
@@ -49,10 +52,22 @@ const pageSlug = String(PAGE || "home").toLowerCase().replace(/[^a-z0-9]+/g, "-"
 const projectRoot = path.dirname(CAPTURE);
 fs.mkdirSync(OUT, { recursive: true });
 
+// Fail before create_file. A missing playwright-core used to leave an empty
+// Paper document, and the retry then created a second one (Pitfall #224).
+try {
+  await import("playwright-core");
+} catch (err) {
+  console.error("1.2 stopped before creating a Paper file: playwright-core is not installed next to this skill.");
+  console.error(String(err?.message || err));
+  console.error('Fix: cd "$SKILLS/hover-reel" && npm install');
+  process.exit(2);
+}
+
 const { createPaperFile, restampLiveBoard } = await importSibling("url-to-paper", "scripts/create-paper-file.mjs");
 const paperFile = await createPaperFile({
   projectRoot,
   url: URL_,
+  reuse: !NEW_FILE,
   log: (...a) => console.error(...a),
 });
 const FILE = paperFile.fileId;
@@ -82,7 +97,7 @@ const postflight = await runGeometryPostflight({
   log: (...a) => console.error(...a),
 });
 if (!postflight.ok) {
-  console.error(`Geometry postflight failed: ${postflight.reason}. Fix Paper, then rerun 1.2.`);
+  console.error(`Geometry postflight failed: ${postflight.reason}. Fix Paper, then rerun 1.2 — it reopens qa/paper-file.json and does not create a second Paper file.`);
   process.exit(2);
 }
 

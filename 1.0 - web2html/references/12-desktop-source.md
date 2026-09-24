@@ -4,11 +4,12 @@ Collect writes the live lander `home-desktop` plus `home-768` and `home-390`,
 all captured through the same `url-to-paper` path. Tablet and phone also keep
 gold **screenshots** on disk, and one screenshot pass signs 1.2 off.
 
-**Always a new Paper file.** `hover-reel/scripts/capture-session.mjs` calls `create_file` with a
-timestamped name (`kp-thrive 2026-08-30 1205`). Do **not** `list_files` and
-open a similarly-named existing document. Do **not** pass `--file` or reuse
-last week's `qa/paper-file.json`. Omit `--file`; the session writes a fresh
-receipt. Pitfall #187.
+**One Paper file per run.** The first `capture-session.mjs` calls `create_file` with a
+timestamped name (`kp-thrive 2026-08-30 1205`). A retry reopens the `fileId` in
+this project's `qa/paper-file.json`. Do **not** `list_files` and
+open a similarly-named existing document. Do **not** pass `--file`.
+`start` clears a leftover receipt so a new run still gets one new file.
+`--new-file` is the only second document. Pitfall #187 #224.
 
 **Nothing on 1.2 is model-authored.** This was an authoring step once; it is a
 plain capture now. FRAME `Navigation` is captured at all three widths in the
@@ -32,6 +33,7 @@ same pass, which is what makes the 1.4 Capture Tool optional.
    A missing take at any width keeps 1.2 open.
 5. If `home-desktop` has no header/nav, prepend that same compact stack. Never the live Framer page/hero shell (Pitfall #110 / #168).
 6. `stretch-root --prove --artboard home-desktop` must be green. `layer-ids.json` / census sidecars are optional and invisible — not a 1.2 gate.
+7. A CSS background photo whose frame aspect disagrees with the Fill file: reset the frame to the file's intrinsic size, then scale width to the parent (Pitfall #226).
 
 `--desktop-only` skips 768/390 **shots** too. That is leftover / experiment, not the default.
 

@@ -8,9 +8,11 @@
 //                             [--name "optional override"]
 //
 // Writes qa/paper-file.json and prints { fileId, fileName, created: true }.
+// A retry of this same run reopens that receipt. It does not create_file again.
+// Never list_files. Never open a similarly-named file from another project.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +24,27 @@ export function paperFileName({ projectRoot, url, now = new Date() } = {}) {
   const pad = (n) => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}`;
   return `${slug} ${stamp}`;
+}
+
+export const PAPER_FILE_GENERATOR = "url-to-paper/create-paper-file";
+
+/** fileId this run already wrote. Empty when the receipt is missing or not ours. */
+export function runPaperFileId(receipt) {
+  if (!receipt || typeof receipt !== "object") return "";
+  if (receipt.generatedFrom !== PAPER_FILE_GENERATOR) return "";
+  return String(receipt.fileId || receipt.paperFileId || "").trim();
+}
+
+export function readRunPaperReceipt(projectRoot) {
+  const file = join(resolve(projectRoot || process.cwd()), "qa", "paper-file.json");
+  if (!existsSync(file)) return null;
+  try {
+    const data = JSON.parse(readFileSync(file, "utf8"));
+    const fileId = runPaperFileId(data);
+    return fileId ? { ...data, fileId } : null;
+  } catch {
+    return null;
+  }
 }
 
 function slugOf(projectRoot, url) {
@@ -80,14 +103,44 @@ function payload(result) {
   return result && typeof result === "object" ? result : {};
 }
 
+async function openRunPaperFile({ projectRoot, launch, log }) {
+  const receipt = readRunPaperReceipt(projectRoot);
+  if (!receipt) return null;
+  setFileId(null);
+  await ensurePaper({ launch, log });
+  try {
+    await call("open_file", { fileId: receipt.fileId });
+    const info = payload(await call("get_basic_info", { fileId: receipt.fileId }));
+    setFileId(receipt.fileId);
+    log(
+      `1.2 reusing this run's Paper file ${receipt.fileId} ("${info.fileName || receipt.fileName || ""}") — a retry does not create a second document`,
+    );
+    return {
+      ...receipt,
+      fileName: info.fileName || receipt.fileName,
+      created: false,
+      reused: true,
+    };
+  } catch (err) {
+    log(`  receipt ${receipt.fileId} did not open (${err.message}). Creating a new Paper file.`);
+    setFileId(null);
+    return null;
+  }
+}
+
 export async function createPaperFile({
   projectRoot,
   url = "",
   name = "",
   launch = true,
+  reuse = false,
   log = console.error,
 } = {}) {
   const root = resolve(projectRoot || process.cwd());
+  if (reuse) {
+    const existing = await openRunPaperFile({ projectRoot: root, launch, log });
+    if (existing) return existing;
+  }
   const fileName = name || paperFileName({ projectRoot: root, url });
   log(`1.2 creating new Paper file "${fileName}" — never reuse a similarly-named existing file`);
   setFileId(null);
@@ -107,7 +160,7 @@ export async function createPaperFile({
     sourceUrl: url || null,
     created: true,
     createdAt: new Date().toISOString(),
-    generatedFrom: "url-to-paper/create-paper-file",
+    generatedFrom: PAPER_FILE_GENERATOR,
   };
   const qaDir = join(root, "qa");
   mkdirSync(qaDir, { recursive: true });
@@ -128,6 +181,7 @@ if (process.argv[1]?.endsWith("create-paper-file.mjs")) {
     projectRoot,
     url: arg("url", ""),
     name: arg("name", ""),
+    reuse: !argv.includes("--new-file"),
   });
   console.log(JSON.stringify(receipt, null, 2));
 }

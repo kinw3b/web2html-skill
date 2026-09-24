@@ -1,7 +1,7 @@
 ---
 name: web2html
 description: "Convert a live URL to pixel-perfect static HTML via Paper. Invoke as /web2html or Convert <URL> to HTML. First tool: pipeline-progress.py start for a NEW run, resume for a continued session. Never write rebuild HTML before 2.1. Never scrape-to-site, Firecrawl-to-HTML, Tailwind CDN, or freehand a homepage. If rebuild/index.html exists without a live board and 1.4 sign-off, quarantine it and start from 1.1. 2.1 emits the Design System page from 1.3 tokens; 2.2 authors rebuild/index-semantic.html from Paper using those tokens. A run spans three sessions (1 capture / 2 build / 3 QA) plus optional Phase 4 (Paper) and Phase 5 (Astro site: shared chrome pulled once from the 3.4 polish, then each page's body); 2.0 and optional 5.0 are recommended on the strong model; the tier is advice, never a gate — run any session on whichever model the operator chose. Homepage only until 3.4. file:// preview. No GIFs, no local server."
-version: 2.25.0
+version: 2.26.0
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]
@@ -55,26 +55,32 @@ when `waves orca`, this harness's subagent tool when `subagent`, the printed spe
 when `serial`. Anything else → never load `orchestration` / `orca-cli`; still run
 `wave.py` at 2.3 (Pitfall #219 #220 #221).
 
-## Intake — two questions, once, right after `start` (2.26.0)
+## Intake — question 1, then a path when they have a folder, then speed (2.26.0)
 
 `mark --step 1.1 --status active` **refuses** until `qa/run-config.json` exists.
-Fire this harness's native question tool with the two questions below, then record:
+`start` prints this script. Fire this harness's native question tool, then record:
 
 ```sh
 python3 $SKILLS/web2html/scripts/run_config.py intake /path/to/templates/<project> \
   --source none|/abs/path/to/html-export --speed full|fast
 ```
 
-1. **Source folder?** `--source /abs/path` copies it to `<project>/source-html/` and classifies it.
+1. **Where does this run start?** One choice, these labels:
+   - `Live URL — author from Paper` → `--source none`
+   - `Webflow / HTML source` → fire a **follow-up** before anything else.
+     Question: `Paste the absolute path to the HTML folder.` The answer is the
+     path, typed in the text field. Do not guess a folder. Do not record intake
+     until that path exists on disk. `--source /abs/path` copies it to
+     `<project>/source-html/` and classifies it.
    `clean-html` (Webflow export / static build) is **adopted**: `source-html/` is the ship.
    Do not create `rebuild/`. Do not author a homepage. Phase 2 is marked off on the board.
-   Phase 3 may add accessibility attributes only. Phase 4 captures the other pages and
-   authors only empty CMS layouts from Paper screenshots, before Astro. Tokens are never
-   bound back. `framework-dump` (`_next/`, `__NEXT_DATA__`, Framer runtime, empty React
-   root) is not adopted — 2.2 authors from Paper. `none` authors from Paper into `rebuild/`.
+   Phase 3 may add accessibility attributes only. **Phase 4 is required** — do not ask
+   at 3.4. Continue through 4.4. Phase 4 authors only empty CMS layouts from Paper
+   screenshots. Tokens are never bound back. `framework-dump` (`_next/`, `__NEXT_DATA__`,
+   Framer runtime, empty React root) is not adopted — 2.2 authors from Paper.
 2. **Full or fast?** `fast` forces auto checkpoints: 1.2 shoots **1600 + 390** · 1.3 skipped ·
    2.1 skipped except `emit_fonts.py` on a non-adopt run · 2.3 at the configured widths ·
-   3.2 button hover from source CSS. **3.4 always stops.** `full` + `--checkpoints auto` is refused.
+   3.2 button hover from source CSS. **3.4 always stops on a URL run; a folder run's stop is 4.4.** `full` + `--checkpoints auto` is refused.
    `run_config.py show <project>` prints the contract.
 
 `start` is the only command that opens the live board. If **that** tab does
@@ -96,14 +102,14 @@ Red means stop. Do not polish a quarantined file (Pitfall #148).
 
 ## Hard rules
 
-1. Never skip a numbered step (1.1 → 3.4). `skip` fails on required steps. A **fast** run does not skip 1.3 / 2.1 — the intake writes `qa/design-library-skipped.json` / `qa/design-system-skipped.json` and those steps mark done on the receipt. Capture Tool is optional leftover hover at 1.4 (tab opened by `mark 1.4 active`; `open-capture` re-opens). Phase 4 is optional after 3.4 (`qa/phase-4-opted.json` or `qa/phase-4-skipped.json`). Phase 5 is optional after 4.4 (`qa/phase-5-opted.json` or `qa/phase-5-skipped.json`).
+1. Never skip a numbered step (1.1 → 3.4). `skip` fails on required steps. A **fast** run does not skip 1.3 / 2.1 — the intake writes `qa/design-library-skipped.json` / `qa/design-system-skipped.json` and those steps mark done on the receipt. Capture Tool is optional leftover hover at 1.4 (tab opened by `mark 1.4 active`; `open-capture` re-opens). On a **URL run**, Phase 4 is optional after 3.4 (`qa/phase-4-opted.json` or `qa/phase-4-skipped.json`). On a **Webflow / HTML folder** run, Phase 4 is required: do not ask, do not write `qa/phase-4-skipped.json`, and do not `skip` 4.1–4.4. Phase 5 is optional after 4.4 (`qa/phase-5-opted.json` or `qa/phase-5-skipped.json`).
 2. No `rebuild/*.html` until 1.4 is signed and 2.1 is open. First rebuild HTML is 2.1 `design-system.html` (token contract). First authored write is 2.2 `index-semantic.html` — never scrape-to-site, never a get_jsx dump. 2.3 seeds `index.html` from that file.
 3. Homepage only through 3.4. Extra routes stay out of 1.2. Phase 4 is Paper-only. Phase 5 binds the site into `astro/` after 4.4 opt-in: 5.1 pulls Header / Footer / components **once** from the 3.4 polish, 5.2 authors only each page's `<main>` as `astro/src/pages/{slug}.astro`. 5.5 is the one post-3.4 href exception, plus 3.3-style scrape-only SEO per page. Exit if `plan.pages.length > 1` at 1.2 without `--allow-multi-page`.
 4. Stage L is never skippable on a **full** run. No ship HTML until Paper has a `Design Library` artboard (foundations only), `get_tokens` is non-empty, and `design-library/library.json` exists. Disk-only does not count. On a **fast** run the intake receipt stands in for the library and 2.2 authors without a token contract.
 5. One `rebuild/`. 2.2 first pass is `index-semantic.html`. 2.4 lock is `index.html`; 3.x writes `index-polish.html` only (created when 3.1 starts, not at 2.4). **3.4 done** promotes that file to `index.html`, archives the other homepage HTML under `rebuild/archive/`, and leaves outlines off unless `?qa-outlines=` is set (Pitfall #223). Optional Phase 5 writes `astro/` and does not replace `rebuild/`. No local HTTP server. Preview is `file://` — in **Orca's browser** when the probe says `orca reachable` (`open_doc.py`: the board, 2.4 review, 3.4 compare + polish report, 5.6 routes), else Chrome; `WEB2HTML_BROWSER=default|orca` overrides. 5.3+ relativizes `astro/dist` so built pages open on `file://`. The agent verifies with `astro build`, never `astro dev`; the human may run `npm run preview`.
-6. Human stops: **1.4**, **2.4**, **3.4**, optional **4.4**, optional **5.6**. With `--checkpoints auto` (or any fast run) 1.4 and 2.4 self-accept and the session keeps going; **3.4 is never automatic.** Session 2 does not yield until **2.4**. **3.4** is finish vs Phase 4. **4.4** is finish vs Phase 5. **5.6** is finish (tidy). CTA only at those yields (Pitfall #190 #192). A **relay** (`pipeline-progress.py relay`, when `mark` prints `RELAY armed`) is a change of agent at a receipt boundary, not a yield: same-source agent, Orca terminal when reachable, else print the prompt; never a CTA (Pitfall #218 #219 #220).
+6. Human stops: **1.4**, **2.4**, **3.4**, optional **4.4**, optional **5.6**. With `--checkpoints auto` (or any fast run) 1.4 and 2.4 self-accept and the session keeps going; **3.4 is never automatic on a URL run.** A **Webflow / HTML folder** run does not stop at 3.4 — Phase 4 is required and the stop is **4.4**. Session 2 does not yield until **2.4** (Phase 2 is off on an adopted folder). **3.4** on a URL run is finish vs Phase 4. **4.4** is finish vs Phase 5. **5.6** is finish (tidy). CTA only at those yields (Pitfall #190 #192 #225). A **relay** (`pipeline-progress.py relay`, when `mark` prints `RELAY armed`) is a change of agent at a receipt boundary, not a yield: same-source agent, Orca terminal when reachable, else print the prompt; never a CTA (Pitfall #218 #219 #220).
 7. Silent shell 20s → kill (Pitfall #112). Gate evidence must be truthful.
-8. **1.2 always `create_file` a new Paper document.** Never `list_files` / never open a similarly-named existing file (Pitfall #187).
+8. **1.2 creates one Paper document per run.** The first capture `create_file`s. A retry reopens `qa/paper-file.json`. Never `list_files`. Never open a similarly-named file from another project. `--new-file` is the only second document (Pitfall #187 #224).
 
 Versioned rows: `references/pillars.md`. Findings: `references/pitfalls.md`.
 Spine: `references/stage-spine.md`. Gates / folders: `references/gates.md`.
@@ -128,8 +134,8 @@ Resume with `resume`, never `start`.
 
 **Homepage vs all pages.** Phases **1–3** are the required homepage run (`/` only):
 capture at 1600 / 768 / 390 (fast: 1600 / 390), mine one Design Library (fast: none), author `rebuild/index-semantic.html`,
-seed `index.html` at 2.3, polish `index-polish.html` starting at 3.1. **3.4 can stop the run.** Phases **4–5** are optional
-all-pages work that reuse those tokens and chrome. They do not recapture `/`,
+seed `index.html` at 2.3, polish `index-polish.html` starting at 3.1. **On a URL run, 3.4 can stop the run.** A Webflow / HTML folder run continues through Phase 4 and stops at 4.4. Phases **4–5** are optional
+on a URL run. They reuse those tokens and chrome. They do not recapture `/`,
 do not mine a second library, and do not rewrite 2.3 geometry.
 
 - **4.x Paper:** extra sitemap URLs into the same file, desktop only, bind existing tokens.
@@ -140,7 +146,7 @@ do not mine a second library, and do not rewrite 2.3 geometry.
 | Step | Do | Read |
 |---|---|---|
 | **1.1** | `scrape-web.sh` — URL + images + Latin fonts. Stub contract. | `references/step-11.md` |
-| **1.2** | Headless `hover-reel/scripts/capture-session.mjs` — **always `create_file` a new Paper document**. Never `list_files` / never open a similarly-named existing file. Then the run-config widths (1600/768/390; fast 1600/390) + Navigation + stretch-root. | `references/12-desktop-source.md` + `references/stage-p-notes.md` |
+| **1.2** | Headless `hover-reel/scripts/capture-session.mjs`. First capture `create_file`s one Paper document. A retry reopens `qa/paper-file.json` — do not create a second file. Never `list_files`. Then the run-config widths (1600/768/390; fast 1600/390) + Navigation + stretch-root. | `references/12-desktop-source.md` + `references/stage-p-notes.md` |
 | **1.3** | **Fast run: skipped** (intake receipt). Otherwise `run-design-library-step.mjs` once. Foundations only. Then pull unique buttons + components from token-seeded `home-desktop` onto FRAME `Buttons` and FRAME `Components`, and author button hover from source CSS. | `references/pillars.md` (1.3 rows) + `references/13-buttons-components.md` |
 | **1.4** | `checkpoints=auto`: self-accepts, nothing opens, continue to 2.1. Otherwise required Paper sign-off. `mark 1.4 active` opens Paper **and** the browser on the stamped source URL (Capture Tool connects off that tab; `capture-doctor` FAIL = OFFLINE, relay its fix). Optional leftover hover only. Fire the two-option question modal. Stop. | `references/live-board.md` + pillars 1.4 row |
 | **2.1** | **Adopted clean HTML: off** (`qa/phase-2-off.json`). Do not emit a Design System page. **Fast run:** `emit_fonts.py .` only. Otherwise `emit-design-system.mjs` writes `rebuild/design-system.html` + `tokens.css` + `fonts.css`. Not the ship. | `references/paper-design-to-code.md` |
@@ -150,7 +156,7 @@ do not mine a second library, and do not rewrite 2.3 geometry.
 | **3.1** | **Adopted clean HTML:** `mark 3.1 active` snapshots `source-html/` (`qa/source-fidelity.json`). Accessibility attributes only. Do not seed `index-polish.html`. Otherwise `mark --step 3.1 --status active` copies `index.html` → `index-polish.html` (unpolished). Then Impeccable + Taste on that copy. Freeze the lock. | `references/polish-visual-restore.md` |
 | **3.2** | **Adopted clean HTML:** do not run hover, drawer, FAQ, dropdown, or GSAP authors. Fidelity lock must stay green. Otherwise hover from 1.3 source CSS (`apply-hover-css.py`; fast run: `mark 3.2 active` first mines it with `source-hover-light.mjs`) + **painted burger drawer** (`author-nav-drawer.py`) + **FAQ accordion** (`author-faq.py`) + **nav dropdowns** (`author-nav-dropdown.py`) + guidelines a11y + **mandatory GSAP in-view** on `index-polish.html`. Never skip hover, the drawer, FAQ, or dropdowns because Capture Tool did not run. Companion receipts `qa/web-design-guidelines.md` / `qa/find-animation-opportunities.md` / `qa/apple-design.md` before `mark --step 3.2 --status done` (Pitfall #215). | `references/gsap-inview.md` + `references/hover-22c.md` + `references/nav-drawer.md` + `references/faq.md` + `references/nav-dropdown.md` + `references/orca-relay.md` (companion wave) |
 | **3.3** | **Adopted clean HTML:** do not retag. Fidelity lock must stay green. Otherwise semantics + scrape-only SEO on `index-polish.html` (`--freeze-structure`). | `references/semantics-pass.md` |
-| **3.4** | **Adopted clean HTML:** ship stays `source-html/index.html`. Do not promote a polish file. Otherwise compare `index.html` vs `index-polish.html` (outlines off; `?qa-outlines=` toggles). Marking done promotes polish to `index.html` and archives the other homepage HTML. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to Phase 4 (`qa/phase-4-opted.json`, no tidy). | `references/live-board.md` (handoff) |
+| **3.4** | **Adopted clean HTML:** ship stays `source-html/index.html`. Do not promote a polish file. Do not ask. `mark 3.4 done` writes `qa/phase-4-opted.json` and you continue at 4.1. The next stop is 4.4. **URL run:** compare `index.html` vs `index-polish.html` (outlines off; `?qa-outlines=` toggles). Marking done promotes polish to `index.html` and archives the other homepage HTML. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to optional Phase 4 (`qa/phase-4-opted.json`, no tidy). | `references/live-board.md` (handoff) |
 | **4.1** | Scrape sitemap.xml for extra URLs. Homepage stays out. Near-duplicate dynamic detail slugs (blog posts, case studies — a parent with 3+ children) collapse to ONE sample per template; never import every slug. **Adopted clean HTML:** also writes `qa/source-gaps.json` (empty CMS layouts). | `references/scripts.md` |
 | **4.2** | Desktop capture each URL onto the HOME canvas of the 1.2 file — one horizontal row under a single `Ruler · pages` below the existing frames. NEVER `create_page` / a Paper page per URL. | same |
 | **4.3** | **Adopted clean HTML:** author the `qa/source-gaps.json` pages from Paper screenshots into `source-html/`, then `source_fidelity.py record-gaps`. Do not bind tokens. Do not rewrite pages the export already has. Otherwise serial bind of existing Design Library tokens. No second library. | same |

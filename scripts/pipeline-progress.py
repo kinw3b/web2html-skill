@@ -237,6 +237,26 @@ def phase4_receipt(root: Path) -> bool:
     return phase4_opted(root) or phase4_skipped(root)
 
 
+def write_phase4_required(root: Path) -> Path:
+    """Folder / Webflow runs do not ask. Phase 4 is the rest of the run."""
+    dest = root.resolve() / PHASE4_OPTED
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if not dest.is_file():
+        dest.write_text(
+            json.dumps(
+                {
+                    "generatedFrom": "web2html/phase-4-required",
+                    "reason": "Webflow / HTML folder — Phase 4 runs through 4.4",
+                    "recordedAt": now_iso(),
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    return dest
+
+
 def phase5_opted(root: Path) -> bool:
     return (root.resolve() / PHASE5_OPTED).is_file()
 
@@ -1509,12 +1529,13 @@ def stamp_run_mode(html: str, root: Path | None) -> str:
     if fast:
         widths = "/".join(str(w) for w in config.get("widths") or [])
         badge = f'<span class="run-mode run-mode-fast">Fast Run</span>'
-        sub = f"{widths} · no Design Library · 3.4 is the only stop"
         if config.get("adopt"):
-            sub += " · Phase 2 off · source-html is the ship"
+            sub = f"{widths} · no Design Library · Phase 4 required · stop at 4.4 · Phase 2 off · source-html is the ship"
+        else:
+            sub = f"{widths} · no Design Library · 3.4 is the only stop"
     elif config.get("adopt"):
         badge = '<span class="run-mode run-mode-adopt">Adopt</span>'
-        sub = "Phase 2 off · source-html is the ship · light a11y polish"
+        sub = "Phase 2 off · source-html is the ship · Phase 4 required · stop at 4.4"
     elif auto:
         badge = '<span class="run-mode run-mode-auto">Auto Run</span>'
         sub = "1.4 / 2.4 auto-accept · 3.4 is the only stop"
@@ -2197,7 +2218,8 @@ Paper:   {file_url or "(qa/paper-file.json)"}
 source-html/ is the ship. Do not create rebuild/. Do not author a homepage.
 Resume at 3.1. Light polish only: accessibility attributes (alt, aria-*, role, lang, label for).
 Do not edit source CSS, JS, classes, or copy. qa/source-fidelity.json is the lock.
-After 3.4, Phase 4 captures the other pages and authors only the empty CMS layouts from Paper screenshots, before Astro.
+Do not stop at 3.4 and do not ask finish vs Phase 4. Phase 4 is required.
+Continue through 4.1–4.3 and stop at 4.4. Phase 4 authors only the empty CMS layouts from Paper screenshots.
 """
 
 
@@ -2314,7 +2336,7 @@ def write_auto_accept_14(root: Path) -> Path:
             f"- run-config: checkpoints={config.get('checkpoints')} speed={config.get('speed')}\n"
             "- Paper and the Capture Tool tab were NOT opened — the intake chose automatic checkpoints.\n"
             "- Frames 1600 / 768 / 390, FRAME Navigation, Buttons, Components, Design Library were not\n"
-            "  walked by a human. 3.4 is the first (and only) human stop in this run.\n",
+            f"  walked by a human. {'4.4' if run_config.adopt_mode(root) else '3.4'} is the next human stop in this run.\n",
             encoding="utf-8",
         )
     print("1.4 auto-accepted (checkpoints=auto) → qa/paper-human-review.md · no Paper / browser opened")
@@ -3027,6 +3049,10 @@ def cmd_start(root: Path) -> int:
         print(f"FAIL: missing {live_template()}", file=sys.stderr)
         return 2
     moved = quarantine_unauthorized_ship(root)
+    stale_paper = root / "qa" / "paper-file.json"
+    if stale_paper.is_file():
+        stale_paper.unlink()
+        print("cleared qa/paper-file.json — this run creates one Paper file at 1.2")
     data = empty_progress(root.name)
     save_progress(root, data, force=True)
     root.mkdir(parents=True, exist_ok=True)
@@ -3053,7 +3079,28 @@ def cmd_start(root: Path) -> int:
         print("FAIL: live board did not open. Open the URI above, then retry start.", file=sys.stderr)
         return 2
     print_probe_line(root)
+    print_intake_prompt()
     return 0
+
+
+def print_intake_prompt() -> None:
+    """Exact questions. A folder choice must be followed by a path field."""
+    print("")
+    print("INTAKE — fire this harness's question tool, then record the answers.")
+    print("Question 1, one choice:")
+    print("  1. Live URL — author from Paper")
+    print("  2. Webflow / HTML source")
+    print("If they choose 2, fire a follow-up BEFORE the speed question.")
+    print("  Question: Paste the absolute path to the HTML folder.")
+    print("  The answer is the path, typed in the text field. Do not guess a folder.")
+    print("  Do not record intake until that path exists on disk.")
+    print("Question 2, one choice:")
+    print("  1. Full")
+    print("  2. Fast")
+    print("Then:")
+    print("  python3 $SKILLS/web2html/scripts/run_config.py intake <project> \\")
+    print("    --source none|/abs/path --speed full|fast")
+    print("")
 
 
 def open_live_board(dest: Path) -> bool:
@@ -3097,6 +3144,13 @@ def cmd_mark(
         return 2
     if status == "skipped" and step not in OPTIONAL_STEPS:
         print("FAIL: never skip a required step (Pitfall #98). Run the step or stop the run.", file=sys.stderr)
+        return 2
+    if status == "skipped" and step.startswith("4.") and run_config.adopt_mode(root):
+        print(
+            "FAIL: Phase 4 is required on a Webflow / HTML folder run. "
+            "Do not skip 4.1–4.4. The run stops at 4.4.",
+            file=sys.stderr,
+        )
         return 2
     if step in RETIRED_22:
         print(
@@ -3171,8 +3225,9 @@ def cmd_mark(
     # active (qa/run-config.json). A run without them is a run nobody scoped.
     if step == "1.1" and status == "active" and not run_config.exists(root):
         print(
-            "FAIL: cannot mark 1.1 active — no run intake. Ask the two questions "
-            "(source folder, or should the agent author? full or fast?) then record them:\n"
+            "FAIL: cannot mark 1.1 active — no run intake. Ask where the run starts "
+            "(Live URL, or Webflow / HTML source). If they choose a folder, the next "
+            "question is the absolute path. Then full or fast. Record them:\n"
             "  python3 $SKILLS/web2html/scripts/run_config.py intake <project> "
             "--source none|/abs/path --speed full|fast",
             file=sys.stderr,
@@ -3208,6 +3263,16 @@ def cmd_mark(
                 file=sys.stderr,
             )
         return 2
+    if status == "done" and step == "3.4" and run_config.adopt_mode(root) and phase4_skipped(root):
+        print(
+            "FAIL: cannot mark 3.4 done — Phase 4 is required on a Webflow / HTML folder run. "
+            "Remove qa/phase-4-skipped.json. The run continues through 4.4.",
+            file=sys.stderr,
+        )
+        return 2
+    if status == "done" and step == "3.4" and run_config.adopt_mode(root) and not phase4_opted(root):
+        write_phase4_required(root)
+        print("phase 4 → required  qa/phase-4-opted.json  continue at 4.1  stop at 4.4  do not ask")
     if status == "done" and step == "3.4" and not phase4_receipt(root):
         print(
             "FAIL: cannot mark 3.4 done — record qa/phase-4-skipped.json (finish) "
@@ -3403,6 +3468,9 @@ def cmd_mark(
                     file=sys.stderr,
                 )
                 return 2
+        if step == "3.4" and run_config.adopt_mode(root):
+            print("3.4 adopt — do not ask finish vs Phase 4.")
+            print("Phase 4 is required. Mark 3.4 done and continue at 4.1. The next human stop is 4.4.")
         if step == "2.4" and run_config.adopt_mode(root):
             print("2.4 off — Phase 2 is not applicable. source-html/ is the ship. Continue at 3.1.")
         elif step == "2.4" and run_config.auto_accepts(root, "2.4"):

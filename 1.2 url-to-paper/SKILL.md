@@ -1,7 +1,7 @@
 ---
 name: url-to-paper
 description: Pull any live URL (or one section of it) into Paper (paper.design) as real editable layers — not a screenshot. Renders the page in headless Chromium, serializes the settled DOM to inline-styled HTML using the serializer lifted from the Paper Snapshot extension, then writes it into the open Paper file via the Paper MCP `write_html`. Triggers: "pull <url> into paper", "url to paper", "import site into paper", "snapshot this page into paper", "add this section to my paper file".
-version: 1.2.86
+version: 1.2.87
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]
@@ -320,10 +320,11 @@ Keep **one Paper file per run**, created at 1.2, named `{project-slug} {YYYY-MM-
 Desktop lander, mobile lander, QA pairs, hover/component states, and the design library
 are named artboards **inside that new file**.
 
-- `capture-session.mjs` always `create_file`. Omit `--file`.
+- The first `capture-session.mjs` of a run calls `create_file`. Omit `--file`.
+- A retry reopens the `fileId` in this project's `qa/paper-file.json`. It does not `create_file` again (Pitfall #224).
 - Never `list_files` to resume a similarly-named existing document.
 - Never `open_file` last week's "Thrive" / "kp-thrive" because the slug matches.
-- Pin the **created** id from `qa/paper-file.json` for the rest of **this** run.
+- Pin the id from `qa/paper-file.json` for the rest of **this** run. `--new-file` starts a second document.
 - Do not split desktop, mobile, experiment, hover, or library work into
   separate Paper files later in the same run.
 - Pitfall #187.
@@ -1168,6 +1169,8 @@ section, `update_styles` that section only to `height: min-content`.
 Do not guess a new px height. Artboards may stay `fit-content`. If
 768/390 already have the row as its own `feature-section`, do not
 stuff it into the hero.
+
+**Pitfall #226 · CSS background photos keep the element's box.** Paper paints a bitmap `background-image` into the node's layout box. A short banner (1600×716 over a 2560×1432 file, 1600×400 over a 1000×667 file) comes out cropped or stretched. Before the lander is signed, read the Fill file's intrinsic size, set the frame to that size, then scale uniformly until the width matches the parent. Height is `width × fileHeight / fileWidth`. `scaledImageDimensions` in `scripts/paper-image-geometry.mjs` already does this for source shots; bitmap backgrounds need the same reset. Gradients and SVG wordmarks stay on their own boxes.
 
 **Pitfall #68 · Image QA is visual, not only empty-image.** Hollow
 dashboard Rectangles are not the only gap. Flag empty `deferred-image`

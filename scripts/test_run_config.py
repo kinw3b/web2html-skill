@@ -105,6 +105,8 @@ class Intake(unittest.TestCase):
             self.assertTrue((root / "source-html" / "index.html").is_file())
             self.assertFalse((root / "source-html" / "node_modules").exists())
             self.assertTrue(run_config.adopt_mode(root))
+            self.assertEqual(cfg["humanStops"], ["1.4", "4.4"])
+            self.assertEqual(cfg["phase4"], "required")
             self.assertFalse(run_config.port_mode(root))
             self.assertFalse(run_config.design_library_enabled(root))
             self.assertFalse(run_config.bind_tokens_allowed(root))
