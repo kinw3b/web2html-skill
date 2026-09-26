@@ -1,7 +1,7 @@
 ---
 name: url-to-paper
 description: Pull any live URL (or one section of it) into Paper (paper.design) as real editable layers — not a screenshot. Renders the page in headless Chromium, serializes the settled DOM to inline-styled HTML using the serializer lifted from the Paper Snapshot extension, then writes it into the open Paper file via the Paper MCP `write_html`. Triggers: "pull <url> into paper", "url to paper", "import site into paper", "snapshot this page into paper", "add this section to my paper file".
-version: 1.2.87
+version: 1.2.88
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]

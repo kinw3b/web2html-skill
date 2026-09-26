@@ -219,6 +219,12 @@ class PipelineProgressTests(unittest.TestCase):
         self.assertIn('data-pipeline-capture data-state="waiting"', waiting)
         self.assertIn('data-pipeline-capture-url href=""', waiting)
         self.assertIn("data-pipeline-capture-copy disabled", waiting)
+        self.assertIn("data-pipeline-capture-open disabled", waiting)
+        # the address is a data carrier for the buttons, never painted
+        self.assertIn(
+            'class="capture-url" data-pipeline-capture-url href="" target="_blank" rel="noopener noreferrer" hidden',
+            waiting,
+        )
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "example-site"
@@ -232,15 +238,37 @@ class PipelineProgressTests(unittest.TestCase):
                 pipeline_progress.live_template().read_text(), data, root
             )
             url = html_escape(pipeline_progress.build_capture_tool_page_url(root), quote=True)
-            self.assertIn('data-pipeline-capture data-state="ready"', html)
+            # URL is stored as soon as Paper exists, but Copy / Open stay hidden
+            # until step 1.4 is the active step.
+            self.assertIn('data-pipeline-capture data-state="held"', html)
             self.assertIn(f'href="{url}"', html)
             self.assertIn('target="_blank"', html)
             self.assertIn(f">{url}</a>", html)
-            self.assertIn('data-pipeline-capture-copy>', html)
+            self.assertIn("data-pipeline-capture-copy disabled", html)
+            self.assertIn("data-pipeline-capture-open disabled", html)
             self.assertLess(
                 html.index("data-pipeline-capture"),
                 html.index('class="spine"'),
             )
+
+            data["steps"]["1.4"]["status"] = "active"
+            shown = pipeline_progress.stamp_html(
+                pipeline_progress.live_template().read_text(), data, root
+            )
+            self.assertIn('data-pipeline-capture data-state="ready"', shown)
+            self.assertIn('data-pipeline-capture-copy>', shown)
+            self.assertIn('data-pipeline-capture-open>', shown)
+            self.assertNotIn("data-pipeline-capture-copy disabled", shown)
+            self.assertNotIn("data-pipeline-capture-open disabled", shown)
+
+            data["steps"]["1.4"]["status"] = "done"
+            data["steps"]["2.1"]["status"] = "active"
+            later = pipeline_progress.stamp_html(
+                pipeline_progress.live_template().read_text(), data, root
+            )
+            self.assertIn('data-pipeline-capture data-state="held"', later)
+            self.assertIn("data-pipeline-capture-copy disabled", later)
+            self.assertIn("data-pipeline-capture-open disabled", later)
 
     def test_finished_run_drops_refresh_and_marks_the_board_done(self):
         data = pipeline_progress.empty_progress("demo")
@@ -423,6 +451,7 @@ class PipelineProgressTests(unittest.TestCase):
             (root / "qa" / "buttons-components-pull.json").write_text(json.dumps({
                 "ok": True,
                 "writer": "pull-desktop-specimens.mjs",
+                "geometry": {"ok": True},
                 "scannedSections": ["01 · hero"],
                 "buttons": [],
                 "components": [],
@@ -1698,3 +1727,458 @@ class RelayTests(unittest.TestCase):
             self.assertGreater(after["budget"]["spendTokens"], 0)
             self.assertIn("budget:", buf.getvalue())
 
+
+
+class TimingTests(unittest.TestCase):
+    """Per-step durations + a run total that is the SUM of steps, never wall clock."""
+
+    T = "2026-09-26T01:{:02d}:{:02d}-06:00".format
+
+    def _timed(self, sid: str, start: tuple[int, int], end: tuple[int, int], data: dict, status: str = "done") -> None:
+        data["steps"][sid].update(status=status, started=self.T(*start), ended=self.T(*end))
+
+    def test_refresh_timing_sums_steps_not_wall_clock(self):
+        data = pipeline_progress.empty_progress("demo")
+        data["started"] = self.T(0, 0)
+        self._timed("1.1", (0, 53), (0, 57), data)          # 4s
+        self._timed("1.2", (1, 5), (4, 2), data)            # 2m 57s
+        self._timed("1.3", (4, 10), (9, 10), data)          # 5m
+        self._timed("1.4", (9, 20), (15, 20), data)         # 6m human
+        # a long pause between sessions, then 2.1 — must not count
+        data["steps"]["2.1"].update(status="done", started="2026-09-26T09:00:00-06:00", ended="2026-09-26T09:01:00-06:00")
+        data["steps"]["2.2"].update(status="done", ended="2026-09-26T09:05:00-06:00")  # no started → untimed
+        data["steps"]["2.3"].update(status="active", started="2026-09-26T09:05:10-06:00")
+
+        timing = pipeline_progress.refresh_timing(data)
+
+        self.assertEqual(data["steps"]["1.2"]["durationSeconds"], 177)
+        self.assertNotIn("durationSeconds", data["steps"]["2.2"])
+        self.assertEqual(timing["totalSeconds"], 4 + 177 + 300 + 360 + 60)
+        self.assertEqual(timing["humanSeconds"], 360)
+        self.assertEqual(timing["agentSeconds"], timing["totalSeconds"] - 360)
+        self.assertEqual(timing["timedSteps"], 5)
+        self.assertEqual(timing["untimedSteps"], 1)
+        self.assertEqual(timing["phases"], {"1": 4 + 177 + 300 + 360, "2": 60})
+        self.assertEqual(timing["lastEndedStep"], "2.2")
+        self.assertEqual(timing["activeStep"], "2.3")
+        self.assertEqual(timing["activeSince"], "2026-09-26T09:05:10-06:00")
+
+    def test_fmt_duration_scales(self):
+        f = pipeline_progress.fmt_duration
+        self.assertEqual(f(None), "—")
+        self.assertEqual(f(0), "0s")
+        self.assertEqual(f(42), "42s")
+        self.assertEqual(f(252), "4m 12s")
+        self.assertEqual(f(3600 + 12 * 60 + 5), "1h 12m")
+
+    def test_mark_done_backfills_started_from_the_tightest_lower_bound(self):
+        """A step closed without `mark active` still lands in the total — flagged."""
+        data = pipeline_progress.empty_progress("demo")
+        data["started"] = self.T(0, 0)
+        data["controller"] = {"owner": "s1", "status": "active", "claimedAt": self.T(0, 30)}
+        self._timed("1.1", (0, 53), (0, 57), data)
+        data["sessions"] = [{"kind": "start", "owner": "session-1", "at": "1.1", "startedAt": self.T(0, 0)}]
+
+        pipeline_progress.close_step_timing(data, "1.2")
+        row = data["steps"]["1.2"]
+
+        self.assertEqual(row["started"], self.T(0, 57), "previous step's end is the tightest bound")
+        self.assertTrue(row["startedInferred"])
+        self.assertIsNotNone(pipeline_progress.parse_iso(row["ended"]))
+
+        # a later session claim beats an older step end
+        data["controller"]["claimedAt"] = "2026-09-26T09:00:00-06:00"
+        pipeline_progress.close_step_timing(data, "1.3")
+        self.assertEqual(data["steps"]["1.3"]["started"], "2026-09-26T09:00:00-06:00")
+
+        # skipped is not work: no inference
+        pipeline_progress.close_step_timing(data, "4.1", infer=False)
+        self.assertNotIn("started", data["steps"]["4.1"])
+
+    def test_mark_writes_duration_and_prints_the_timing_lines(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pipeline_progress.save_progress(root, pipeline_progress.empty_progress("demo"))
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
+            (root / "source-site").mkdir()
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.1", "active", None), 0)
+            self.assertRegex(out.getvalue(), r"1\.1 started \d\d:\d\d:\d\d")
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.1", "done", None), 0)
+            text = out.getvalue()
+            self.assertRegex(text, r"1\.1 finished \d\d \w{3} \d\d:\d\d   took \d+s")
+            self.assertIn("run total", text)
+            self.assertIn("1 step timed", text)
+
+            data = pipeline_progress.load_progress(root)
+            row = data["steps"]["1.1"]
+            self.assertIn("started", row)
+            self.assertIn("ended", row)
+            self.assertIsInstance(row["durationSeconds"], int)
+            self.assertNotIn("startedInferred", row)
+            self.assertEqual(data["timing"]["timedSteps"], 1)
+            self.assertEqual(data["timing"]["totalSeconds"], row["durationSeconds"])
+            self.assertEqual(data["timing"]["lastEndedStep"], "1.1")
+
+    def test_mark_done_without_active_is_inferred_and_flagged_in_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = pipeline_progress.empty_progress("demo")
+            data["started"] = self.T(0, 0)
+            data["steps"]["1.1"].update(status="done", started=self.T(0, 53), ended=self.T(0, 57))
+            pipeline_progress.save_progress(root, data)
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
+            original = pipeline_progress.artifact_done
+            pipeline_progress.artifact_done = lambda r, sid: True
+            self.addCleanup(lambda: setattr(pipeline_progress, "artifact_done", original))
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.2", "done", None), 0)
+            self.assertIn("start inferred", out.getvalue())
+            row = pipeline_progress.load_progress(root)["steps"]["1.2"]
+            self.assertEqual(row["started"], self.T(0, 57))
+            self.assertTrue(row["startedInferred"])
+            self.assertIn("durationSeconds", row)
+
+    def test_board_shows_finished_stamp_duration_phase_sum_and_run_total(self):
+        data = pipeline_progress.empty_progress("demo")
+        data["started"] = self.T(0, 0)
+        self._timed("1.1", (0, 53), (0, 57), data)
+        self._timed("1.2", (1, 5), (4, 2), data)
+        data["steps"]["1.3"].update(status="active", started=self.T(4, 10))
+
+        html = pipeline_progress.stamp_html(pipeline_progress.live_template().read_text(), data)
+
+        self.assertIn('<span class="row-time" data-step-time="1.1">4s</span>', html)
+        self.assertIn('<span class="row-time" data-step-time="1.2">2m 57s</span>', html)
+        self.assertIn('<span class="row-time" data-step-time="1.3">running</span>', html)
+        self.assertIn('<span class="row-time" data-step-time="1.4"></span>', html)
+        self.assertIn('data-step-time="1.2">Finished 26 Sep 01:04 · took 2m 57s</span>', html)
+        self.assertIn('data-step-time="1.3">Started 26 Sep 01:04 · running</span>', html)
+        self.assertIn('<span class="card-time" data-phase-time="1">3m 01s</span>', html)
+        self.assertIn('<span class="card-time" data-phase-time="2"></span>', html)
+        self.assertRegex(html, r'data-pipeline-duration[^>]*>total 3m 01s</span>')
+
+        # inferred starts are marked so the board never over-claims
+        data["steps"]["1.3"].update(status="done", ended=self.T(9, 10), startedInferred=True)
+        html = pipeline_progress.stamp_html(pipeline_progress.live_template().read_text(), data)
+        self.assertIn('data-step-time="1.3">5m 00s*</span>', html)
+        self.assertIn("took 5m 00s (start inferred)", html)
+
+    def test_board_hides_timing_on_a_fresh_run(self):
+        data = pipeline_progress.empty_progress("demo")
+        html = pipeline_progress.stamp_html(pipeline_progress.live_template().read_text(), data)
+        self.assertRegex(html, r'data-pipeline-duration[^>]*></span>')
+        self.assertEqual(len(re.findall(r'data-step-time="[^"]+">[^<]', html)), 0)
+        template = pipeline_progress.live_template().read_text()
+        self.assertEqual(len(re.findall(r'data-step-time="', template)), 2 * len(pipeline_progress.STEP_IDS))
+        self.assertEqual(re.findall(r'data-phase-time="(\d)"', template), ["1", "2", "3", "4", "5"])
+        self.assertIn(".row-time:empty { display: none; }", template)
+
+    def test_start_and_resume_log_sessions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            original = pipeline_progress.open_live_board
+            pipeline_progress.open_live_board = lambda dest: True
+            try:
+                self.assertEqual(pipeline_progress.cmd_start(root), 0)
+            finally:
+                pipeline_progress.open_live_board = original
+            data = pipeline_progress.load_progress(root)
+            self.assertEqual([s["kind"] for s in data["sessions"]], ["start"])
+            self.assertEqual(data["sessions"][0]["owner"], "session-1")
+            self.assertEqual(data["timing"]["totalSeconds"], 0)
+
+            for sid in ("1.1", "1.2", "1.3", "1.4"):
+                data["steps"][sid].update(status="done", started=self.T(0, 0), ended=self.T(1, 0))
+            pipeline_progress.save_progress(root, data)
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_resume(root, "2.1", "session-2"), 0)
+            data = pipeline_progress.load_progress(root)
+            self.assertEqual([s["kind"] for s in data["sessions"]], ["start", "resume"])
+            self.assertEqual(data["sessions"][1]["owner"], "session-2")
+            self.assertEqual(data["sessions"][1]["at"], "2.1")
+            self.assertIn("run total 4m 00s", out.getvalue())
+            self.assertIn("mark --step 2.1 --status active before working", out.getvalue())
+
+    def test_resume_detects_the_step_when_at_is_omitted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            data = pipeline_progress.empty_progress("demo")
+            for sid in ("1.1", "1.2", "1.3", "1.4"):
+                data["steps"][sid].update(status="done", started=self.T(0, 0), ended=self.T(1, 0))
+            pipeline_progress.save_progress(root, data, force=True)
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_resume(root, None, "session-2"), 0)
+            text = out.getvalue()
+            self.assertIn("detected 2.1 Design System", text)
+            self.assertIn("next 2.1", text)
+            self.assertEqual(pipeline_progress.load_progress(root)["sessions"][-1]["at"], "2.1")
+
+            # an active step wins over the first pending one, and its clock keeps running
+            data = pipeline_progress.load_progress(root)
+            data["steps"]["2.1"].update(status="active", started=self.T(5, 0))
+            data["current"] = "2.1"
+            pipeline_progress.save_progress(root, data)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_resume(root, None, "session-2"), 0)
+            self.assertIn("detected 2.1", out.getvalue())
+            self.assertIn("2.1 is still active since 26 Sep 01:05", out.getvalue())
+
+    def test_resume_refuses_when_nothing_is_left(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            data = pipeline_progress.empty_progress("demo")
+            for sid in pipeline_progress.REQUIRED_STEPS:
+                data["steps"][sid]["status"] = "done"
+            pipeline_progress.save_progress(root, data, force=True)
+            (root / "qa" / "phase-4-skipped.json").write_text("{}")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(pipeline_progress.cmd_resume(root, None, "session-3"), 2)
+            self.assertIn("nothing left to resume", err.getvalue())
+
+    def test_timing_command_prints_table_and_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            data = pipeline_progress.empty_progress("demo")
+            self._timed("1.1", (0, 53), (0, 57), data)
+            self._timed("1.2", (1, 5), (4, 2), data)
+            data["steps"]["1.3"].update(status="done", ended=self.T(9, 0), started=self.T(4, 2), startedInferred=True)
+            data["sessions"] = [{"kind": "start", "owner": "session-1", "at": "1.1", "startedAt": self.T(0, 0)}]
+            pipeline_progress.save_progress(root, data, force=True)
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_timing(root), 0)
+            text = out.getvalue()
+            self.assertRegex(text, r"1\.2\s+done\s+26 Sep 01:01\s+26 Sep 01:04\s+2m 57s")
+            self.assertRegex(text, r"1\.3\s+done.*4m 58s\*")
+            self.assertIn("1.4   pending", text)
+            self.assertIn("phase 1   7m 59s", text)
+            self.assertIn("run total 7m 59s", text)
+            self.assertIn("* start inferred", text)
+            self.assertIn("sessions", text)
+            self.assertIn("session-1 at 1.1", text)
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_timing(root, as_json=True), 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["timing"]["totalSeconds"], 4 + 177 + 298)
+            self.assertEqual(payload["steps"][1]["durationSeconds"], 177)
+            self.assertTrue(payload["steps"][2]["startedInferred"])
+            self.assertEqual(len(payload["sessions"]), 1)
+
+    def test_timing_command_refuses_without_a_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(pipeline_progress.cmd_timing(Path(tmp) / "demo"), 2)
+            self.assertIn("no run here", err.getvalue())
+
+    def test_sync_closes_steps_with_inferred_starts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            (root / "qa").mkdir(parents=True)
+            data = pipeline_progress.empty_progress("demo")
+            data["started"] = self.T(0, 0)
+            pipeline_progress.save_progress(root, data, force=True)
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
+            (root / "source-site").mkdir()
+            self.assertTrue(pipeline_progress.artifact_done(root, "1.1"))
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_sync(root), 0)
+            row = pipeline_progress.load_progress(root)["steps"]["1.1"]
+            self.assertEqual(row["status"], "done")
+            self.assertTrue(row.get("startedInferred"))
+            self.assertIn("durationSeconds", row)
+
+    def test_new_session_can_resume_after_a_checkpoint_releases_the_lease(self):
+        """1.4 done releases the lease ON DISK; session 2 resumes without --at and inherits the run total."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            (root / "qa").mkdir(parents=True)
+            data = pipeline_progress.empty_progress("demo")
+            data["started"] = self.T(0, 0)
+            for sid in ("1.1", "1.2", "1.3"):
+                data["steps"][sid].update(status="done", started=self.T(0, 0), ended=self.T(5, 0))
+            data["steps"]["1.4"].update(status="active", started=self.T(6, 0))
+            data["controller"] = {"owner": "session-1", "status": "active", "claimedAt": self.T(0, 0)}
+            pipeline_progress.save_progress(root, data, force=True)
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
+            (root / "qa" / "paper-human-review.md").write_text("# signed\n")
+            (root / "qa" / "paper-file.json").write_text(json.dumps({"fileId": "F1", "url": "https://example.com/"}))
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.4", "done", None, None, "session-1"), 0)
+            after = pipeline_progress.load_progress(root)
+            self.assertNotIn("controller", after, "lease release must be persisted, not just in memory")
+            self.assertFalse(pipeline_progress.controller_lease_path(root).exists())
+            self.assertEqual(after["timing"]["timedSteps"], 4)
+            self.assertGreaterEqual(after["steps"]["1.4"]["durationSeconds"], 0)
+
+            out = io.StringIO()
+            err = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                self.assertEqual(pipeline_progress.cmd_resume(root, None, "session-2"), 0, err.getvalue())
+            text = out.getvalue()
+            self.assertIn("detected 2.1", text)
+            self.assertIn("run total", text)
+            self.assertIn("last finished 1.4", text)
+            resumed = pipeline_progress.load_progress(root)
+            self.assertEqual(resumed["controller"]["owner"], "session-2")
+            self.assertEqual(resumed["sessions"][-1], {**resumed["sessions"][-1], "kind": "resume", "owner": "session-2", "at": "2.1"})
+            self.assertEqual(resumed["timing"]["totalSeconds"], after["timing"]["totalSeconds"], "resume adds no time — only marks do")
+
+
+class AgentTrackingTests(unittest.TestCase):
+    """Every session records its agent + model, and each step carries the one that ran it."""
+
+    T = "2026-09-26T01:{:02d}:{:02d}-06:00".format
+
+    def test_resume_records_agent_and_model_on_the_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            pipeline_progress.save_progress(root, pipeline_progress.empty_progress("demo"), force=True)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    pipeline_progress.cmd_resume(
+                        root, "1.1", "session-1", "opencode", "deepseek-v4.1-flash"
+                    ),
+                    0,
+                )
+            entry = pipeline_progress.load_progress(root)["sessions"][-1]
+            self.assertEqual(entry["agent"], "opencode")
+            self.assertEqual(entry["model"], "deepseek-v4.1-flash")
+
+    def test_mark_stamps_the_step_with_the_agent_that_ran_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            (root / "qa").mkdir(parents=True)
+            pipeline_progress.save_progress(root, pipeline_progress.empty_progress("demo"), force=True)
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    pipeline_progress.cmd_mark(
+                        root, "1.1", "active", None, None, "session-1", "claude-code", "claude-fable-5.1"
+                    ),
+                    0,
+                )
+            row = pipeline_progress.load_progress(root)["steps"]["1.1"]
+            self.assertEqual(row["agent"], "claude-code")
+            self.assertEqual(row["model"], "claude-fable-5.1")
+
+    def test_mark_inherits_the_session_agent_when_no_flag_is_given(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            (root / "qa").mkdir(parents=True)
+            pipeline_progress.save_progress(root, pipeline_progress.empty_progress("demo"), force=True)
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
+            with contextlib.redirect_stdout(io.StringIO()):
+                pipeline_progress.cmd_resume(root, "1.1", "session-1", "opencode", "gpt-5.9")
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.1", "active", None, None, "session-1"), 0)
+            row = pipeline_progress.load_progress(root)["steps"]["1.1"]
+            self.assertEqual(row["agent"], "opencode")
+            self.assertEqual(row["model"], "gpt-5.9")
+
+    def test_a_done_mark_never_overwrites_the_active_attribution(self):
+        data = pipeline_progress.empty_progress("demo")
+        row = data["steps"]["1.1"]
+        pipeline_progress.stamp_step_who(row, "opencode", "m1", overwrite=True)
+        pipeline_progress.stamp_step_who(row, "claude-code", "m2", overwrite=False)
+        self.assertEqual((row["agent"], row["model"]), ("opencode", "m1"))
+
+    def test_phase_agent_copy_reads_uniform_and_mixed(self):
+        f = pipeline_progress.phase_agent_copy
+        self.assertEqual(f(None, None), "")
+        self.assertEqual(f(None, 300), "5m 00s")
+        self.assertEqual(
+            f([{"agent": "opencode", "model": "m1", "seconds": 300}], 300),
+            "5m 00s · opencode · m1",
+        )
+        self.assertEqual(
+            f([{"agent": None, "model": None, "seconds": 60}], 60),
+            "1m 00s",
+        )
+        self.assertEqual(
+            f(
+                [
+                    {"agent": "claude-code", "model": None, "seconds": 3600},
+                    {"agent": "opencode", "model": None, "seconds": 300},
+                ],
+                3900,
+            ),
+            "1h 05m · claude-code (1h 00m) + opencode (5m 00s)",
+        )
+
+    def test_phase_agents_group_steps_by_who_ran_them(self):
+        data = pipeline_progress.empty_progress("demo")
+        data["steps"]["2.1"].update(
+            status="done", started=self.T(0, 0), ended=self.T(0, 30),
+            agent="opencode", model="m1",
+        )
+        data["steps"]["2.2"].update(
+            status="done", started=self.T(1, 0), ended=self.T(3, 0),
+            agent="claude-code", model="m2",
+        )
+        data["steps"]["2.3"].update(
+            status="done", started=self.T(3, 0), ended=self.T(3, 30),
+            agent="opencode", model="m1",
+        )
+        timing = pipeline_progress.refresh_timing(data)
+        phase = timing["phaseAgents"]["2"]
+        self.assertEqual(len(phase), 2)
+        self.assertEqual(phase[0]["agent"], "claude-code")   # longest first
+        self.assertEqual(phase[0]["seconds"], 120)
+        self.assertEqual(sorted(phase[1]["steps"]), ["2.1", "2.3"])
+        self.assertEqual(phase[1]["seconds"], 60)
+
+    def test_board_renders_hud_agent_and_phase_agent_labels(self):
+        data = pipeline_progress.empty_progress("demo")
+        data["started"] = self.T(0, 0)
+        data["sessions"] = [{
+            "kind": "resume", "owner": "session-2", "at": "2.1", "startedAt": self.T(5, 0),
+            "agent": "opencode", "model": "deepseek-v4.1-flash",
+        }]
+        data["steps"]["1.1"].update(
+            status="done", started=self.T(0, 53), ended=self.T(0, 57),
+            agent="claude-code", model="claude-fable-5.1",
+        )
+        html = pipeline_progress.stamp_html(pipeline_progress.live_template().read_text(), data)
+        self.assertIn(
+            '<span class="hud-agent" data-pipeline-agent title="Agent + model recorded for the current session">'
+            'opencode · deepseek-v4.1-flash</span>',
+            html,
+        )
+        self.assertIn('<p class="card-agents" data-phase-agents="1">4s · claude-code · claude-fable-5.1</p>', html)
+        self.assertIn('<p class="card-agents" data-phase-agents="2"></p>', html)
+
+    def test_timing_table_names_the_agent_per_step(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            data = pipeline_progress.empty_progress("demo")
+            data["steps"]["1.1"].update(
+                status="done", started=self.T(0, 0), ended=self.T(1, 0),
+                agent="opencode", model="deepseek-v4.1-flash",
+            )
+            pipeline_progress.save_progress(root, data, force=True)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_timing(root), 0)
+            text = out.getvalue()
+            self.assertIn("opencode · deepseek-v4.1-flash", text)
+            self.assertIn("phase 1   1m 00s · opencode · deepseek-v4.1-flash", text)

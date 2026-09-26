@@ -16,8 +16,17 @@ import {
 import {
   REVIEW_ROW_FILL,
   REVIEW_ROW_LABEL,
+  boardsClear,
+  isSectionShell,
+  nextBoardLeft,
+  nodePixelWidth,
+  parkedCopyHolds,
+  parkedSpecimenStyles,
+  reservedBoardWidth,
   reviewRowHtml,
   reviewSectionSid,
+  sectionOrderOk,
+  sortRowsBySection,
 } from "../scripts/park-capture-boards.mjs";
 
 test("Buttons is the canonical review board; Hover States is a legacy alias", () => {
@@ -44,6 +53,58 @@ test("review card badge is the home-desktop section NN, title is the specimen na
   assert.match(row, new RegExp(`background:${REVIEW_ROW_FILL}`, "i"));
   assert.doesNotMatch(row, /background:#ffffff/i);
   assert.match(row, new RegExp(`color:${REVIEW_ROW_LABEL}`, "i"));
+  assert.match(row, /width:fit-content/);
+  assert.match(row, /height:fit-content/);
+  assert.doesNotMatch(row, /width:1600px/);
+  assert.doesNotMatch(row, /width:100%/);
+});
+
+test("parked specimens keep source px width and rows stack by section, not dump order", () => {
+  const styles = parkedSpecimenStyles(502);
+  assert.equal(styles.width, "502px");
+  assert.equal(styles.height, "fit-content");
+  assert.equal(Object.hasOwn(styles, "width") && styles.width.includes("fit-content"), false);
+  assert.equal(parkedSpecimenStyles(1).width, undefined);
+  assert.equal(nodePixelWidth({ width: 502.4 }), 502);
+  assert.equal(nodePixelWidth({ width: 1 }), 0);
+  assert.deepEqual(
+    sortRowsBySection([
+      { id: "a", sid: "07", index: 1 },
+      { id: "b", sid: "02", index: 0 },
+      { id: "c", sid: "03", index: 2 },
+    ]).map((row) => row.sid),
+    ["02", "03", "07"],
+  );
+  assert.equal(reservedBoardWidth(1696, 1400), 1696);
+  assert.equal(nextBoardLeft({ worldX: 4902, width: 1696 }, 160), 6758);
+  assert.equal(isSectionShell({ name: "02 · services-section", width: 1600 }), true);
+  assert.equal(isSectionShell({ name: "Tab Card", width: 502 }), false);
+  assert.equal(isSectionShell({ name: "Desktop", width: 1600 }), true);
+  assert.equal(sectionOrderOk(["02", "03", "07"]), true);
+  assert.equal(sectionOrderOk(["07", "02"]), false);
+  assert.equal(parkedCopyHolds(
+    { width: 502, height: 99 },
+    { width: 502, height: 99 },
+    { height: 199 },
+  ).ok, true);
+  assert.match(parkedCopyHolds(
+    { width: 502, height: 99 },
+    { width: 1, height: 1832 },
+    { height: 1932 },
+  ).reason, /parked width/);
+  assert.match(parkedCopyHolds(
+    { width: 392, height: 392 },
+    { width: 392, height: 1832 },
+    { height: 1932 },
+  ).reason, /blew past source/);
+  assert.equal(boardsClear(
+    { id: "b", worldX: 4902, width: 405 },
+    { id: "c", worldX: 5467 },
+  ).ok, true);
+  assert.equal(boardsClear(
+    { id: "b", worldX: 4902, width: 1696 },
+    { id: "c", worldX: 6462 },
+  ).ok, false);
 });
 
 test("1.3 pull plan requires scanned NN sections and matching sectionId on every row", () => {
@@ -80,10 +141,18 @@ test("1.3 pull receipt is the 1.3 done artifact", () => {
   assert.equal(pullReceiptOk({
     ok: true,
     writer: "pull-desktop-specimens.mjs",
+    geometry: { ok: true },
     scannedSections: ["01 · hero"],
     buttons: [],
     components: [],
   }), true);
+  assert.equal(pullReceiptOk({
+    ok: true,
+    writer: "pull-desktop-specimens.mjs",
+    scannedSections: ["01 · hero"],
+    buttons: [],
+    components: [],
+  }), false);
 });
 
 function paperCall({ artboards, children, texts = [], htmlWrites = [] }) {
@@ -122,8 +191,33 @@ function paperCall({ artboards, children, texts = [], htmlWrites = [] }) {
     }));
   }
 
+  const sizes = new Map();
+  function sizeOf(id) {
+    return sizes.get(id) || { width: 186, height: 53 };
+  }
+
   return async (method, args = {}) => {
-    if (method === "get_basic_info") return reply({ artboards });
+    if (method === "get_basic_info") {
+      return reply({
+        artboards: artboards.map((board) => ({
+          width: 405,
+          worldX: board.name === "Components" ? 7000 : 4902,
+          worldY: 108,
+          ...board,
+        })),
+      });
+    }
+    if (method === "get_node_info") {
+      const size = sizeOf(args.nodeId);
+      const named = [...children.values()].flat().find((node) => node.id === args.nodeId);
+      return reply({
+        id: args.nodeId,
+        name: named?.name || "specimen",
+        width: size.width,
+        height: named?.name?.startsWith("Object") || named?.name?.startsWith("Component") ? 120 : size.height,
+        textContent: named?.textContent || null,
+      });
+    }
     if (method === "get_children") return reply({ children: children.get(args.nodeId) || [] });
     if (method === "rename_nodes") {
       for (const update of args.updates || []) {
@@ -150,6 +244,7 @@ function paperCall({ artboards, children, texts = [], htmlWrites = [] }) {
       if (parentId) {
         children.set(parentId, [...(children.get(parentId) || []), copy]);
       }
+      sizes.set(copy.id, sizeOf(sourceId));
       cloneTree(sourceId, copy.id);
       return reply({ createdNodes: [copy] });
     }
@@ -159,6 +254,17 @@ function paperCall({ artboards, children, texts = [], htmlWrites = [] }) {
     }
     if (method === "delete_nodes") {
       for (const id of args.nodeIds || []) children.set(id, []);
+      return reply({});
+    }
+    if (method === "update_styles") {
+      for (const update of args.updates || []) {
+        const left = update.styles?.left;
+        if (!left) continue;
+        for (const id of update.nodeIds || []) {
+          const board = artboards.find((item) => item.id === id);
+          if (board) board.worldX = Number.parseFloat(left);
+        }
+      }
       return reply({});
     }
     return reply({});

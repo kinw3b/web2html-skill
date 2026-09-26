@@ -11,6 +11,23 @@ Capture Tool is **not** this step.
 
 Walk every named `NN ·` section on `home-desktop` (`get_children` /
 `get_tree_summary`). Identify autonomously. One of a repeating pattern.
+`get_node_info` the candidate before it goes in the plan. The script refuses
+a section shell and refuses a copy whose read-back width or height does not
+match that measurement (Pitfall #230). Do not hand-duplicate.
+
+**Pick the compact painted node, then stop.**
+
+- Skip `NN ·` bands and anything whose measured width is the section
+  (~1600). That is the shell, not a specimen.
+- If the node is a list of equal tiles, park **one tile**, not the list.
+- If the node also holds a sibling cluster (logo grid, a second card, a
+  banner plus the card), park the child that is the card. Do not park the row.
+- If the node is only text or an icon, climb to the parent that owns the
+  border, fill, or image (the ring, the card chrome). Do not stop on the
+  inner text — that is how a counter loses its circle.
+- Do not park a node you have not measured. A percentage width
+  (`round(24%, 1px)`, `width: 100%`) reflows when reparented. The script
+  stamps the measured pixel width. Without that number it fails the pull.
 
 **FRAME `Buttons`** — CTAs and painted pills, including outlined ghosts.
 
@@ -42,16 +59,43 @@ The grey is review chrome only. Duplicate the desktop node as-is — do not
 paint a fill onto a transparent specimen. A white card hides white type and
 anything with no background of its own (Pitfall #222). `parkDesktopNodeOnBoard`
 stamps `#6F6F6F` on every row, including a duplicate of an older white template.
+Capture Tool takes use this same grey row. Do not write a white
+`confirmed take` card.
+
+**The row hugs the specimen (Pitfall #212 #230).** Width and height are
+`fit-content` on the row, the states wrapper, and the slot. Never a fixed
+`1600px` stage and never `width: 100%` on the slot — that stretches a portrait
+or a `width: 100%` image across the row. The duplicated node keeps the
+**source pixel width** (`get_node_info` before the copy). Never set
+`width: fit-content` on the specimen: wrapping text collapses to one character
+and the row grows to that letter stack. Do not `duplicate_nodes` without a
+parent — an unparented copy lands beside the row as a second card. Delete any
+row child that is not `title` or `states`.
+
+Pick the compact component, not the section row that also holds a sibling
+logo grid or a second copy of the same card.
+
+**Order is section `NN` ascending.** `duplicate_nodes` inserts the new row
+immediately after the template, and a flex board ignores `top`, so later
+inserts paint above earlier ones. After the pull, `restackReviewBoard` moves
+rows into section order. Do not leave `07` above `03`.
 
 **Height must hug the specimen (Pitfall #212).** Set the parked specimen root
 and its content-hugging slot / review wrapper to Paper **Fit** height
-(`height: fit-content`), never **Fill** / `height: 100%` or vertical flex growth
-inherited from the source section. Preserve intentional fixed-size internals
-and source paint; apply sizing corrections only to parked copies, not
-`home-desktop`. After placement, including hover copies, read back sizing and
-inspect the frame screenshot: each wrapper must enclose its full specimen,
-without clipping or overlapping adjacent rows. Do not mask overflow with
-`overflow: hidden` or arbitrary extra height.
+(`height: fit-content`), never **Fill** / `height: 100%` or a cloned template
+height (`1832px`). A blown-out first row must not be the template for the
+next. Preserve intentional fixed-size internals and source paint; apply sizing
+corrections only to parked copies, not `home-desktop`. After placement,
+including hover copies, read back sizing and inspect the frame screenshot:
+each wrapper must enclose its full specimen, without clipping or overlapping
+adjacent rows. Do not mask overflow with `overflow: hidden` or arbitrary
+extra height.
+
+**Components must clear Buttons.** Place FRAME `Components` at the measured
+Buttons right edge plus 160px (`REVIEW_BOARD_GAP`). The empty-frame reserve
+is 1400px; a 1600px row plus padding is 1696px, and using the reserve overlaps
+the next frame (Pitfall #230). `clearReviewBoardOverlap` runs at the end of
+the pull. Do not write `board.width = 1400` over a wider measured frame.
 
 ## Navigation placement — after the pull
 

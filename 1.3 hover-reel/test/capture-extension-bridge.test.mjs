@@ -148,9 +148,12 @@ test("native bridge waits for a Paper node before returning a green-check receip
   const takeWrite = calls.find((call) => call.name === "write_html"
     && call.args.targetNodeId === "board-1"
     && call.args.html.includes("Capture Extension · Primary navigation"));
-  assert.ok(takeWrite, "expected the confirmed take HTML to be written to Navigation");
+  assert.ok(takeWrite, "expected the capture row HTML to be written to Navigation");
   assert.match(takeWrite.args.html, /layer-name="Capture Extension[^>]+width:fit-content/);
+  assert.match(takeWrite.args.html, /background:#6F6F6F/);
+  assert.doesNotMatch(takeWrite.args.html, /confirmed take/);
   assert.doesNotMatch(takeWrite.args.html, /width:1304px/);
+  assert.doesNotMatch(takeWrite.args.html, /width:1600px/);
 
   const done = await request("COMPLETE_SESSION", {
     summary: { sourceUrl: "https://example.test/", takeCount: 1, boards: ["Navigation"] },

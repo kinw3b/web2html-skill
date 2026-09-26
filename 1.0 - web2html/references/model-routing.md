@@ -1,12 +1,13 @@
 # Model routing — three sessions, two handoffs
 
-**Orchestrator version (web2html):** **2.26.0**
+**Orchestrator version (web2html):** **2.30.0**
 
 A run spans three homepage sessions so the model can change per phase, plus optional all-pages Phase 4 (Paper) and Phase 5 (Astro site — chrome once, then page bodies).
 
 **The tier is advice, never a gate.** Nothing in the tooling reads or checks the
-model: `resume` has no `--model` / `--tier` flag, and the handoff prompt only
-*names* the recommended tier. Any model may run any session. A session that
+model: there is no `--tier` flag and no script branches on a model id. `resume` /
+`start` accept `--agent` / `--model` only to **record** who ran the session, and
+the handoff prompt only *names* the recommended tier. Any model may run any session. A session that
 finds itself on a different tier than the one recommended proceeds — it never
 stops to ask for a switch. The routing below says where a cheaper model's
 mistakes are caught by a script versus by the human checkpoint; it is a cost
@@ -136,9 +137,19 @@ different owner. If a session died mid-flight without releasing, clear it with
 
 `agent_findings_schema.json` sets `additionalProperties: true` at both the root
 and the finding level, so `"tier"` and `"model"` land with zero schema change.
-The controller lease owner in `qa/pipeline-progress.json` already records which
-session did the work. Without attribution you cannot tell a routing regression
-from an ordinary bad run.
+Every session records `agent` and `model` on its `sessions[]` entry
+(`--agent` defaults to the harness probe; `--model` or `WEB2HTML_MODEL` names
+the model). `mark active` copies that onto the step, so the board HUD names the
+current session and each phase card carries a `duration · agent · model` line —
+one clause per agent when a phase mixed them. Without attribution you cannot
+tell a routing regression from an ordinary bad run.
+
+A continued session records who it is:
+
+```sh
+python3 "$SKILLS/web2html/scripts/pipeline-progress.py" resume . --owner session-2 \
+  --model claude-fable-5.1
+```
 
 ## Reviewer lane
 

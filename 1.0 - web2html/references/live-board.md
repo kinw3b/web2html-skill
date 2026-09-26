@@ -14,7 +14,14 @@ Continued session 2 or 3 — **never `start`** (it resets the board, Pitfall #17
 
 ```sh
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --at 2.1 --owner session-2
+python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --owner session-2   # --at detected from the board
 ```
+
+Without `--at`, `resume` detects where the run sits (the active step, else
+the first pending one), prints `detected <step>`, logs this session under
+`sessions[]`, and prints the run total so far. This is how every fresh
+terminal finds its place and keeps the step clocks honest — do it before any
+work, then `mark --status active` (Pitfall #227 #228).
 
 **Right after `start`, run the intake** (2.26.0). `start` prints the questions.
 Question 1 is one choice: `Live URL — author from Paper` or `Webflow / HTML source`.
@@ -33,9 +40,10 @@ If **start** does not open the board, **stop**. Print the `file://` URI. Never o
 Derive `<project>` from the URL slug under `Documents/templates/<project>`.
 
 The open board refreshes every 15 seconds. As soon as 1.2 writes
-`qa/paper-file.json`, the Capture Tool row under the progress bar gets the
-stamped URL. Copy it into Chrome to pull custom components anytime — do not
-wait for 1.4. The link, if opened, is a new tab.
+`qa/paper-file.json`, the Capture Tool row stores the stamped URL. **Copy**
+and **Open** stay hidden until that URL exists and step **1.4** is active.
+They hide again once 1.4 is no longer the current step. The link, if opened,
+is a new tab.
 
 Stamp every boundary:
 
@@ -45,6 +53,69 @@ python3 $SKILLS/web2html/scripts/pipeline-progress.py mark "$PROJECT" --step 1.2
 ```
 
 `mark` cannot open 2.1+ while 1.1–1.4 are unfinished. `skip` fails.
+
+## Timing (2.27.0)
+
+Every step is timed by its own marks, and the run total is the **sum of step
+durations** — never wall clock. A pause between sessions or terminals adds
+nothing.
+
+- `mark --status active` stamps `started` and prints `1.2 started 01:41:05`.
+- `mark --status done` stamps `ended` + `durationSeconds` and prints
+  `1.2 finished 26 Sep 01:44   took 2m 57s` followed by the run total line
+  (`run total … agent … · human … N steps timed   last finished …`). Human
+  checkpoints (1.4 / 2.4 / 3.4 / 4.4 / 5.6) count in `human`, everything else in `agent`.
+- A step marked done **without** a prior `mark active` still lands in the total:
+  `started` is inferred from the tightest lower bound (previous step's end, this
+  session's claim, run start) and flagged `startedInferred` — the board shows a
+  `*` and the mark prints `start inferred — mark active next time`. Do not rely
+  on it; mark active when you enter a step.
+- `skipped` is not work: no inference, no duration.
+- `start` and `resume` append `{kind, owner, at, startedAt}` to `sessions[]`.
+- The board stamps finished / took on every grid row and timeline item, the
+  phase sum on each card head, and `total … · agent …` in the HUD.
+- `python3 $SKILLS/web2html/scripts/pipeline-progress.py timing <project> [--json]`
+  prints the per-step table, per-phase sums, the total, and the session log.
+  Put that total in the 3.4 / 4.4 / 5.6 hand-back so the human sees the cost.
+
+Rule for every new agent session: `resume` first (it prints where the run
+sits and the total so far), then `mark active` before touching the step. A
+`mark` is the only thing that adds time. Pitfall #227 #228.
+
+## Agent + model (2.28.0)
+
+Each session records who ran it, so every step can be attributed to an agent and
+a model. The run spans three sessions and the model may change at each phase;
+the board makes that visible instead of guessing.
+
+- `resume` / `start` take `--agent` and `--model`:
+  `resume . --owner session-2 --model claude-fable-5.1`. `--agent` defaults to
+  the harness probe (`opencode` / `claude-code` / `codex` …). `--model` falls
+  back to `WEB2HTML_MODEL`. Neither flag is a gate — they only record.
+- `mark --status active` stamps the step with the recording session's agent and
+  model (`--agent` / `--model` override per mark). `mark --status done` only
+  fills a blank, so it never overwrites the agent that actually ran the step.
+- The HUD names the current session after the total (`… · AGENT 2H 16M | OPENCODE · GPT-5.9`).
+- Each phase card carries a status line: `56m 56s · opencode · deepseek-v4.1-flash`.
+  When a phase mixed agents it lists each one with the time it accounts for:
+  `1h 51m · claude-code · claude-fable-5.1 (1h 44m) + opencode · deepseek-v4.1-flash (6m 20s)`.
+  A phase with no timed work yet shows nothing.
+- `timing` prints an `agent` column per step, the agent on each phase line, and
+  each session's agent/model. Pitfall #229.
+
+## Capture Tool block (2.28.0)
+
+The panel above the spine never prints the stamped address — a long
+`?paperFileId=…&projectRoot=…` query made the board noisy.
+
+- **Copy** copies the stamped address; the label flips to `Copied`.
+- **Open** opens it in a new window (`window.open`).
+- Both buttons stay hidden, and a `Waiting for Paper` line shows, until
+  `qa/paper-file.json` yields a URL **and** step 1.4 is active. Then the line
+  reads `Optional way to capture dropdowns, buttons or components back to paper.design.`
+  Once 1.4 is done or skipped, the buttons hide again. The sentence can stay.
+- The address itself lives on a hidden `<a data-pipeline-capture-url>`, which is
+  what both buttons read. Pitfall #229.
 
 ## Todos
 

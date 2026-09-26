@@ -10,7 +10,7 @@ and its native bridge are NOT installed — they are a separate download
 ./scripts/install-skills.sh` opts in. `pipeline-progress.py capture-doctor`
 reports a bridge that would show OFFLINE (Pitfall #217).
 
-**Orchestrator version (web2html):** **2.26.0**
+**Orchestrator version (web2html):** **2.30.0**
 
 This file is the **repo** index. The agent-facing index is `1.0 - web2html/SKILL.md`
 (~130 lines). Detail lives in `web2html/references/` and is read **per step**,
@@ -57,8 +57,37 @@ whichever model the operator chose and never stop to ask for a switch.
 controller lease and print a copy-ready prompt for the next session
 (`qa/handoff-2.0.md` / `qa/handoff-3.0.md`). **4.4 opted in** prints
 `qa/handoff-5.0.md`. **5.6 done** tidies. **A new session resumes with**
-`pipeline-progress.py resume . --at <step> --owner <session>` — never `start`,
+`pipeline-progress.py resume . --owner <session>` (optionally `--at <step>`;
+omitted, the step is detected from the board) — never `start`,
 which force-resets the board.** Detail in `references/model-routing.md`.
+
+**Timing (2.28.0).** Marks are the clock. `mark active` stamps `started`,
+`mark done` stamps `ended` + `durationSeconds` and prints the step's duration
+plus the run total. The total is the **sum of step durations, never wall clock**
+— pauses between sessions add nothing. `start` / `resume` log the session under
+`sessions[]`; the board shows finished / took per step, per-phase sums, and the
+total in the HUD. `timing <project> [--json]` prints the table. Rule for every
+new agent session: `resume` first (it prints where the run sits and the total so
+far), then `mark active` before touching the step. Pitfall #227 #228.
+
+**Agent + model (2.28.0).** Each session records who ran it: `resume` /
+`start` take `--agent` (defaults to the harness probe) and `--model` (or
+`WEB2HTML_MODEL`). `mark active` stamps the step with the recording session's
+agent, so a phase that mixed agents still shows each one. The HUD names the
+current session; every phase card carries a `duration · agent · model` line.
+The Capture Tool block never prints the stamped address — `Copy` and `Open`
+appear only while step 1.4 is active and the URL exists. Pitfall #229.
+
+**Run report (2.29.0).** Every `mark done` refreshes `<project>/run-report.md`
+— a plain, portable Markdown log of the run for the human to drop into any
+database afterwards: sessions with agent + model, per-step and per-phase
+durations, each human checkpoint with its status / duration / who ran it, the
+Paper review comments captured around 1.4 (with resolved status from the
+append-only `qa/paper-comments-log.jsonl`), and free-form notes. Log an
+additional request at a checkpoint with
+`run_report.py note . --step 2.4 --text "…" --author human`. The report is an
+output, never a gate: a failed refresh never fails a mark, and it survives the
+end-of-run tidy at the project root.
 
 **Homepage (1–3) vs all pages (4–6).** 1.0–3.0 rebuild `/` only and are required
 through 3.4. 4.0–6.0 are optional: Paper the extra URLs, author interiors, then
@@ -151,7 +180,7 @@ exactly one foundations-only `Design Library`, one canonical token set, bind
 without moving geometry. After seed QA is green, the agent walks every `NN ·`
 section on token-seeded `home-desktop`, writes `qa/buttons-components-plan.json`,
 and runs `pull-desktop-specimens.mjs` so unique CTAs land on FRAME `Buttons`
-and unique cards/snippets land on FRAME `Components`. Each parked row sits on a neutral grey stage (`#6F6F6F`) so transparent specimens and white type stay visible (Pitfall #222). The pull then authors
+and unique cards/snippets land on FRAME `Components`. Each parked row sits on a neutral grey stage (`#6F6F6F`) so transparent specimens and white type stay visible (Pitfall #222). The row hugs the specimen at its source pixel width — never a 1600px slot, never `width: fit-content` on the copy — then restacks by section `NN`, and Components clears the measured Buttons edge by 160px (Pitfall #230). The pull then authors
 button hover from source CSS `:hover` onto those Buttons rows
 (`qa/button-hover.json`). Receipts `qa/buttons-components-pull.json` and
 `qa/button-hover.json` are required to mark 1.3 done. Detail in
@@ -312,7 +341,8 @@ step. 2.0 must not stamp, join, or retag on those ids.
     the 2.4 checkpoint, run `list-paper-comments.mjs`. If threads
     are open, apply every fix on the canvas and the matching build, resolve
     the thread only after the fix lands, and re-run until exit 0. Do not stop
-    to ask whether to fix a pinned problem. Pitfall #132.
+    to ask whether to fix a pinned problem. Every snapshot also appends to
+    `qa/paper-comments-log.jsonl`, which feeds the run report. Pitfall #132.
 13. **2.0 does not join on capture ids.** The dump-era join scripts are deleted
     (2.10.0) — there is nothing left to run. 1.2 does not stamp pc-path trees as
     Paper `layer-name`. Sidecars are optional.
@@ -355,7 +385,12 @@ step. 2.0 must not stamp, join, or retag on those ids.
     or canonical `qa/` receipts. `sync` ignores their files; only the controller
     may run a fresh official gate. No active reviewer lease may remain at 3.4.
 19. **No pipeline bypass.** First tool of a **new run** is
-    `pipeline-progress.py start`. First tool of a **continued session** (2 or 3)
+    `orca_workspace.py ensure <slug>` — it creates the run's single primary
+    workspace folder (an Orca project / folder context when the Orca CLI is
+    reachable, a plain folder otherwise; reused on every later call, never a
+    second worktree) — then `pipeline-progress.py start <RUN ROOT>` on the
+    printed path; the session continues on that root. `start` registers the
+    folder in Orca itself if ensure was skipped. First tool of a **continued session** (2 or 3)
     is `pipeline-progress.py resume . --at <step> --owner <session>` — `start`
     force-resets the board and would throw the run away. Do not
     scrape-to-site, Firecrawl-to-HTML, or write `rebuild/*.html` before 1.4 is
@@ -395,7 +430,9 @@ step. 2.0 must not stamp, join, or retag on those ids.
 ### Live board
 
 Invoke `/web2html` or `Convert <URL> to HTML`. Instant first action of a **new
-run**: `pipeline-progress.py start <template-project>` — it writes **and opens**
+run**: `orca_workspace.py ensure <slug>` (one primary workspace folder — an Orca
+project when the CLI is reachable, plain otherwise; never a second worktree),
+then `pipeline-progress.py start <RUN ROOT>` — it writes **and opens**
 that folder's `pipeline.html`. A **continued session** uses
 `pipeline-progress.py resume <project> --at <step> --owner <session>`, which
 opens the same board without resetting it. If the board does not open, **stop**. Print the `file://`

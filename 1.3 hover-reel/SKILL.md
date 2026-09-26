@@ -1,7 +1,7 @@
 ---
 name: hover-reel
 description: Capture a live site's interactive COMPONENTS on the homepage (`/`) as default/hover state pairs of Paper-ready inline-styled HTML, then rebuild them in Paper as real editable layers. No GIFs. Default is one page. Extra routes require --allow-multi-page and an explicit user request. Uses visible Chrome so live whileHover fires. Inside website-to-html, 1.3 fills FRAME Buttons + Components from desktop (`pull-desktop-specimens.mjs`) and authors button hover from source CSS (`author-button-hover.mjs`); this Capture Tool is leftover 1.4 hover only. Public 4.1–4.4 are the later optional Phase 4 page import. Triggers - "hover reel", "capture hover states", "navbar hover states", "component states to paper", "A/6", "capture the navbar", "hover parity".
-version: 1.1.109
+version: 1.1.110
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]

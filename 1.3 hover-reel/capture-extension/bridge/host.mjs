@@ -348,10 +348,10 @@ function takeRowHtml(take) {
     first = safeTakeHtml(take.html);
   }
   const state = (name, html) => html ? `<div layer-name="${name}" style="display:flex;align-items:flex-start;width:fit-content;height:fit-content;overflow:visible;">${html}</div>` : "";
-  return `<div layer-name="Capture Extension · ${label}" style="display:flex;flex-direction:column;align-items:flex-start;gap:16px;width:fit-content;height:fit-content;padding:24px;background:#FFFFFF;border-radius:16px;overflow:visible;box-sizing:border-box;">
-    <div layer-name="title" style="display:flex;align-items:center;gap:12px;">
+  return `<div layer-name="Capture Extension · ${label}" style="display:flex;flex-direction:column;align-items:flex-start;gap:16px;width:fit-content;height:fit-content;flex-shrink:0;padding:24px;background:#6F6F6F;border-radius:16px;overflow:visible;box-sizing:border-box;">
+    <div layer-name="title" style="display:flex;align-items:center;gap:12px;width:fit-content;height:fit-content;">
       <div layer-name="section-number" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:36px;background:#E11D2E;flex-shrink:0;"><p style="font-family:Inter,sans-serif;font-size:12px;font-weight:700;color:#FFFFFF;line-height:120%;">${section}</p></div>
-      <div style="display:flex;flex-direction:column;gap:2px;"><p style="font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:#111827;line-height:120%;">${label}</p><p style="font-family:Inter,sans-serif;font-size:10px;font-weight:500;color:#667085;line-height:120%;">Paper Capture Extension · confirmed take</p></div>
+      <p style="font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:#F2F2F2;line-height:120%;">${label}</p>
     </div>
     <div layer-name="states" style="display:flex;flex-direction:column;align-items:flex-start;gap:12px;width:fit-content;height:fit-content;overflow:visible;">
       ${state("first", first)}${state("second", second)}

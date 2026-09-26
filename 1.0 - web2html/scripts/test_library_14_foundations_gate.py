@@ -36,6 +36,7 @@ def _official(root: Path) -> None:
     (root / "qa" / "buttons-components-pull.json").write_text(json.dumps({
         "ok": True,
         "writer": "pull-desktop-specimens.mjs",
+        "geometry": {"ok": True},
         "scannedSections": ["01 · hero"],
         "buttons": [],
         "components": [],

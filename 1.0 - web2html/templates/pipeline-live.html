@@ -32,7 +32,7 @@
   body { color: var(--text); font: 15px/1.5 var(--sans); }
   a { color: inherit; }
   code { color: var(--ink); font-family: var(--mono); font-size: 0.88em; }
-  .page { width: min(920px, 100%); margin: auto; padding: 32px 20px 80px; }
+  .page { width: min(1200px, 100%); margin: auto; padding: 32px 24px 80px; }
   .mast { display: flex; justify-content: space-between; gap: 16px; margin: 0 0 48px; color: var(--muted); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
   .mast strong, .mast-tag { color: var(--accent); }
   h1, h2, h3, h4 { font-family: var(--display); }
@@ -48,8 +48,8 @@
   body[data-mode="fast"] .run-turbo { display: block; animation: gear-spin 1.1s linear infinite; }
   .lead { width: 100%; max-width: none; margin: 20px 0 36px; color: var(--text); font-size: 1.08rem; }
   .hud { margin-bottom: 44px; }
-  .hud-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; color: var(--muted); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
-  .status-live { display: inline-flex; align-items: center; gap: 10px; }
+  .hud-meta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 16px; margin-bottom: 9px; color: var(--muted); font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+  .status-live { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
   .loader-grid {
     display: grid;
     flex-shrink: 0;
@@ -100,7 +100,7 @@
   .bar i { display: block; width: var(--pct, 0%); height: 100%; background: var(--accent); }
   .capture-pull {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 14px;
     margin: 12px 0 0;
     padding: 12px 14px;
@@ -114,18 +114,18 @@
   .capture-pull[data-state="ready"] .rec-dot { animation: rec-pulse 1.6s ease-in-out infinite; }
   @keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
   .capture-name { margin: 0; color: var(--text); font: 600 12px/1.2 var(--mono); }
-  .capture-note { margin: 4px 0 0; color: var(--muted); font: 500 12px/1.45 var(--mono); }
-  .capture-pending { display: block; margin: 8px 0 0; color: var(--muted); }
-  .capture-url {
-    display: block;
-    margin: 8px 0 0;
-    color: var(--muted);
-    overflow-wrap: anywhere;
-    text-decoration: none;
-  }
-  .capture-url:hover { color: var(--text); }
-  .capture-pull[data-state="ready"] .capture-pending { display: none; }
-  .capture-pull[data-state="waiting"] .capture-url { display: none; }
+  .capture-note { display: none; margin: 4px 0 0; color: var(--muted); font: 500 12px/1.2 var(--mono); }
+  .capture-pending { display: block; margin: 4px 0 0; color: var(--muted); }
+  /* The stamped address is a data carrier for the buttons, never painted:
+     the panel stays quiet and Copy / Open do the work. */
+  .capture-url { display: none; }
+  .capture-pull[data-state="ready"] .capture-pending,
+  .capture-pull[data-state="held"] .capture-pending { display: none; }
+  .capture-pull[data-state="ready"] .capture-note,
+  .capture-pull[data-state="held"] .capture-note { display: block; }
+  /* Copy / Open render only while step 1.4 is active and the URL exists. */
+  .capture-actions { display: none; align-items: flex-start; gap: 8px; flex: 0 0 auto; }
+  .capture-pull[data-state="ready"] .capture-actions { display: flex; }
   .capture-copy {
     display: inline-flex;
     align-items: center;
@@ -144,6 +144,24 @@
   .capture-copy svg { width: 16px; height: 16px; }
   .capture-copy[disabled] { background: var(--line); color: var(--muted); cursor: default; }
   .capture-copy.is-copied { background: var(--ink); color: var(--accent); }
+  .capture-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--ink);
+    font: 700 12px/1 var(--mono);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .capture-open svg { width: 15px; height: 15px; }
+  .capture-open:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); }
+  .capture-open[disabled] { border-color: var(--line); color: var(--muted); cursor: default; }
   .spine { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 48px; padding: 0; list-style: none; }
   .spine li { position: relative; padding: 13px 42px 13px 12px; border: 1px solid var(--line); background: var(--panel); transition: border-color 160ms ease, background 160ms ease; }
   .spine li + li { border-left: 0; }
@@ -168,8 +186,27 @@
   .card.is-optional .scope { flex: 1 0 100%; margin-left: 0; color: var(--muted); }
   .card-head .id { color: var(--accent); font: 700 11px/1 var(--mono); }
   .card-head h3 { margin: 0; color: var(--ink); font-size: .95rem; font-weight: 500; }
-  .row { display: grid; grid-template-columns: 10px 40px minmax(0, 1fr); gap: 9px; align-items: center; padding: 8px 14px; }
+  .row { display: grid; grid-template-columns: 10px 40px minmax(0, 1fr) 64px; gap: 9px; align-items: center; padding: 8px 14px; }
   .row:last-child { padding-bottom: 15px; }
+  /* Timing — pipeline-progress.py stamps started / finished / took into
+     [data-step-time], the phase sum into [data-phase-time], and the run total
+     (sum of step durations, never wall clock) into [data-pipeline-duration].
+     Times stay muted and right-aligned; weight, not colour, carries them. */
+  .row-time { justify-self: end; text-align: right; color: var(--muted); font: 700 10px/1 var(--mono); letter-spacing: .04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row-time:empty { display: none; }
+  .card-time { margin-left: auto; text-align: right; color: var(--muted); font: 700 10px/1 var(--mono); letter-spacing: .04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .card-head .scope + .card-time { margin-left: 0; }
+  .card-time:empty { display: none; }
+  /* Per-phase status: duration · agent · model. Blank until the phase has timed work. */
+  .card-agents { margin: -3px 14px 9px; color: var(--muted); font: 600 10px/1.45 var(--mono); letter-spacing: .02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .card-agents:empty { display: none; }
+  .timeline-time { color: var(--muted); font: 600 11px/1.5 var(--mono); letter-spacing: .02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .timeline-time:empty { display: none; }
+  .hud-right { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; }
+  .hud-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hud-time:empty { display: none; }
+  .hud-agent { padding-left: 12px; border-left: 1px solid var(--line); color: var(--muted); font: 700 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .hud-agent:empty { display: none; }
   .mark { width: 8px; height: 8px; border: 1px solid var(--line); }
   .row .id { margin: 0; color: var(--muted); font: 700 10px/1 var(--mono); }
   .row h4 { margin: 0; min-width: 0; color: var(--text); font-size: .82rem; line-height: 1.35; font-weight: 500; text-wrap: pretty; }
@@ -221,6 +258,7 @@
   .timeline-key { position: sticky; top: 20px; align-self: start; z-index: 1; display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font: 800 11px/1 var(--mono); letter-spacing: .04em; transition: color 180ms ease, border-color 180ms ease, background 180ms ease; }
   .timeline-copy { padding: 0 0 28px; }
   .timeline-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  .timeline-head .timeline-time { margin-left: auto; margin-top: 6px; }
   .timeline-head h3 { margin: 0; color: var(--ink); font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 500; line-height: 1.25; letter-spacing: -.02em; text-wrap: balance; }
   .timeline-copy > p { max-width: 52ch; margin: 10px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
   .timeline-status { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 7px 9px 6px; border: 1px solid var(--line); color: var(--muted); font: 800 9px/1 var(--mono); letter-spacing: .09em; white-space: nowrap; }
@@ -275,7 +313,7 @@
   }
   @media (max-width: 720px) {
     .capture-pull { display: block; }
-    .capture-copy { margin-top: 12px; }
+    .capture-actions { margin-top: 12px; }
     .spine, .cards { grid-template-columns: 1fr; }
     .spine li + li { border-left: 1px solid var(--line); border-top: 0; }
     .timeline-item::before { left: 21.5px; }
@@ -284,7 +322,9 @@
     .timeline-item { grid-template-columns: 72px minmax(0, 1fr); min-height: 170px; }
     .timeline-key { width: 44px; height: 44px; }
     .timeline-head { display: block; }
+    .timeline-head .timeline-time { display: block; margin: 10px 0 0; text-align: left; }
     .timeline-status { display: inline-block; margin-top: 12px; }
+    .hud-agent { padding-left: 0; border-left: 0; }
   }
 </style>
 </head>
@@ -305,6 +345,10 @@
         </span>
         <span class="converting-label" data-pipeline-current>Converting</span>
       </span>
+      <span class="hud-right">
+        <span class="hud-time" data-pipeline-duration title="Sum of step durations — pauses between sessions do not count"></span>
+        <span class="hud-agent" data-pipeline-agent title="Agent + model recorded for the current session"></span>
+      </span>
     </div>
     <div class="bar" aria-hidden="true"><i data-pipeline-bar style="--pct:0%"></i></div>
     <div class="capture-pull" data-pipeline-capture data-state="waiting">
@@ -324,15 +368,21 @@
         </span>
         <div>
           <p class="capture-name">Capture Tool</p>
-          <p class="capture-note">Chrome extension. If you need custom components, dropdowns, or buttons back in Paper, copy this address into Chrome to start Capture Tool.</p>
+          <p class="capture-note">Optional way to capture dropdowns, buttons or components back to paper.design.</p>
           <span class="capture-pending">Waiting for Paper</span>
-          <a class="capture-url" data-pipeline-capture-url href="" target="_blank" rel="noopener noreferrer"></a>
+          <a class="capture-url" data-pipeline-capture-url href="" target="_blank" rel="noopener noreferrer" hidden></a>
         </div>
       </div>
-      <button type="button" class="capture-copy" data-pipeline-capture-copy disabled>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        <span data-copy-label>Copy</span>
-      </button>
+      <div class="capture-actions">
+        <button type="button" class="capture-copy" data-pipeline-capture-copy disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <span data-copy-label>Copy</span>
+        </button>
+        <button type="button" class="capture-open" data-pipeline-capture-open disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4 10 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Open</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -350,25 +400,25 @@
         <p class="card-band">Homepage · required</p>
         <div class="cards">
           <section class="card">
-            <div class="card-head"><span class="id">1</span><h3>Capture</h3><span class="scope">Homepage</span></div>
-            <article class="row" data-step="1.1"><span class="mark"></span><p class="id">1.1</p><h4>Scope, assets, fonts</h4></article>
-            <article class="row" data-step="1.2"><span class="mark"></span><p class="id">1.2</p><h4>Breakpoints + Navigation</h4></article>
-            <article class="row" data-step="1.3"><span class="mark"></span><p class="id">1.3</p><h4>Design Library + Tokens</h4></article>
-            <article class="row check" data-step="1.4"><span class="mark"></span><p class="id">1.4</p><h4>Human checkpoint</h4></article>
+            <div class="card-head"><span class="id">1</span><h3>Capture</h3><span class="scope">Homepage</span><span class="card-time" data-phase-time="1"></span></div><p class="card-agents" data-phase-agents="1"></p>
+            <article class="row" data-step="1.1"><span class="mark"></span><p class="id">1.1</p><h4>Scope, assets, fonts</h4><span class="row-time" data-step-time="1.1"></span></article>
+            <article class="row" data-step="1.2"><span class="mark"></span><p class="id">1.2</p><h4>Breakpoints + Navigation</h4><span class="row-time" data-step-time="1.2"></span></article>
+            <article class="row" data-step="1.3"><span class="mark"></span><p class="id">1.3</p><h4>Design Library + Tokens</h4><span class="row-time" data-step-time="1.3"></span></article>
+            <article class="row check" data-step="1.4"><span class="mark"></span><p class="id">1.4</p><h4>Human checkpoint</h4><span class="row-time" data-step-time="1.4"></span></article>
           </section>
           <section class="card">
-            <div class="card-head"><span class="id">2</span><h3>Build</h3><span class="scope">Homepage</span></div>
-            <article class="row" data-step="2.1"><span class="mark"></span><p class="id">2.1</p><h4>Design System</h4></article>
-            <article class="row" data-step="2.2"><span class="mark"></span><p class="id">2.2</p><h4>Author the homepage</h4></article>
-            <article class="row" data-step="2.3"><span class="mark"></span><p class="id">2.3</p><h4>Validate vs Paper</h4></article>
-            <article class="row check" data-step="2.4"><span class="mark"></span><p class="id">2.4</p><h4>Sign-off → 3.0 polish</h4></article>
+            <div class="card-head"><span class="id">2</span><h3>Build</h3><span class="scope">Homepage</span><span class="card-time" data-phase-time="2"></span></div><p class="card-agents" data-phase-agents="2"></p>
+            <article class="row" data-step="2.1"><span class="mark"></span><p class="id">2.1</p><h4>Design System</h4><span class="row-time" data-step-time="2.1"></span></article>
+            <article class="row" data-step="2.2"><span class="mark"></span><p class="id">2.2</p><h4>Author the homepage</h4><span class="row-time" data-step-time="2.2"></span></article>
+            <article class="row" data-step="2.3"><span class="mark"></span><p class="id">2.3</p><h4>Validate vs Paper</h4><span class="row-time" data-step-time="2.3"></span></article>
+            <article class="row check" data-step="2.4"><span class="mark"></span><p class="id">2.4</p><h4>Sign-off → 3.0 polish</h4><span class="row-time" data-step-time="2.4"></span></article>
           </section>
           <section class="card">
-            <div class="card-head"><span class="id">3</span><h3>QA</h3><span class="scope">Homepage</span></div>
-            <article class="row" data-step="3.1"><span class="mark"></span><p class="id">3.1</p><h4>A11y + contrast</h4></article>
-            <article class="row" data-step="3.2"><span class="mark"></span><p class="id">3.2</p><h4>Hover + GSAP</h4></article>
-            <article class="row" data-step="3.3"><span class="mark"></span><p class="id">3.3</p><h4>Semantics + SEO</h4></article>
-            <article class="row check" data-step="3.4"><span class="mark"></span><p class="id">3.4</p><h4>Human checkpoint</h4></article>
+            <div class="card-head"><span class="id">3</span><h3>QA</h3><span class="scope">Homepage</span><span class="card-time" data-phase-time="3"></span></div><p class="card-agents" data-phase-agents="3"></p>
+            <article class="row" data-step="3.1"><span class="mark"></span><p class="id">3.1</p><h4>A11y + contrast</h4><span class="row-time" data-step-time="3.1"></span></article>
+            <article class="row" data-step="3.2"><span class="mark"></span><p class="id">3.2</p><h4>Hover + GSAP</h4><span class="row-time" data-step-time="3.2"></span></article>
+            <article class="row" data-step="3.3"><span class="mark"></span><p class="id">3.3</p><h4>Semantics + SEO</h4><span class="row-time" data-step-time="3.3"></span></article>
+            <article class="row check" data-step="3.4"><span class="mark"></span><p class="id">3.4</p><h4>Human checkpoint</h4><span class="row-time" data-step-time="3.4"></span></article>
           </section>
         </div>
       </div>
@@ -376,20 +426,20 @@
         <p class="card-band is-optional">All pages · optional</p>
         <div class="cards">
           <section class="card is-optional">
-            <div class="card-head"><span class="id">4</span><h3>Pages</h3><span class="opt">OPTIONAL</span><span class="scope">Capture all pages</span></div>
-            <article class="row" data-step="4.1"><span class="mark"></span><p class="id">4.1</p><h4>Sitemap</h4></article>
-            <article class="row" data-step="4.2"><span class="mark"></span><p class="id">4.2</p><h4>Capture pages</h4></article>
-            <article class="row" data-step="4.3"><span class="mark"></span><p class="id">4.3</p><h4>Seed tokens</h4></article>
-            <article class="row check" data-step="4.4"><span class="mark"></span><p class="id">4.4</p><h4>Human review</h4></article>
+            <div class="card-head"><span class="id">4</span><h3>Pages</h3><span class="opt">OPTIONAL</span><span class="scope">Capture all pages</span><span class="card-time" data-phase-time="4"></span></div><p class="card-agents" data-phase-agents="4"></p>
+            <article class="row" data-step="4.1"><span class="mark"></span><p class="id">4.1</p><h4>Sitemap</h4><span class="row-time" data-step-time="4.1"></span></article>
+            <article class="row" data-step="4.2"><span class="mark"></span><p class="id">4.2</p><h4>Capture pages</h4><span class="row-time" data-step-time="4.2"></span></article>
+            <article class="row" data-step="4.3"><span class="mark"></span><p class="id">4.3</p><h4>Seed tokens</h4><span class="row-time" data-step-time="4.3"></span></article>
+            <article class="row check" data-step="4.4"><span class="mark"></span><p class="id">4.4</p><h4>Human review</h4><span class="row-time" data-step-time="4.4"></span></article>
           </section>
           <section class="card is-optional">
-            <div class="card-head"><span class="id">5</span><h3>Site</h3><span class="opt">OPTIONAL</span><span class="scope">Full website · Astro</span></div>
-            <article class="row" data-step="5.1"><span class="mark"></span><p class="id">5.1</p><h4>Scaffold Astro</h4></article>
-            <article class="row" data-step="5.2"><span class="mark"></span><p class="id">5.2</p><h4>Author pages</h4></article>
-            <article class="row" data-step="5.3"><span class="mark"></span><p class="id">5.3</p><h4>Desktop QA</h4></article>
-            <article class="row" data-step="5.4"><span class="mark"></span><p class="id">5.4</p><h4>Responsive</h4></article>
-            <article class="row" data-step="5.5"><span class="mark"></span><p class="id">5.5</p><h4>Wire routes + SEO</h4></article>
-            <article class="row check" data-step="5.6"><span class="mark"></span><p class="id">5.6</p><h4>Human checkpoint</h4></article>
+            <div class="card-head"><span class="id">5</span><h3>Site</h3><span class="opt">OPTIONAL</span><span class="scope">Full website · Astro</span><span class="card-time" data-phase-time="5"></span></div><p class="card-agents" data-phase-agents="5"></p>
+            <article class="row" data-step="5.1"><span class="mark"></span><p class="id">5.1</p><h4>Scaffold Astro</h4><span class="row-time" data-step-time="5.1"></span></article>
+            <article class="row" data-step="5.2"><span class="mark"></span><p class="id">5.2</p><h4>Author pages</h4><span class="row-time" data-step-time="5.2"></span></article>
+            <article class="row" data-step="5.3"><span class="mark"></span><p class="id">5.3</p><h4>Desktop QA</h4><span class="row-time" data-step-time="5.3"></span></article>
+            <article class="row" data-step="5.4"><span class="mark"></span><p class="id">5.4</p><h4>Responsive</h4><span class="row-time" data-step-time="5.4"></span></article>
+            <article class="row" data-step="5.5"><span class="mark"></span><p class="id">5.5</p><h4>Wire routes + SEO</h4><span class="row-time" data-step-time="5.5"></span></article>
+            <article class="row check" data-step="5.6"><span class="mark"></span><p class="id">5.6</p><h4>Human checkpoint</h4><span class="row-time" data-step-time="5.6"></span></article>
           </section>
         </div>
       </div>
@@ -400,28 +450,28 @@
     <p class="eyebrow">Run timeline</p>
     <h2 id="timeline-title">Follow the work as it moves.</h2>
     <div class="timeline">
-      <article class="timeline-item" data-progress-step="1.1"><div class="timeline-key">1.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scope the page and keep the files honest</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Open the live board first. Scrape the homepage — images plus Latin fonts only. Do not write rebuild HTML.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M26 6h16l8 8v24H26z" stroke="var(--line-strong)"/><path d="M42 6v8h8" stroke="var(--line-strong)"/><path d="M18 22h40"/><circle cx="18" cy="22" r="2" fill="currentColor" stroke="none"/></svg><span>named, checked</span></div></div></article>
-      <article class="timeline-item" data-progress-step="1.2"><div class="timeline-key">1.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Capture every breakpoint to Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Capture the homepage and Navigation at 1600, 768, and 390. Store a source clip next to each lander. Prove desktop geometry before moving on.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>1600 · 768 · 390</span></div></div></article>
-      <article class="timeline-item" data-progress-step="1.3"><div class="timeline-key">1.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Create the Design Library + Tokens</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Mine one set of colors, type, and spacing from the Paper frames. Bind them back without moving layout. Then copy unique buttons and cards from desktop into the Buttons and Components frames, and author button hover from source CSS.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>named once</span></div></div></article>
-        <article class="timeline-item" data-progress-step="1.4"><div class="timeline-key">1.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Review all three sizes, Navigation, Buttons, Components, and the Design Library in Paper. Pin every problem. Capture Tool stays optional leftover hover. Marking done prints the session 2 prompt.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>walk Paper, then sign off</span></div></div></article>
-            <article class="timeline-item" data-progress-step="2.1"><div class="timeline-key">2.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Emit the Design System</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Write rebuild/design-system.html and tokens.css from the signed Design Library. Token contract, not the ship.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>system before page</span></div></div></article>
-      <article class="timeline-item" data-progress-step="2.2"><div class="timeline-key">2.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Author the homepage from Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Author one semantic, responsive first pass from Paper desktop using the 2.1 tokens. Writes <code>index-semantic.html</code>. No new palette, fonts, or copy. file:// only.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="10" y="6" width="42" height="12" rx="2"/><rect x="14" y="18" width="42" height="12" rx="2"/><rect x="18" y="30" width="42" height="12" rx="2" stroke="currentColor"/></svg><span>Paper is the brief</span></div></div></article>
-      <article class="timeline-item" data-progress-step="2.3"><div class="timeline-key">2.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Validate each section against Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Pull the numbered 1.2 section clips (01-slug.png at 1600 / 768 / 390) and compare each rebuild band to those files plus index-raw. After APPLY, shoot every open band and run wave.py for LOOK (Orca terminals when the probe says waves orca). Controller writes rebuild/. No live Paper MCP. Recipe: section-23-paper-loop.md. qa/paper-measure/clip-compare.json required. No invented 1024 or 1320.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>disk gold · wave LOOK</span></div></div></article>
-      <article class="timeline-item" data-progress-step="2.4"><div class="timeline-key">2.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Sign-off, then Session 3 polish</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Sign off the 2.4 lock with TAGS on. Continue starts Session 3 polish at 3.1. <code>index-polish.html</code> does not exist until 3.1 starts — it is not polished yet.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>TAGS, then 3.0</span></div></div></article>
-      <article class="timeline-item" data-progress-step="3.1"><div class="timeline-key">3.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Session 3 polish starts</h3><span class="timeline-status" aria-hidden="true"></span></div><p>First action copies <code>index.html</code> to <code>index-polish.html</code>. That copy is not polished until 3.1–3.3 finish. Then a11y, contrast, and anti-slop on the copy only.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="22" cy="22" r="12" stroke="var(--line-strong)"/><path d="M22 10a12 12 0 0 1 0 24z" fill="currentColor" stroke="none"/><text class="dg-aa" x="44" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>copy, then polish</span></div></div></article>
-      <article class="timeline-item" data-progress-step="3.2"><div class="timeline-key">3.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Hover, GSAP, and guidelines</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Sequential GSAP reveals as each section crosses 25% from the viewport bottom, plus source-CSS button hover, a painted burger drawer, FAQ accordion, nav dropdowns, and guidelines a11y. No layout restyle.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="14" cy="22" r="8" stroke="var(--line-strong)"/><path d="M11.2 18.2 18.4 22l-7.2 3.8z" fill="currentColor" stroke="none"/><path d="M28 28c10-2 20-12 36-16" stroke="var(--line-strong)"/><circle cx="64" cy="12" r="2" fill="currentColor" stroke="none"/></svg><span>hover · GSAP</span></div></div></article>
-      <article class="timeline-item" data-progress-step="3.3"><div class="timeline-key">3.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Semantics and SEO</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Sweep landmarks, SEO, and images. Earlier hover work stays out of scope.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8 6 22l12 14"/><path d="M58 8l12 14-12 14"/><path d="M26 16h24M26 22h18M26 28h14" stroke="var(--line-strong)"/></svg><span>semantics · SEO</span></div></div></article>
-      <article class="timeline-item" data-progress-step="3.4"><div class="timeline-key">3.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Compare the 2.4 index.html with index-polish.html, then sign off. The homepage run can stop here. Optional Phase 4 imports the rest of the site into Paper.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="4" y="6" width="68" height="32" rx="2"/><path d="M4 15h68"/><path d="M34 20l12 11-5 .4 2.2 4.6-2.2 1-2.2-4.6-3.4 2.9z" fill="currentColor" stroke="currentColor"/></svg><span>compare, then optional 4.0</span></div></div></article>
-      <article class="timeline-item" data-progress-step="4.1"><div class="timeline-key">4.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scrape the sitemap</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. List every extra source URL from sitemap.xml. Homepage stays out.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><path d="M10 8h20l8 8v20H10z"/><path d="M30 8v8h8"/><path d="M16 28h28" stroke="currentColor"/></svg><span>sitemap.xml</span></div></div></article>
-      <article class="timeline-item" data-progress-step="4.2"><div class="timeline-key">4.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Capture each page into Paper</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Desktop only. One Paper page per URL, named after the route, in the same file.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="6" y="8" width="28" height="28" rx="2"/><rect x="42" y="8" width="28" height="28" rx="2" stroke="currentColor"/></svg><span>one page each</span></div></div></article>
-      <article class="timeline-item" data-progress-step="4.3"><div class="timeline-key">4.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Seed pages with existing tokens</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Bind the signed Design Library onto each new page. One writer. No second library.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>bind, do not mine</span></div></div></article>
-      <article class="timeline-item" data-progress-step="4.4"><div class="timeline-key">4.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human review</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Walk the new Paper pages, pin comments, then sign off. The Paper run can stop here. Optional Phase 5 binds the site into Astro.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>review, then optional 5.0</span></div></div></article>
-      <article class="timeline-item" data-progress-step="5.1"><div class="timeline-key">5.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scaffold Astro + shared chrome</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Create astro/ from the signed rebuild CSS, fonts, images, and scripts. Pull Header, Footer, and every Paper-backed component once from the polish homepage; convert the homepage to index.astro. No server.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="8" y="6" width="60" height="10" rx="2" stroke="currentColor"/><rect x="8" y="20" width="24" height="18" rx="2"/><rect x="40" y="20" width="28" height="18" rx="2"/></svg><span>astro/ · Header · Footer · once</span></div></div></article>
-      <article class="timeline-item" data-progress-step="5.2"><div class="timeline-key">5.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Author each interior body</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. One worker per page, two at a time. Only the &lt;main&gt; of src/pages/{slug}.astro on the shared chrome. Paper is the brief. Raw dumps only in rebuild/.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="10" y="6" width="42" height="12" rx="2"/><rect x="14" y="18" width="42" height="12" rx="2"/><rect x="18" y="30" width="42" height="12" rx="2" stroke="currentColor"/></svg><span>sub-agents · max 2</span></div></div></article>
-      <article class="timeline-item" data-progress-step="5.3"><div class="timeline-key">5.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Validate desktop clips</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. astro build, then compare each built page in astro/dist to the 4.2 1600 section clips. Fix the .astro body, rebuild, reshoot. Disk only. No Paper MCP.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2" stroke="currentColor"/></svg><span>desktop gold · dist</span></div></div></article>
-      <article class="timeline-item" data-progress-step="5.4"><div class="timeline-key">5.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Make interior pages responsive</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Capture live 768 and 390 clips, reshoot the built pages, then compare. Real media queries. No extra Paper frames.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>live 768 · 390</span></div></div></article>
-      <article class="timeline-item" data-progress-step="5.5"><div class="timeline-key">5.5</div><div class="timeline-copy"><div class="timeline-head"><h3>Wire routes, SEO, build</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Sitemap paths and labels to Astro routes across Header, Footer, and pages. Scrape-only SEO per page into frontmatter. Then astro build. Do not start a dev server.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><path d="M18 14h16M18 22h28M18 30h12" stroke="currentColor"/><rect x="8" y="8" width="60" height="28" rx="2"/></svg><span>routes + SEO + build</span></div></div></article>
-      <article class="timeline-item" data-progress-step="5.6"><div class="timeline-key">5.6</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Review the built routes on file://, then sign off. Done tidies and keeps rebuild/ plus astro/.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>review, then tidy</span></div></div></article>
+      <article class="timeline-item" data-progress-step="1.1"><div class="timeline-key">1.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scope the page and keep the files honest</h3><span class="timeline-time" data-step-time="1.1"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Open the live board first. Scrape the homepage — images plus Latin fonts only. Do not write rebuild HTML.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M26 6h16l8 8v24H26z" stroke="var(--line-strong)"/><path d="M42 6v8h8" stroke="var(--line-strong)"/><path d="M18 22h40"/><circle cx="18" cy="22" r="2" fill="currentColor" stroke="none"/></svg><span>named, checked</span></div></div></article>
+      <article class="timeline-item" data-progress-step="1.2"><div class="timeline-key">1.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Capture every breakpoint to Paper</h3><span class="timeline-time" data-step-time="1.2"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Capture the homepage and Navigation at 1600, 768, and 390. Store a source clip next to each lander. Prove desktop geometry before moving on.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>1600 · 768 · 390</span></div></div></article>
+      <article class="timeline-item" data-progress-step="1.3"><div class="timeline-key">1.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Create the Design Library + Tokens</h3><span class="timeline-time" data-step-time="1.3"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Mine one set of colors, type, and spacing from the Paper frames. Bind them back without moving layout. Then copy unique buttons and cards from desktop into the Buttons and Components frames, and author button hover from source CSS.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>named once</span></div></div></article>
+        <article class="timeline-item" data-progress-step="1.4"><div class="timeline-key">1.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-time" data-step-time="1.4"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Review all three sizes, Navigation, Buttons, Components, and the Design Library in Paper. Pin every problem. Capture Tool stays optional leftover hover. Marking done prints the session 2 prompt.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>walk Paper, then sign off</span></div></div></article>
+            <article class="timeline-item" data-progress-step="2.1"><div class="timeline-key">2.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Emit the Design System</h3><span class="timeline-time" data-step-time="2.1"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Write rebuild/design-system.html and tokens.css from the signed Design Library. Token contract, not the ship.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>system before page</span></div></div></article>
+      <article class="timeline-item" data-progress-step="2.2"><div class="timeline-key">2.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Author the homepage from Paper</h3><span class="timeline-time" data-step-time="2.2"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Author one semantic, responsive first pass from Paper desktop using the 2.1 tokens. Writes <code>index-semantic.html</code>. No new palette, fonts, or copy. file:// only.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="10" y="6" width="42" height="12" rx="2"/><rect x="14" y="18" width="42" height="12" rx="2"/><rect x="18" y="30" width="42" height="12" rx="2" stroke="currentColor"/></svg><span>Paper is the brief</span></div></div></article>
+      <article class="timeline-item" data-progress-step="2.3"><div class="timeline-key">2.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Validate each section against Paper</h3><span class="timeline-time" data-step-time="2.3"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Pull the numbered 1.2 section clips (01-slug.png at 1600 / 768 / 390) and compare each rebuild band to those files plus index-raw. After APPLY, shoot every open band and run wave.py for LOOK (Orca terminals when the probe says waves orca). Controller writes rebuild/. No live Paper MCP. Recipe: section-23-paper-loop.md. qa/paper-measure/clip-compare.json required. No invented 1024 or 1320.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>disk gold · wave LOOK</span></div></div></article>
+      <article class="timeline-item" data-progress-step="2.4"><div class="timeline-key">2.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Sign-off, then Session 3 polish</h3><span class="timeline-time" data-step-time="2.4"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Sign off the 2.4 lock with TAGS on. Continue starts Session 3 polish at 3.1. <code>index-polish.html</code> does not exist until 3.1 starts — it is not polished yet.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>TAGS, then 3.0</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.1"><div class="timeline-key">3.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Session 3 polish starts</h3><span class="timeline-time" data-step-time="3.1"></span><span class="timeline-status" aria-hidden="true"></span></div><p>First action copies <code>index.html</code> to <code>index-polish.html</code>. That copy is not polished until 3.1–3.3 finish. Then a11y, contrast, and anti-slop on the copy only.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="22" cy="22" r="12" stroke="var(--line-strong)"/><path d="M22 10a12 12 0 0 1 0 24z" fill="currentColor" stroke="none"/><text class="dg-aa" x="44" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>copy, then polish</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.2"><div class="timeline-key">3.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Hover, GSAP, and guidelines</h3><span class="timeline-time" data-step-time="3.2"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Sequential GSAP reveals as each section crosses 25% from the viewport bottom, plus source-CSS button hover, a painted burger drawer, FAQ accordion, nav dropdowns, and guidelines a11y. No layout restyle.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="14" cy="22" r="8" stroke="var(--line-strong)"/><path d="M11.2 18.2 18.4 22l-7.2 3.8z" fill="currentColor" stroke="none"/><path d="M28 28c10-2 20-12 36-16" stroke="var(--line-strong)"/><circle cx="64" cy="12" r="2" fill="currentColor" stroke="none"/></svg><span>hover · GSAP</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.3"><div class="timeline-key">3.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Semantics and SEO</h3><span class="timeline-time" data-step-time="3.3"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Sweep landmarks, SEO, and images. Earlier hover work stays out of scope.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8 6 22l12 14"/><path d="M58 8l12 14-12 14"/><path d="M26 16h24M26 22h18M26 28h14" stroke="var(--line-strong)"/></svg><span>semantics · SEO</span></div></div></article>
+      <article class="timeline-item" data-progress-step="3.4"><div class="timeline-key">3.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-time" data-step-time="3.4"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Compare the 2.4 index.html with index-polish.html, then sign off. The homepage run can stop here. Optional Phase 4 imports the rest of the site into Paper.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="4" y="6" width="68" height="32" rx="2"/><path d="M4 15h68"/><path d="M34 20l12 11-5 .4 2.2 4.6-2.2 1-2.2-4.6-3.4 2.9z" fill="currentColor" stroke="currentColor"/></svg><span>compare, then optional 4.0</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.1"><div class="timeline-key">4.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scrape the sitemap</h3><span class="timeline-time" data-step-time="4.1"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. List every extra source URL from sitemap.xml. Homepage stays out.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><path d="M10 8h20l8 8v20H10z"/><path d="M30 8v8h8"/><path d="M16 28h28" stroke="currentColor"/></svg><span>sitemap.xml</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.2"><div class="timeline-key">4.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Capture each page into Paper</h3><span class="timeline-time" data-step-time="4.2"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Desktop only. One Paper page per URL, named after the route, in the same file.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="6" y="8" width="28" height="28" rx="2"/><rect x="42" y="8" width="28" height="28" rx="2" stroke="currentColor"/></svg><span>one page each</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.3"><div class="timeline-key">4.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Seed pages with existing tokens</h3><span class="timeline-time" data-step-time="4.3"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Bind the signed Design Library onto each new page. One writer. No second library.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke-width="1.5"><rect x="4" y="14" width="14" height="14" rx="2" fill="currentColor"/><rect x="22" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><rect x="40" y="14" width="14" height="14" rx="2" stroke="var(--line-strong)"/><text class="dg-aa" x="60" y="27" fill="currentColor" stroke="none">Aa</text></svg><span>bind, do not mine</span></div></div></article>
+      <article class="timeline-item" data-progress-step="4.4"><div class="timeline-key">4.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Human review</h3><span class="timeline-time" data-step-time="4.4"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Walk the new Paper pages, pin comments, then sign off. The Paper run can stop here. Optional Phase 5 binds the site into Astro.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>review, then optional 5.0</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.1"><div class="timeline-key">5.1</div><div class="timeline-copy"><div class="timeline-head"><h3>Scaffold Astro + shared chrome</h3><span class="timeline-time" data-step-time="5.1"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Create astro/ from the signed rebuild CSS, fonts, images, and scripts. Pull Header, Footer, and every Paper-backed component once from the polish homepage; convert the homepage to index.astro. No server.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="8" y="6" width="60" height="10" rx="2" stroke="currentColor"/><rect x="8" y="20" width="24" height="18" rx="2"/><rect x="40" y="20" width="28" height="18" rx="2"/></svg><span>astro/ · Header · Footer · once</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.2"><div class="timeline-key">5.2</div><div class="timeline-copy"><div class="timeline-head"><h3>Author each interior body</h3><span class="timeline-time" data-step-time="5.2"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. One worker per page, two at a time. Only the &lt;main&gt; of src/pages/{slug}.astro on the shared chrome. Paper is the brief. Raw dumps only in rebuild/.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="10" y="6" width="42" height="12" rx="2"/><rect x="14" y="18" width="42" height="12" rx="2"/><rect x="18" y="30" width="42" height="12" rx="2" stroke="currentColor"/></svg><span>sub-agents · max 2</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.3"><div class="timeline-key">5.3</div><div class="timeline-copy"><div class="timeline-head"><h3>Validate desktop clips</h3><span class="timeline-time" data-step-time="5.3"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. astro build, then compare each built page in astro/dist to the 4.2 1600 section clips. Fix the .astro body, rebuild, reshoot. Disk only. No Paper MCP.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2" stroke="currentColor"/></svg><span>desktop gold · dist</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.4"><div class="timeline-key">5.4</div><div class="timeline-copy"><div class="timeline-head"><h3>Make interior pages responsive</h3><span class="timeline-time" data-step-time="5.4"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Capture live 768 and 390 clips, reshoot the built pages, then compare. Real media queries. No extra Paper frames.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><rect x="2" y="8" width="36" height="28" rx="2"/><rect x="42" y="12" width="18" height="24" rx="2"/><rect x="64" y="18" width="10" height="18" rx="2" stroke="currentColor"/></svg><span>live 768 · 390</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.5"><div class="timeline-key">5.5</div><div class="timeline-copy"><div class="timeline-head"><h3>Wire routes, SEO, build</h3><span class="timeline-time" data-step-time="5.5"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Sitemap paths and labels to Astro routes across Header, Footer, and pages. Scrape-only SEO per page into frontmatter. Then astro build. Do not start a dev server.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="var(--line-strong)" stroke-width="1.5"><path d="M18 14h16M18 22h28M18 30h12" stroke="currentColor"/><rect x="8" y="8" width="60" height="28" rx="2"/></svg><span>routes + SEO + build</span></div></div></article>
+      <article class="timeline-item" data-progress-step="5.6"><div class="timeline-key">5.6</div><div class="timeline-copy"><div class="timeline-head"><h3>Human checkpoint</h3><span class="timeline-time" data-step-time="5.6"></span><span class="timeline-status" aria-hidden="true"></span></div><p>Optional. Review the built routes on file://, then sign off. Done tidies and keeps rebuild/ plus astro/.</p><div class="dg" aria-hidden="true"><svg viewBox="0 0 76 44" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 8h44v20H24l-8 8v-8H8z" stroke="var(--line-strong)"/><circle cx="60" cy="14" r="6" fill="currentColor" stroke="none"/><path d="M57.5 14l2 2 3.5-4" stroke="var(--bg)" stroke-width="1.6"/></svg><span>review, then tidy</span></div></div></article>
     </div>
   </section>
 
@@ -433,11 +483,22 @@
 </main>
 <script>
 document.addEventListener("click", (event) => {
+  const captureUrl = () => {
+    const link = document.querySelector("[data-pipeline-capture-url]");
+    const url = link && link.getAttribute("href");
+    return url && url.includes("paperFileId=") ? url : "";
+  };
+  const open = event.target.closest("[data-pipeline-capture-open]");
+  if (open) {
+    if (open.disabled) return;
+    const target = captureUrl();
+    if (target) window.open(target, "_blank", "noopener,noreferrer");
+    return;
+  }
   const btn = event.target.closest("[data-pipeline-capture-copy]");
   if (!btn || btn.disabled) return;
-  const link = document.querySelector("[data-pipeline-capture-url]");
-  const url = link && link.getAttribute("href");
-  if (!url || !url.includes("paperFileId=")) return;
+  const url = captureUrl();
+  if (!url) return;
   const label = btn.querySelector("[data-copy-label]");
   const done = () => {
     btn.classList.add("is-copied");

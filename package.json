@@ -1,6 +1,6 @@
 {
   "name": "web2html-skill",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Install Web2Html skills \u2014 point at a live URL, get semantic HTML agents can scale.",
   "bin": {
     "web2html": "./scripts/npx-install.js"

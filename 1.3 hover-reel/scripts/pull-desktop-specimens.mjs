@@ -16,9 +16,13 @@ import {
 import {
   ensureButtonsBoard,
   ensureComponentsBoard,
+  boardsClear,
+  clearReviewBoardOverlap,
   parkDesktopNodeOnBoard,
   renameLegacyHoverStatesBoard,
+  restackReviewBoard,
   reviewSectionSid,
+  sectionOrderOk,
 } from "./park-capture-boards.mjs";
 
 const WRITER = "pull-desktop-specimens.mjs";
@@ -53,9 +57,19 @@ export function specimenPlanOk(plan = {}) {
     && plan.components.every((row) => rowOk(row, allowed));
 }
 
+export function sortPlanRows(rows = []) {
+  return [...rows].sort((a, b) => {
+    const as = Number(reviewSectionSid(a?.sectionId || a?.sid)) || 999;
+    const bs = Number(reviewSectionSid(b?.sectionId || b?.sid)) || 999;
+    if (as !== bs) return as - bs;
+    return String(a?.label || "").localeCompare(String(b?.label || ""));
+  });
+}
+
 export function pullReceiptOk(receipt = {}) {
   return receipt?.ok === true
     && receipt.writer === WRITER
+    && receipt.geometry?.ok === true
     && Array.isArray(receipt.scannedSections)
     && receipt.scannedSections.length >= 1
     && Array.isArray(receipt.buttons)
@@ -116,7 +130,7 @@ export async function pullDesktopSpecimens({
   if (!componentsBoard.ready) throw new Error("1.3 pull needs FRAME Components");
 
   const buttons = [];
-  for (const row of plan.buttons) {
+  for (const row of sortPlanRows(plan.buttons)) {
     const parked = await parkDesktopNodeOnBoard({
       call, fileId,
       boardName: BUTTONS_BOARD,
@@ -134,7 +148,7 @@ export async function pullDesktopSpecimens({
   }
 
   const components = [];
-  for (const row of plan.components) {
+  for (const row of sortPlanRows(plan.components)) {
     const parked = await parkDesktopNodeOnBoard({
       call, fileId,
       boardName: COMPONENTS_BOARD,
@@ -151,9 +165,36 @@ export async function pullDesktopSpecimens({
     components.push(parkedRow(row, parked, plan.scannedSections));
   }
 
+  const stackedButtons = await restackReviewBoard(call, fileId, BUTTONS_BOARD, BUTTONS_BOARD_ALIASES);
+  const stackedComponents = await restackReviewBoard(call, fileId, COMPONENTS_BOARD);
+  if (stackedButtons.reason || stackedComponents.reason) {
+    throw new Error(`1.3 restack failed: ${stackedButtons.reason || stackedComponents.reason}`);
+  }
+  if (!sectionOrderOk(stackedButtons.order) || !sectionOrderOk(stackedComponents.order)) {
+    throw new Error("1.3 rows are not in section NN order");
+  }
+  await clearReviewBoardOverlap({ call, fileId, log });
+  const { mcpPayload } = await importSibling("url-to-paper", "scripts/write-paper-section.mjs");
+  const info = mcpPayload(await call("get_basic_info", { fileId }));
+  const boards = info.artboards || [];
+  const clearance = boardsClear(
+    boards.find((board) => board.name === BUTTONS_BOARD || board.name === "Hover States"),
+    boards.find((board) => board.name === COMPONENTS_BOARD),
+  );
+  if (!clearance.ok) {
+    throw new Error(`1.3 board clearance failed: ${clearance.reason}`);
+  }
+
   const receipt = {
     ok: true,
     writer: WRITER,
+    geometry: {
+      ok: true,
+      sourceWidth: true,
+      hugged: true,
+      sectionOrder: true,
+      clearance: clearance.left,
+    },
     completedAt: now(),
     fileId,
     boardButtons: BUTTONS_BOARD,

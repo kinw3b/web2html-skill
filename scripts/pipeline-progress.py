@@ -7,14 +7,24 @@ at the repository's pipeline.html.
 
   python3 pipeline-progress.py start  /path/to/project            # NEW run only
   python3 pipeline-progress.py resume /path/to/project --at 2.1 --owner session-2
+  python3 pipeline-progress.py resume /path/to/project --owner session-2   # --at detected from the board
   python3 pipeline-progress.py mark   /path/to/project --step 1.2 --status active
   python3 pipeline-progress.py mark   /path/to/project --step 1.2 --status done
+  python3 pipeline-progress.py timing /path/to/project [--json]        # per-step durations + run total
   python3 pipeline-progress.py mark   /path/to/project --step 1.4 --status active   # opens Paper + browser on the stamped source URL
   python3 pipeline-progress.py open-capture   /path/to/project   # re-open that Capture Tool tab
   python3 pipeline-progress.py capture-doctor /path/to/project   # bridge check; FAIL = side panel OFFLINE
   python3 pipeline-progress.py handoff /path/to/project          # copy-ready next-session prompt
   python3 pipeline-progress.py sync   /path/to/project
   python3 pipeline-progress.py finish /path/to/project
+
+AGENT + MODEL. Each session records who ran it, so the board can attribute every
+step. `--agent` defaults to the harness probe (opencode / claude-code / codex …);
+`--model` (or WEB2HTML_MODEL) is explicit because a model id is not detectable.
+Pass them on `resume`, e.g. `resume . --owner session-2 --model claude-fable-5.1`.
+`mark --status active` stamps the step with the recording agent so a phase that
+mixed agents still shows duration + agent + model. The board HUD names the
+current session; each phase card carries its own `duration · agent · model` line.
 
 THREE SESSIONS, TWO HANDOFFS. A run spans three sessions so the model can change
 at each phase: 1 capture (1.1–1.4) → 2 build (2.1–2.4) → 3 QA (3.1–3.4).
@@ -48,6 +58,15 @@ TodoWrite / banners must use these same IDs, in this order.
 The live copy auto-refreshes every 15s so the bar moves as the JSON/HTML is
 stamped. Once qa/paper-file.json exists, the Capture Tool URL is stamped
 under the progress bar so a pull can start anytime.
+
+TIMING. `mark active` stamps `started`, `mark done` stamps `ended`; each closed
+step carries `durationSeconds` and the board shows when it finished and how
+long it took. The run total is the SUM of step durations — never wall clock —
+so pauses between sessions / terminals do not count. `start` and `resume`
+append to `sessions[]`; `resume` without `--at` detects the step from the
+board. A step marked done without a prior `mark active` gets `started`
+inferred (previous step's end / this session's claim) and is flagged
+`startedInferred`. `timing` prints the table.
 """
 from __future__ import annotations
 
@@ -157,6 +176,280 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
+# ----------------------------------------------------------------- timing ----
+# Each step row carries `started` (first `mark active`) and `ended` (last
+# `mark done`). The run total is the SUM of step durations — never wall clock
+# between sessions, so a run that pauses overnight between 1.4 and 2.1 does not
+# count the pause. A step closed without ever going active gets `started`
+# inferred from the tightest lower bound (previous step's end, this session's
+# claim, run start) and is flagged `startedInferred` so the receipt is honest.
+
+
+def parse_iso(value) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc).astimezone()
+    return parsed
+
+
+def fmt_duration(seconds: int | float | None) -> str:
+    """42s · 4m 12s · 1h 12m. None → '—'."""
+    if seconds is None:
+        return "—"
+    total = max(0, int(round(seconds)))
+    if total < 60:
+        return f"{total}s"
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    return f"{minutes}m {secs:02d}s"
+
+
+def fmt_clock(value, *, with_date: bool = True) -> str:
+    """Local clock of an ISO stamp, in the offset it was recorded with."""
+    parsed = parse_iso(value)
+    if parsed is None:
+        return "—"
+    return parsed.strftime("%d %b %H:%M" if with_date else "%H:%M:%S")
+
+
+def step_duration_seconds(row: dict) -> int | None:
+    started = parse_iso(row.get("started"))
+    ended = parse_iso(row.get("ended"))
+    if started is None or ended is None:
+        return None
+    return max(0, int((ended - started).total_seconds()))
+
+
+def step_phase(sid: str) -> str:
+    return sid.split(".", 1)[0]
+
+
+def refresh_timing(data: dict) -> dict:
+    """Recompute derived durations. Idempotent; called on every save and stamp.
+
+    steps[*].durationSeconds — present when both stamps exist.
+    timing.totalSeconds      — sum over done/skipped steps with a duration.
+    timing.humanSeconds      — the part of that spent inside HUMAN_CHECKPOINTS.
+    timing.phases            — per-phase sums ("1".."5").
+    timing.untimedSteps      — closed rows with no measurable duration.
+    """
+    steps = data.get("steps") or {}
+    total = human = timed = untimed = 0
+    phases: dict[str, int] = {}
+    last_sid = last_iso = None
+    last_dt: datetime | None = None
+    for sid in STEP_IDS:
+        row = steps.get(sid)
+        if not isinstance(row, dict):
+            continue
+        dur = step_duration_seconds(row)
+        if dur is None:
+            row.pop("durationSeconds", None)
+        else:
+            row["durationSeconds"] = dur
+        if row.get("status") not in {"done", "skipped"}:
+            continue
+        if dur is None:
+            untimed += 1
+        else:
+            timed += 1
+            total += dur
+            phases[step_phase(sid)] = phases.get(step_phase(sid), 0) + dur
+            if sid in HUMAN_CHECKPOINTS:
+                human += dur
+        ended_dt = parse_iso(row.get("ended"))
+        if ended_dt is not None and (last_dt is None or ended_dt >= last_dt):
+            last_dt, last_sid, last_iso = ended_dt, sid, row.get("ended")
+    active = next((sid for sid in STEP_IDS if (steps.get(sid) or {}).get("status") == "active"), None)
+    data["timing"] = {
+        "totalSeconds": total,
+        "agentSeconds": total - human,
+        "humanSeconds": human,
+        "timedSteps": timed,
+        "untimedSteps": untimed,
+        "phases": phases,
+        "phaseAgents": collect_phase_agents(steps),
+        "lastEndedStep": last_sid,
+        "lastEnded": last_iso,
+        "activeStep": active,
+        "activeSince": (steps.get(active) or {}).get("started") if active else None,
+    }
+    return data["timing"]
+
+
+def collect_phase_agents(steps: dict) -> dict[str, list[dict]]:
+    """Per phase, the timed steps grouped by the agent/model that ran them.
+
+    A phase is usually one agent, but the run spans sessions so any phase can
+    mix. Groups are ordered by the time they account for.
+    """
+    out: dict[str, list[dict]] = {}
+    for sid in STEP_IDS:
+        row = steps.get(sid)
+        if not isinstance(row, dict) or row.get("status") not in {"done", "skipped"}:
+            continue
+        dur = row.get("durationSeconds")
+        if dur is None:
+            continue
+        agent, model = row.get("agent") or None, row.get("model") or None
+        bucket = out.setdefault(step_phase(sid), [])
+        for entry in bucket:
+            if entry["agent"] == agent and entry["model"] == model:
+                entry["seconds"] += dur
+                entry["steps"].append(sid)
+                break
+        else:
+            bucket.append({"agent": agent, "model": model, "seconds": dur, "steps": [sid]})
+    for bucket in out.values():
+        bucket.sort(key=lambda entry: entry["seconds"], reverse=True)
+    return out
+
+
+def agent_label(agent: str | None, model: str | None) -> str:
+    return " · ".join(part for part in (agent, model) if part)
+
+
+def phase_agent_copy(entries: list[dict] | None, seconds: int | None) -> str:
+    """`1h 51m · opencode · deepseek-v4.1-flash`, or one clause per agent if mixed."""
+    duration = fmt_duration(seconds) if seconds else ""
+    named = [entry for entry in (entries or []) if entry.get("agent") or entry.get("model")]
+    if not named:
+        return duration
+    if len(named) == 1:
+        return " · ".join(part for part in (duration, agent_label(named[0].get("agent"), named[0].get("model"))) if part)
+    clauses = " + ".join(
+        f"{agent_label(entry.get('agent'), entry.get('model')) or 'unknown'} ({fmt_duration(entry['seconds'])})"
+        for entry in named
+    )
+    return " · ".join(part for part in (duration, clauses) if part)
+
+
+def infer_started(data: dict, step: str) -> str | None:
+    """Best lower bound for when work on `step` began, when it never went active.
+
+    Only one step is active at a time, so the latest `ended` of any other
+    closed step, the controller claim of this session, the last session log
+    entry, and the run start are all lower bounds — take the tightest one.
+    """
+    candidates: list[tuple[datetime, str]] = []
+
+    def add(value) -> None:
+        parsed = parse_iso(value)
+        if parsed is not None:
+            candidates.append((parsed, value))
+
+    add(data.get("started"))
+    add((data.get("controller") or {}).get("claimedAt"))
+    for entry in data.get("sessions") or []:
+        if isinstance(entry, dict):
+            add(entry.get("startedAt"))
+    for sid, row in (data.get("steps") or {}).items():
+        if sid != step and isinstance(row, dict) and row.get("status") in {"done", "skipped"}:
+            add(row.get("ended"))
+    now = datetime.now(timezone.utc)
+    candidates = [(dt, raw) for dt, raw in candidates if dt <= now]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda pair: pair[0])[1]
+
+
+def close_step_timing(data: dict, step: str, *, infer: bool = True) -> None:
+    """Stamp `ended` now; backfill a missing `started` when asked."""
+    row = data["steps"][step]
+    row["ended"] = now_iso()
+    if infer and not row.get("started"):
+        guess = infer_started(data, step)
+        if guess:
+            row["started"] = guess
+            row["startedInferred"] = True
+
+
+def resolve_agent_model(
+    root: Path | None,
+    agent: str | None = None,
+    model: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Who is doing the work: explicit flag → env → harness probe → unknown.
+
+    The harness is detectable (opencode / claude-code / codex …) so the agent is
+    filled in for free. The model is not, so a session records it explicitly
+    (`--model`, or WEB2HTML_MODEL) — it may differ from phase to phase.
+    """
+    who = (agent or "").strip() or os.environ.get("WEB2HTML_AGENT", "").strip() or None
+    if who is None and root is not None and not os.environ.get("WEB2HTML_NO_PROBE"):
+        report = _probe_report(root) or {}
+        who = str(report.get("agent") or report.get("harness") or "").strip() or None
+    what = (model or "").strip() or os.environ.get("WEB2HTML_MODEL", "").strip() or None
+    return who, what
+
+
+def log_session(
+    data: dict,
+    *,
+    kind: str,
+    owner: str | None,
+    at: str | None,
+    agent: str | None = None,
+    model: str | None = None,
+) -> dict:
+    """Append one line to the run's session log (start / resume / relay)."""
+    entry = {"kind": kind, "owner": owner, "at": at, "startedAt": now_iso()}
+    if agent:
+        entry["agent"] = agent
+    if model:
+        entry["model"] = model
+    sessions = data.setdefault("sessions", [])
+    if not isinstance(sessions, list):
+        sessions = data["sessions"] = []
+    sessions.append(entry)
+    return entry
+
+
+def current_session(data: dict) -> dict:
+    """The newest session entry — the one holding the controller lease."""
+    for entry in reversed(data.get("sessions") or []):
+        if isinstance(entry, dict):
+            return entry
+    return {}
+
+
+def stamp_step_who(row: dict, agent: str | None, model: str | None, *, overwrite: bool) -> None:
+    """Attribute a step to an agent/model. `overwrite` is for a fresh `active`."""
+    if agent and (overwrite or not row.get("agent")):
+        row["agent"] = agent
+    if model and (overwrite or not row.get("model")):
+        row["model"] = model
+
+
+def detect_resume_step(data: dict, root: Path | None = None) -> str | None:
+    """Where the run sits: the active step, else the first pending step."""
+    _, _, current = counts(data, root)
+    if current:
+        return current
+    return next_pending_step(data, root)
+
+
+def timing_summary_line(data: dict) -> str:
+    timing = refresh_timing(data)
+    total = fmt_duration(timing["totalSeconds"])
+    parts = [f"run total {total}"]
+    if timing["humanSeconds"]:
+        parts.append(f"agent {fmt_duration(timing['agentSeconds'])} · human {fmt_duration(timing['humanSeconds'])}")
+    parts.append(f"{timing['timedSteps']} step{'s' if timing['timedSteps'] != 1 else ''} timed")
+    if timing["untimedSteps"]:
+        parts.append(f"{timing['untimedSteps']} untimed")
+    if timing["lastEndedStep"]:
+        parts.append(f"last finished {timing['lastEndedStep']} at {fmt_clock(timing['lastEnded'])}")
+    return "   ".join(parts)
+
+
 def skill_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -198,7 +491,7 @@ NOISE_REBUILD_GLOBS = (
     "*.spec.json",
     "section-[0-9][0-9].png",
 )
-KEEP_ROOT = frozenset({"rebuild", "astro", LIVE_NAME})
+KEEP_ROOT = frozenset({"rebuild", "astro", LIVE_NAME, "run-report.md"})
 TIDY_SUMMARY = "tidy → lean folder (rebuild/ + astro/ + pipeline.html)"
 AGENT_RUNS = Path("qa/agent-runs")
 LEASES = AGENT_RUNS / "leases"
@@ -618,9 +911,11 @@ def buttons_components_pull_done(root: Path) -> bool:
     except (OSError, json.JSONDecodeError):
         return False
     scanned = rec.get("scannedSections") or []
+    geometry = rec.get("geometry") or {}
     return (
         rec.get("ok") is True
         and rec.get("writer") == "pull-desktop-specimens.mjs"
+        and geometry.get("ok") is True
         and isinstance(scanned, list)
         and len(scanned) >= 1
         and isinstance(rec.get("buttons"), list)
@@ -997,7 +1292,8 @@ def cmd_sync(root: Path) -> int:
         if row.get("status") in {"done", "skipped"}:
             continue
         row["status"] = "done"
-        row["ended"] = row.get("ended") or now_iso()
+        if not row.get("ended"):
+            close_step_timing(data, sid)
         if data.get("current") == sid:
             data["current"] = None
         marked.append((sid, "done"))
@@ -1014,7 +1310,8 @@ def cmd_sync(root: Path) -> int:
                 if sid in HUMAN_CHECKPOINTS:
                     continue
                 row["status"] = "done"
-                row["ended"] = row.get("ended") or now_iso()
+                if not row.get("ended"):
+                    close_step_timing(data, sid)
                 marked.append((sid, "done"))
         row = data["steps"][next_sid]
         if row.get("status") != "active":
@@ -1250,6 +1547,7 @@ def save_progress(
     expected = _revision(data.get("revision")) if expected_revision is None else expected_revision
     if not force and expected != actual:
         raise ProgressConflict(_progress_conflict(expected, actual))
+    refresh_timing(data)
     data["updated"] = now_iso()
     data["revision"] = actual + 1
     qa_dir(root).mkdir(parents=True, exist_ok=True)
@@ -1428,10 +1726,18 @@ def capture_tool_board_url(root: Path | None) -> str:
         return ""
 
 
-def stamp_capture_pull(html: str, root: Path | None) -> str:
-    """Put the pull URL under the progress bar once qa/paper-file.json is ready."""
+def capture_buttons_open(data: dict | None) -> bool:
+    """Copy / Open exist only while the human is on step 1.4."""
+    if not data:
+        return False
+    return (data.get("steps") or {}).get("1.4", {}).get("status") == "active"
+
+
+def stamp_capture_pull(html: str, root: Path | None, data: dict | None = None) -> str:
+    """Stash the pull URL once Paper exists. Reveal Copy / Open only on active 1.4."""
     url = capture_tool_board_url(root)
-    state = "ready" if url else "waiting"
+    show = bool(url) and capture_buttons_open(data)
+    state = "ready" if show else ("held" if url else "waiting")
     html = re.sub(
         r'(data-pipeline-capture)(?:\s+data-state="[^"]*")?',
         lambda m: f'{m.group(1)} data-state="{state}"',
@@ -1455,15 +1761,14 @@ def stamp_capture_pull(html: str, root: Path | None) -> str:
 
     def copy_button(match: re.Match) -> str:
         tag = re.sub(r"\s+disabled(?:=\"[^\"]*\")?", "", match.group(1))
-        if not url:
+        if not show:
             tag += " disabled"
         return tag + match.group(2)
 
     html = re.sub(
-        r"(<button\b[^>]*data-pipeline-capture-copy[^>]*)(>)",
+        r"(<button\b[^>]*data-pipeline-capture-(?:copy|open)[^>]*)(>)",
         copy_button,
         html,
-        count=1,
     )
     return html
 
@@ -1558,7 +1863,99 @@ def stamp_run_mode(html: str, root: Path | None) -> str:
     return html
 
 
+def step_time_copy(row: dict, *, long: bool) -> str:
+    """Board copy for one step. Grid rows get the short form, timeline the long one."""
+    status = row.get("status", "pending")
+    if status in {"done", "skipped"}:
+        dur = row.get("durationSeconds")
+        took = fmt_duration(dur) if dur is not None else None
+        if not long:
+            if took is None:
+                return fmt_clock(row.get("ended"), with_date=False) if row.get("ended") else ""
+            return took + ("*" if row.get("startedInferred") else "")
+        verb = "Skipped" if status == "skipped" else "Finished"
+        line = f"{verb} {fmt_clock(row.get('ended'))}" if row.get("ended") else verb
+        if took is not None:
+            line += f" · took {took}"
+            if row.get("startedInferred"):
+                line += " (start inferred)"
+        return line
+    if status == "active" and row.get("started"):
+        if not long:
+            return "running"
+        return f"Started {fmt_clock(row.get('started'))} · running"
+    return ""
+
+
+def stamp_timing(html: str, data: dict, root: Path | None = None) -> str:
+    timing = refresh_timing(data)
+    steps = data.get("steps") or {}
+
+    def step_sub(m: re.Match) -> str:
+        tag, attrs, sid = m.group(1), m.group(2), m.group(3)
+        long = "timeline-time" in attrs
+        return f"<{tag}{attrs}data-step-time=\"{sid}\">{step_time_copy(steps.get(sid) or {}, long=long)}</{tag}>"
+
+    html = re.sub(
+        r'<(span|p)((?:\s[^>]*?)?\s)data-step-time="([^"]+)">.*?</\1>',
+        step_sub,
+        html,
+        flags=re.S,
+    )
+
+    def phase_sub(m: re.Match) -> str:
+        secs = timing["phases"].get(m.group(2))
+        copy = fmt_duration(secs) if secs else ""
+        return f"{m.group(1)}{copy}</span>"
+
+    html = re.sub(
+        r'(<span class="card-time" data-phase-time="(\d)">).*?</span>',
+        phase_sub,
+        html,
+        flags=re.S,
+    )
+
+    def phase_agents_sub(m: re.Match) -> str:
+        phase = m.group(2)
+        copy = phase_agent_copy(timing.get("phaseAgents", {}).get(phase), timing["phases"].get(phase))
+        return f"{m.group(1)}{copy}</p>"
+
+    html = re.sub(
+        r'(<p class="card-agents" data-phase-agents="(\d)">).*?</p>',
+        phase_agents_sub,
+        html,
+        flags=re.S,
+    )
+
+    session = current_session(data)
+    html = re.sub(
+        r'(<span class="hud-agent" data-pipeline-agent[^>]*>).*?</span>',
+        lambda m: m.group(1) + agent_label(session.get("agent"), session.get("model")) + "</span>",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    total = timing["totalSeconds"]
+    if total or timing["timedSteps"]:
+        label = f"total {fmt_duration(total)}"
+        if timing["humanSeconds"]:
+            label += f" · agent {fmt_duration(timing['agentSeconds'])}"
+        if timing["untimedSteps"]:
+            label += f" · {timing['untimedSteps']} untimed"
+    else:
+        label = ""
+    html = re.sub(
+        r'(<span class="hud-time" data-pipeline-duration[^>]*>).*?</span>',
+        lambda m: m.group(1) + label + "</span>",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    return html
+
+
 def stamp_html(html: str, data: dict, root: Path | None = None) -> str:
+    html = stamp_timing(html, data, root)
     done, total, current = counts(data, root)
     pct = round(100 * done / total) if total else 0
     complete = run_is_complete(data, root)
@@ -1629,7 +2026,7 @@ def stamp_html(html: str, data: dict, root: Path | None = None) -> str:
         count=1,
         flags=re.S,
     )
-    return stamp_capture_pull(html, root)
+    return stamp_capture_pull(html, root, data)
 
 
 def run_is_complete(data: dict, root: Path | None = None) -> bool:
@@ -2968,16 +3365,24 @@ def cmd_handoff(root: Path) -> int:
     return 0
 
 
-def cmd_resume(root: Path, at: str, owner: str) -> int:
+def cmd_resume(
+    root: Path,
+    at: str | None,
+    owner: str,
+    agent: str | None = None,
+    model: str | None = None,
+) -> int:
     """Continue an existing run in a new session. Never resets, never quarantines.
 
     `start` is for a fresh run: it force-writes empty progress over the board.
-    A second or third session must call this instead.
+    A second or third session must call this instead. Without `--at` the step
+    is detected from the board (active step, else first pending), so a fresh
+    terminal can always find where the run sits and keep timing it.
     """
     if is_spec_repo(root):
         print("FAIL: do not stamp the web2html spec repo. Pass the template project folder.", file=sys.stderr)
         return 2
-    if at not in TITLES:
+    if at is not None and at not in TITLES:
         print(f"FAIL: unknown step {at}. Use: {' '.join(STEP_IDS)}", file=sys.stderr)
         return 2
     if not progress_path(root).is_file():
@@ -2988,6 +3393,15 @@ def cmd_resume(root: Path, at: str, owner: str) -> int:
         )
         return 2
     data = load_progress(root)
+    detected = detect_resume_step(data, root)
+    if at is None:
+        if detected is None:
+            print("FAIL: nothing left to resume — every counted step is done. Use `timing` or `finish`.", file=sys.stderr)
+            return 2
+        at = detected
+        print(f"resume: no --at given — detected {at} {TITLES[at]} from the board")
+    elif detected and detected != at:
+        print(f"resume: board sits at {detected} {TITLES[detected]}; you asked for {at}. Timing continues from the board.")
     pending = pending_predecessors(data, at, for_active=True)
     if pending:
         print(
@@ -3007,6 +3421,8 @@ def cmd_resume(root: Path, at: str, owner: str) -> int:
             )
             return 2
     data["controller"] = {"owner": owner, "status": "active", "claimedAt": now_iso()}
+    who, what = resolve_agent_model(root, agent, model)
+    log_session(data, kind="resume", owner=owner, at=at, agent=who, model=what)
     try:
         save_progress(root, data, _revision(data.get("revision")))
     except ProgressConflict as exc:
@@ -3023,10 +3439,16 @@ def cmd_resume(root: Path, at: str, owner: str) -> int:
     )
     dest = write_live(root, data)
     write_capture_tool_session(root)
-    done, total, _ = counts(data)
+    done, total, current = counts(data)
     uri = dest.resolve().as_uri()
     print(f"pipeline resume -> {dest}   {done}/{total} done   next {at}   owner {owner}")
     print(uri)
+    print(timing_summary_line(data))
+    if current:
+        since = (data["steps"][current] or {}).get("started")
+        print(f"{current} is still active since {fmt_clock(since)} — its clock keeps running until you mark it done.")
+    else:
+        print(f"mark --step {at} --status active before working so {at} is timed.")
     print("Live board was opened at start — leave that tab. resume does not reopen it.")
     print("Progress was NOT reset. Do not run `start` on a run in flight.")
     print("IDs: " + " ".join(STEP_IDS))
@@ -3041,7 +3463,7 @@ def cmd_open_capture(root: Path) -> int:
     return 0 if open_capture_tool(root) else 2
 
 
-def cmd_start(root: Path) -> int:
+def cmd_start(root: Path, agent: str | None = None, model: str | None = None) -> int:
     if is_spec_repo(root):
         print("FAIL: do not stamp the web2html spec repo. Pass the template project folder.", file=sys.stderr)
         return 2
@@ -3053,9 +3475,18 @@ def cmd_start(root: Path) -> int:
     if stale_paper.is_file():
         stale_paper.unlink()
         print("cleared qa/paper-file.json — this run creates one Paper file at 1.2")
+    who, what = resolve_agent_model(root, agent, model)
     data = empty_progress(root.name)
+    log_session(data, kind="start", owner="session-1", at="1.1", agent=who, model=what)
     save_progress(root, data, force=True)
     root.mkdir(parents=True, exist_ok=True)
+    try:
+        import orca_workspace
+
+        if not (root / orca_workspace.WORKSPACE_FILE).is_file():
+            orca_workspace.ensure(root.name, base=root.parent)
+    except Exception:  # noqa: BLE001 — the workspace is an accelerator, never a gate
+        pass
     dest = write_live(root, data, source=live_template())
     write_capture_tool_session(root)
     uri = dest.resolve().as_uri()
@@ -3135,6 +3566,8 @@ def cmd_mark(
     reason: str | None,
     expected_revision: int | None = None,
     owner: str | None = None,
+    agent: str | None = None,
+    model: str | None = None,
 ) -> int:
     if step not in TITLES:
         print(f"FAIL: unknown step {step}. Use: {' '.join(STEP_IDS)}", file=sys.stderr)
@@ -3331,7 +3764,9 @@ def cmd_mark(
             detail = (
                 " 1.3 mines the Design Library, then pulls unique buttons + "
                 "components from token-seeded home-desktop onto FRAME Buttons "
-                "and FRAME Components (qa/buttons-components-pull.json), then "
+                "and FRAME Components (qa/buttons-components-pull.json with "
+                "geometry.ok — source pixel width, hugged rows, section order, "
+                "Buttons clearance), then "
                 "authors button hover from source CSS (qa/button-hover.json)."
             )
         if step == "1.4":
@@ -3497,12 +3932,21 @@ def cmd_mark(
         data["current"] = step
         data["steps"][step]["started"] = data["steps"][step].get("started") or now_iso()
     if status in {"done", "skipped"}:
-        data["steps"][step]["ended"] = now_iso()
+        # `done` is real work: backfill `started` when the agent never marked
+        # active so the step still lands in the run total. `skipped` is not work.
+        close_step_timing(data, step, infer=(status == "done"))
         if data.get("current") == step:
             data["current"] = None
     data["steps"][step]["status"] = status
     if reason:
         data["steps"][step]["reason"] = reason
+    if status in {"active", "done"}:
+        who, what = resolve_agent_model(root, agent, model)
+        if who is None and what is None:
+            session = current_session(data)
+            who, what = session.get("agent"), session.get("model")
+        # `active` is the attribution of record; `done` only fills a blank.
+        stamp_step_who(data["steps"][step], who, what, overwrite=(status == "active"))
     budget_row = None
     try:
         import context_budget
@@ -3551,6 +3995,18 @@ def cmd_mark(
             extra = f"   NEXT {nxt} {TITLES[nxt]}"
     print(f"{step} → {status}   {done}/{total}{extra}")
     print(dest.resolve().as_uri())
+    print_mark_timing(data, step, status)
+    if status in {"done", "skipped"}:
+        # Self-improving run report: refresh run-report.md as steps close (and
+        # always at human checkpoints) so the timing / comment / note log
+        # survives the tidy. Best effort — the report is an output, never a gate.
+        try:
+            import run_report
+
+            if step in HUMAN_CHECKPOINTS or status == "done":
+                print(f"run report → {run_report.build(root)}")
+        except Exception:  # noqa: BLE001
+            pass
     if budget_row and budget_row.get("usedPct") is not None:
         try:
             import context_budget
@@ -3576,12 +4032,120 @@ def cmd_mark(
             "  python3 $SKILLS/web2html/scripts/run_config.py design-system . --choice skip|print|seed-from-source"
         )
     if status == "done" and step in HANDOFF_AT:
+        had_lease = isinstance(data.get("controller"), dict)
         emit_handoff(root, data, step)
+        if had_lease and "controller" not in data:
+            # emit_handoff released the lease in memory; persist it so the next
+            # session's `resume --owner <new>` is not refused by a stale claim.
+            try:
+                save_progress(root, data)
+            except ProgressConflict as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
     if run_is_complete(data, root):
         removed = tidy_completed_run(root)
         print(TIDY_SUMMARY)
         for rel in removed:
             print(f"  - {rel}")
+    return 0
+
+
+def print_mark_timing(data: dict, step: str, status: str) -> None:
+    """One line per mark: when the step started / finished and how long it took."""
+    row = data["steps"].get(step) or {}
+    if status == "active":
+        print(f"{step} started {fmt_clock(row.get('started'), with_date=False)}")
+        return
+    if status not in {"done", "skipped"}:
+        return
+    dur = row.get("durationSeconds")
+    took = fmt_duration(dur) if dur is not None else "untimed"
+    if row.get("startedInferred"):
+        took += " (start inferred — mark active next time)"
+    print(f"{step} finished {fmt_clock(row.get('ended'))}   took {took}")
+    print(timing_summary_line(data))
+
+
+def timing_rows(data: dict, root: Path | None = None) -> list[dict]:
+    refresh_timing(data)
+    ids = counted_step_ids(root, data) if root is not None else list(STEP_IDS)
+    rows: list[dict] = []
+    for sid in ids:
+        row = data["steps"].get(sid) or {}
+        rows.append(
+            {
+                "step": sid,
+                "title": TITLES[sid],
+                "status": row.get("status", "pending"),
+                "started": row.get("started"),
+                "ended": row.get("ended"),
+                "durationSeconds": row.get("durationSeconds"),
+                "startedInferred": bool(row.get("startedInferred")),
+                "agent": row.get("agent"),
+                "model": row.get("model"),
+                "human": sid in HUMAN_CHECKPOINTS,
+            }
+        )
+    return rows
+
+
+def cmd_timing(root: Path, as_json: bool = False) -> int:
+    """Per-step started / finished / duration and the run total (sum of steps)."""
+    if is_spec_repo(root):
+        print("FAIL: pass the template project folder, not the web2html spec repo.", file=sys.stderr)
+        return 2
+    if not progress_path(root).is_file():
+        print("FAIL: no run here (missing qa/pipeline-progress.json).", file=sys.stderr)
+        return 2
+    data = load_progress(root)
+    rows = timing_rows(data, root)
+    timing = data["timing"]
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "project": data.get("project"),
+                    "runStarted": data.get("started"),
+                    "sessions": data.get("sessions") or [],
+                    "timing": timing,
+                    "steps": rows,
+                },
+                indent=2,
+            )
+        )
+        return 0
+    print(f"{'step':<5} {'status':<8} {'started':<13} {'finished':<13} {'took':>9}  {'agent':<24}  title")
+    for row in rows:
+        took = fmt_duration(row["durationSeconds"]) if row["durationSeconds"] is not None else "—"
+        if row["status"] == "active" and row["started"]:
+            started_dt = parse_iso(row["started"])
+            elapsed = (datetime.now(timezone.utc) - started_dt).total_seconds() if started_dt else None
+            took = f"{fmt_duration(elapsed)}…"
+        flag = "*" if row["startedInferred"] else " "
+        human = " (human)" if row["human"] else ""
+        who = agent_label(row.get("agent"), row.get("model")) or "—"
+        print(
+            f"{row['step']:<5} {row['status']:<8} {fmt_clock(row['started']):<13} "
+            f"{fmt_clock(row['ended']):<13} {took:>9}{flag} {who:<24}  {row['title']}{human}"
+        )
+    print("")
+    for phase in sorted(timing["phases"]):
+        line = phase_agent_copy(timing["phaseAgents"].get(phase), timing["phases"][phase])
+        print(f"phase {phase}   {line}")
+    print(timing_summary_line(data))
+    if any(row["startedInferred"] for row in rows):
+        print("* start inferred — the step was marked done without a prior `mark --status active`.")
+    sessions = data.get("sessions") or []
+    if sessions:
+        print("")
+        print("sessions")
+        for entry in sessions:
+            if not isinstance(entry, dict):
+                continue
+            at = f" at {entry.get('at')}" if entry.get("at") else ""
+            who = agent_label(entry.get("agent"), entry.get("model"))
+            who = f"  [{who}]" if who else ""
+            print(f"  {fmt_clock(entry.get('startedAt'))}  {entry.get('kind', '?'):<6} {entry.get('owner') or '—'}{at}{who}")
     return 0
 
 
@@ -3610,13 +4174,20 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     st = sub.add_parser("start", help="Begin a NEW run — resets the board")
     st.add_argument("root", type=Path)
+    st.add_argument("--agent", default=None, help="Harness running this session (defaults to the probe), e.g. opencode")
+    st.add_argument("--model", default=None, help="Model id for this session (or WEB2HTML_MODEL), e.g. claude-fable-5.1")
     rs = sub.add_parser(
         "resume",
         help="Continue an existing run in a new session (never resets)",
     )
     rs.add_argument("root", type=Path)
-    rs.add_argument("--at", required=True, help="Step this session picks up at, e.g. 2.1")
+    rs.add_argument("--at", default=None, help="Step this session picks up at, e.g. 2.1. Omit to detect it from the board (active step, else first pending)")
     rs.add_argument("--owner", required=True, help="Session name for the controller lease, e.g. session-2")
+    rs.add_argument("--agent", default=None, help="Harness running this session (defaults to the probe), e.g. claude-code")
+    rs.add_argument("--model", default=None, help="Model id for this session (or WEB2HTML_MODEL), e.g. claude-fable-5.1")
+    tm = sub.add_parser("timing", help="Per-step started / finished / duration and the run total (sum of step durations, not wall clock)")
+    tm.add_argument("root", type=Path)
+    tm.add_argument("--json", action="store_true", dest="as_json")
     mk = sub.add_parser("mark")
     mk.add_argument("root", type=Path)
     mk.add_argument("--step", required=True)
@@ -3624,6 +4195,8 @@ def main(argv: list[str] | None = None) -> int:
     mk.add_argument("--reason", default=None)
     mk.add_argument("--expected-revision", type=int, default=None)
     mk.add_argument("--owner", default=None)
+    mk.add_argument("--agent", default=None, help="Override the agent recorded for this step")
+    mk.add_argument("--model", default=None, help="Override the model recorded for this step")
     sk = sub.add_parser("skip")
     sk.add_argument("root", type=Path)
     sk.add_argument("--step", required=True)
@@ -3667,9 +4240,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{sid}\t{title}")
         return 0
     if args.cmd == "start":
-        return cmd_start(args.root)
+        return cmd_start(args.root, args.agent, args.model)
     if args.cmd == "resume":
-        return cmd_resume(args.root, args.at, args.owner)
+        return cmd_resume(args.root, args.at, args.owner, args.agent, args.model)
+    if args.cmd == "timing":
+        return cmd_timing(args.root, args.as_json)
     if args.cmd == "skip":
         if args.step not in OPTIONAL_STEPS:
             print("FAIL: never skip a required step (Pitfall #98). Hover, 1.4, semantics, and polish are required.", file=sys.stderr)
@@ -3693,7 +4268,7 @@ def main(argv: list[str] | None = None) -> int:
         return release_controller(args.root, args.owner, args.expected_revision)
     if args.cmd == "relay":
         return cmd_relay(args.root, args.owner, args.adapter, args.reason, args.force)
-    return cmd_mark(args.root, args.step, args.status, args.reason, args.expected_revision, args.owner)
+    return cmd_mark(args.root, args.step, args.status, args.reason, args.expected_revision, args.owner, args.agent, args.model)
 
 
 if __name__ == "__main__":

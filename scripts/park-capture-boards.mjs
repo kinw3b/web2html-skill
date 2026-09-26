@@ -6,6 +6,7 @@ import {
   BUTTONS_BOARD_ALIASES,
   COMPONENTS_BOARD,
   NAVIGATION_BOARD,
+  isButtonsBoard,
   isHumanClickPair,
   objectTypeLabel,
 } from "./component-state-utils.mjs";
@@ -25,6 +26,153 @@ export const NAVIGATION_BOARD_WIDTH = "fit-content";
 export const REVIEW_BOARD_PARK_WIDTH = 1400;
 export const NAVIGATION_BOARD_PARK_WIDTH = 1800;
 export const NAVIGATION_SPECIMEN_WIDTH = 1600;
+/** Gap between Buttons and Components. Matches rulers `COLUMN_GAP`. Never the 1400 empty-frame reserve. */
+export const REVIEW_BOARD_GAP = 160;
+
+export function reservedBoardWidth(measured, parkWidth) {
+  return Math.max(Number(measured) || 0, Number(parkWidth) || 0);
+}
+
+export function nextBoardLeft(previous, gap = REVIEW_BOARD_GAP) {
+  const left = Number(previous?.worldX ?? previous?.x ?? 0);
+  const width = Number(previous?.width) || 0;
+  return Math.round(left + width + gap);
+}
+
+export function nodePixelWidth(info) {
+  const node = info?.width != null ? info : (info?.node || info);
+  const width = Math.round(Number(node?.width) || 0);
+  return width >= 8 ? width : 0;
+}
+
+export function nodePixelHeight(info) {
+  const node = info?.height != null ? info : (info?.node || info);
+  const height = Math.round(Number(node?.height) || 0);
+  return height >= 8 ? height : 0;
+}
+
+/** A home-desktop section band. Never a specimen. */
+export const SECTION_SHELL_WIDTH = 1580;
+/** Badge + title + padding + gap. A row taller than specimen + this is dead space. */
+export const ROW_CHROME_BUDGET = 160;
+
+export function isSectionShell(info) {
+  const name = String(info?.name || "");
+  if (/^\d{1,2}\s*·/.test(name)) return true;
+  return nodePixelWidth(info) >= SECTION_SHELL_WIDTH;
+}
+
+export function sectionOrderOk(order = []) {
+  let prev = 0;
+  for (const sid of order || []) {
+    const n = Number(sid);
+    if (!n) continue;
+    if (n < prev) return false;
+    prev = n;
+  }
+  return true;
+}
+
+/** Read-back after a park. Width drift is a stretch or a 1px text collapse. */
+export function parkedCopyHolds(source, parked, row) {
+  const sourceWidth = nodePixelWidth(source);
+  const parkedWidth = nodePixelWidth(parked);
+  const sourceHeight = nodePixelHeight(source);
+  const parkedHeight = nodePixelHeight(parked);
+  const rowHeight = nodePixelHeight(row);
+  if (sourceWidth < 8) return { ok: false, reason: "source width unread" };
+  if (parkedWidth < 8) return { ok: false, reason: "parked width unread" };
+  if (Math.abs(parkedWidth - sourceWidth) > 8) {
+    return { ok: false, reason: `parked width ${parkedWidth}px != source ${sourceWidth}px` };
+  }
+  if (sourceHeight && parkedHeight && parkedHeight > sourceHeight + 24 && parkedHeight > sourceHeight * 1.35) {
+    return { ok: false, reason: `parked height ${parkedHeight}px blew past source ${sourceHeight}px` };
+  }
+  if (!rowHeight) return { ok: false, reason: "row height unread" };
+  const specimen = parkedHeight || sourceHeight;
+  if (specimen && rowHeight > specimen + ROW_CHROME_BUDGET) {
+    return { ok: false, reason: `row ${rowHeight}px does not hug specimen ${specimen}px` };
+  }
+  return { ok: true, sourceWidth, parkedWidth, rowHeight };
+}
+
+export function boardsClear(buttons, components, gap = REVIEW_BOARD_GAP) {
+  const width = Number(buttons?.width) || 0;
+  if (!buttons?.id || !components?.id || width < 8) {
+    return { ok: false, reason: "need measured Buttons width" };
+  }
+  const clearance = nextBoardLeft(buttons, gap);
+  const left = Math.round(Number(components.worldX ?? components.x) || 0);
+  if (left < clearance - 1) {
+    return { ok: false, reason: `Components at ${left} overlaps Buttons (need ${clearance})`, clearance };
+  }
+  return { ok: true, left, clearance };
+}
+
+/**
+ * Keep the source pixel width. `width: fit-content` collapses wrapping text
+ * to one character; a `width: 100%` slot stretches images to the review row.
+ */
+export function parkedSpecimenStyles(widthPx) {
+  const styles = {
+    position: "relative",
+    left: "auto",
+    top: "auto",
+    right: "auto",
+    bottom: "auto",
+    height: "fit-content",
+    maxWidth: "none",
+    flexShrink: "0",
+    flexGrow: "0",
+    alignSelf: "flex-start",
+  };
+  const width = Math.round(Number(widthPx) || 0);
+  if (width >= 8) styles.width = `${width}px`;
+  return styles;
+}
+
+export function reviewRowHugStyles() {
+  return {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    alignSelf: "flex-start",
+    width: "fit-content",
+    height: "fit-content",
+    minHeight: "0",
+    flexShrink: "0",
+    flexGrow: "0",
+    overflow: "visible",
+    top: "auto",
+  };
+}
+
+export function reviewSlotHugStyles() {
+  return {
+    display: "flex",
+    alignItems: "flex-start",
+    alignSelf: "flex-start",
+    justifyContent: "flex-start",
+    width: "fit-content",
+    height: "fit-content",
+    minWidth: "0",
+    minHeight: "0",
+    flexShrink: "0",
+    flexGrow: "0",
+    overflow: "visible",
+  };
+}
+
+const REVIEW_SLOT_STYLE = "display:flex;align-items:flex-start;align-self:flex-start;width:fit-content;height:fit-content;flex-shrink:0;overflow:visible;";
+
+export function sortRowsBySection(rows = []) {
+  return [...rows].sort((a, b) => {
+    const as = Number(a.sid) || 999;
+    const bs = Number(b.sid) || 999;
+    if (as !== bs) return as - bs;
+    return (Number(a.index) || 0) - (Number(b.index) || 0);
+  });
+}
 
 export function reviewBoardFrameStyles({ left, top } = {}) {
   const styles = {
@@ -197,7 +345,7 @@ export async function alignCaptureReviewBoards({
     });
     board.worldX = park.left;
     board.worldY = park.top;
-    board.width = spec.parkWidth;
+    board.width = reservedBoardWidth(board.width, spec.parkWidth);
   }
   if (updates.length) {
     await call("update_styles", { fileId, updates });
@@ -255,18 +403,19 @@ export function reviewSectionSid(value = "") {
 
 export function reviewRowHtml({ name, label, pair, sid = "01" }) {
   const badge = reviewSectionSid(sid) || "01";
+  const slot = `<div layer-name="slot" style="${REVIEW_SLOT_STYLE}"></div>`;
   const second = pair
-    ? `<div layer-name="second" style="display:flex;width:100%;min-height:48px;"><div layer-name="slot" style="display:flex;width:100%;min-height:48px;"></div></div>`
+    ? `<div layer-name="second" style="${REVIEW_SLOT_STYLE}">${slot}</div>`
     : "";
-  return `<div layer-name="${name}" style="display:flex;flex-direction:column;gap:16px;width:1600px;padding:24px;background:${REVIEW_ROW_FILL};border-radius:16px;overflow:visible;">
-      <div layer-name="title" style="display:flex;align-items:center;gap:12px;">
+  return `<div layer-name="${name}" style="display:flex;flex-direction:column;align-items:flex-start;gap:16px;width:fit-content;height:fit-content;flex-shrink:0;padding:24px;background:${REVIEW_ROW_FILL};border-radius:16px;overflow:visible;">
+      <div layer-name="title" style="display:flex;align-items:center;gap:12px;width:fit-content;height:fit-content;">
         <div layer-name="section-number" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:36px;background:#E11D2E;flex-shrink:0;">
           <p style="font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:#ffffff;line-height:18px;">${badge}</p>
         </div>
         <p style="font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:${REVIEW_ROW_LABEL};">${label}</p>
       </div>
-      <div layer-name="states" style="display:flex;flex-direction:column;gap:16px;">
-        <div layer-name="first" style="display:flex;width:100%;min-height:48px;"><div layer-name="slot" style="display:flex;width:100%;min-height:48px;"></div></div>
+      <div layer-name="states" style="display:flex;flex-direction:column;align-items:flex-start;gap:16px;width:fit-content;height:fit-content;flex-shrink:0;">
+        <div layer-name="first" style="${REVIEW_SLOT_STYLE}">${slot}</div>
         ${second}
       </div>
     </div>`;
@@ -538,24 +687,19 @@ async function duplicateGroup(call, fileId, sourceId, parentId) {
   const before = new Set((await children(call, parentId, fileId)).map((n) => n.id));
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const raw = mcpPayload(await call("duplicate_nodes", {
+      mcpPayload(await call("duplicate_nodes", {
         fileId,
         nodes: [{ id: sourceId, parentId }],
       }));
-      const copy = parseDupId(raw);
-      if (copy?.id && copy.id !== sourceId && !before.has(copy.id)) return copy;
-    } catch { /* try nodeIds */ }
-    try {
-      const copy = parseDupId(mcpPayload(await call("duplicate_nodes", { fileId, nodeIds: [sourceId] })));
-      if (copy?.id && copy.id !== sourceId && !before.has(copy.id)) return copy;
-    } catch { /* retry */ }
+    } catch { /* retry parented duplicate only */ }
     const after = await children(call, parentId, fileId);
     const fresh = after.find((n) => n.id && !before.has(n.id));
+    // Only a child of the slot counts. An unparented duplicate lands beside
+    // the row and was the second, stretched copy (Pitfall #230).
     if (fresh?.id) return fresh;
     await new Promise((r) => setTimeout(r, 400));
   }
-  const after = await children(call, parentId, fileId);
-  return after.find((n) => n.id && !before.has(n.id)) || null;
+  return null;
 }
 
 export function isParkedNavigationName(name) {
@@ -1022,6 +1166,135 @@ export async function parkTakesOnComponents({
   return { written: made };
 }
 
+async function sourceNodeInfo(call, fileId, nodeId) {
+  if (!call || !nodeId) return null;
+  try {
+    const { mcpPayload } = await importSibling("url-to-paper", "scripts/write-paper-section.mjs");
+    return mcpPayload(await call("get_node_info", { fileId, nodeId }));
+  } catch {
+    return null;
+  }
+}
+
+const ROW_CHROME = new Set(["title", "states", "donot-jsx-dump"]);
+
+async function stripStrayRowSiblings(call, groupId, fileId) {
+  const kids = await children(call, groupId, fileId);
+  const stray = kids.filter((node) => !ROW_CHROME.has(nameOf(node).toLowerCase()));
+  if (!stray.length) return 0;
+  await call("delete_nodes", { fileId, nodeIds: stray.map((node) => node.id) });
+  return stray.length;
+}
+
+async function hugParkedRow(call, fileId, { groupId, slotId, copyId, boardId, sourceWidth } = {}) {
+  const states = groupId ? await findNamed(call, groupId, fileId, ["states", "donot-jsx-dump"]) : null;
+  const first = states?.id ? await findNamed(call, states.id, fileId, ["first", "slot"]) : null;
+  const wrappers = [groupId, states?.id, first?.id, slotId].filter(Boolean);
+  const updates = [
+    { nodeIds: wrappers, styles: reviewRowHugStyles() },
+    { nodeIds: [slotId, first?.id].filter(Boolean), styles: reviewSlotHugStyles() },
+  ];
+  if (groupId) {
+    updates.push({ nodeIds: [groupId], styles: { backgroundColor: REVIEW_ROW_FILL, ...reviewRowHugStyles() } });
+  }
+  if (copyId) updates.push({ nodeIds: [copyId], styles: parkedSpecimenStyles(sourceWidth) });
+  if (boardId) {
+    updates.push({
+      nodeIds: [boardId],
+      styles: { width: REVIEW_BOARD_WIDTH, height: "fit-content", overflow: "visible" },
+    });
+  }
+  try {
+    await call("update_styles", { fileId, updates });
+  } catch { /* hug is best-effort */ }
+  if (groupId) {
+    try { await stripStrayRowSiblings(call, groupId, fileId); } catch { /* stray copy is best-effort */ }
+  }
+}
+
+async function readRowSid(call, rowId, fileId) {
+  const title = await findNamed(call, rowId, fileId, ["title", "Frame"]);
+  if (!title?.id) return "";
+  const badge = await findNamed(call, title.id, fileId, ["section-number"]);
+  if (!badge?.id) return "";
+  const kids = await children(call, badge.id, fileId);
+  const digit = kids.find((node) => node.component === "Text") || kids[0];
+  if (!digit?.id) return "";
+  const fromChild = reviewSectionSid(digit.textContent || digit.name || "");
+  if (fromChild && digit.textContent) return fromChild;
+  const info = await sourceNodeInfo(call, fileId, digit.id);
+  return reviewSectionSid(info?.textContent || info?.name || fromChild || "");
+}
+
+/** Flex boards ignore `top`. Move rows into section-NN order so a later duplicate is not painted above an earlier one. */
+export async function restackReviewBoard(call, fileId, boardName, aliases = []) {
+  if (!call || !fileId || !boardName) return { moved: 0 };
+  const board = await findBoard(call, boardName, aliases);
+  if (!board?.id) return { moved: 0, reason: `no ${boardName}` };
+  const kids = await children(call, board.id, fileId);
+  const rows = [];
+  for (const [index, node] of kids.entries()) {
+    if (isNavigationChrome(nameOf(node))) continue;
+    const sid = await readRowSid(call, node.id, fileId);
+    rows.push({ id: node.id, sid, index });
+  }
+  const ordered = sortRowsBySection(rows);
+  if (!ordered.length) return { moved: 0, boardId: board.id };
+  try {
+    await call("move_nodes", {
+      fileId,
+      moves: ordered.map((row) => ({ nodeId: row.id, parentId: board.id })),
+    });
+  } catch (error) {
+    return { moved: 0, boardId: board.id, reason: error?.message || "move_nodes failed" };
+  }
+  try {
+    await call("update_styles", {
+      fileId,
+      updates: [{
+        nodeIds: ordered.map((row) => row.id),
+        styles: reviewRowHugStyles(),
+      }],
+    });
+  } catch { /* hug is best-effort */ }
+  return { moved: ordered.length, boardId: board.id, order: ordered.map((row) => row.sid) };
+}
+
+/** Place Components to the right of the measured Buttons edge. The 1400 park reserve overlaps a 1600px row. */
+export async function clearReviewBoardOverlap({
+  call, fileId, gap = REVIEW_BOARD_GAP, log = console.error,
+} = {}) {
+  if (!call || !fileId) return { moved: false };
+  const { mcpPayload } = await importSibling("url-to-paper", "scripts/write-paper-section.mjs");
+  const info = mcpPayload(await call("get_basic_info", { fileId }));
+  const boards = info.artboards || [];
+  const buttons = boards.find((board) => isButtonsBoard(board.name));
+  const components = boards.find((board) => board.name === COMPONENTS_BOARD);
+  const width = Number(buttons?.width) || 0;
+  if (!buttons?.id || !components?.id || width < 8) {
+    return { moved: false, reason: "need measured Buttons width" };
+  }
+  const left = nextBoardLeft(buttons, gap);
+  const top = Math.round(Number(buttons.worldY ?? buttons.y) || 0);
+  if (Math.round(Number(components.worldX) || 0) >= left - 1) {
+    return { moved: false, left: components.worldX, clearance: left };
+  }
+  await call("update_styles", {
+    fileId,
+    updates: [{
+      nodeIds: [components.id],
+      styles: {
+        left: `${left}px`,
+        top: `${top}px`,
+        width: REVIEW_BOARD_WIDTH,
+        height: "fit-content",
+      },
+    }],
+  });
+  log(`Components cleared to ${left} (Buttons ends ${Math.round((buttons.worldX || 0) + width)})`);
+  return { moved: true, left, top };
+}
+
 export async function parkDesktopNodeOnBoard({
   call, fileId, boardName, aliases = [], sourceNodeId, label, sid, kind = "button",
   log = console.error,
@@ -1051,19 +1324,19 @@ export async function parkDesktopNodeOnBoard({
   let group = template;
   const empty = await hoverGroupIsEmpty(call, template.id, fileId);
   if (!empty) {
-    const last = stack[stack.length - 1] || template;
     group = await duplicateGroup(call, fileId, template.id, board.id);
     if (!group?.id || group.id === template.id) {
       log(`  ✗ ${id} · ${rowLabel} — duplicate row failed`);
       return { written: false };
     }
-    const top = Number(last.y ?? last.top ?? 0) + Number(last.height || 280) + 24;
+    // duplicate_nodes inserts the copy immediately after the template, so a
+    // flex board paints newest-first. Append, then restack by section NN.
     try {
-      await call("update_styles", {
+      await call("move_nodes", {
         fileId,
-        updates: [{ nodeIds: [group.id], styles: { top: `${Math.round(top)}px` } }],
+        moves: [{ nodeId: group.id, parentId: board.id }],
       });
-    } catch { /* stack below last is best-effort */ }
+    } catch { /* restackReviewBoard fixes order if this move is ignored */ }
   }
   const index = empty ? 1 : stack.length + 1;
   const rowName = `${prefix} ${String(index).padStart(2, "0")}`;
@@ -1077,38 +1350,31 @@ export async function parkDesktopNodeOnBoard({
   if (slotKids.length) {
     await call("delete_nodes", { fileId, nodeIds: slotKids.map((n) => n.id) });
   }
+  const source = await sourceNodeInfo(call, fileId, sourceNodeId);
+  if (isSectionShell(source)) {
+    log(`  ✗ ${id} · ${rowLabel} — section shell, pick the compact card`);
+    return { written: false, reason: "section shell — pick the compact card, not the NN · band" };
+  }
+  const sourceWidth = nodePixelWidth(source);
+  if (sourceWidth < 8) {
+    log(`  ✗ ${id} · ${rowLabel} — source width unread`);
+    return { written: false, reason: "source width unread — do not park without a pixel width" };
+  }
   const copy = await duplicateGroup(call, fileId, sourceNodeId, slotId);
   if (!copy?.id) {
     log(`  ✗ ${id} · ${rowLabel} → ${boardName} (duplicate node failed)`);
     return { written: false };
   }
-  try {
-    await call("update_styles", {
-      fileId,
-      updates: [
-        {
-          nodeIds: [group.id],
-          styles: { backgroundColor: REVIEW_ROW_FILL },
-        },
-        {
-          nodeIds: [copy.id],
-          styles: {
-            position: "relative",
-            left: "auto",
-            top: "auto",
-            width: "fit-content",
-            height: "fit-content",
-          },
-        },
-        {
-          nodeIds: [board.id],
-          styles: { width: REVIEW_BOARD_WIDTH, height: "fit-content" },
-        },
-      ],
-    });
-  } catch { /* hug is best-effort */ }
+  await hugParkedRow(call, fileId, { groupId: group.id, slotId, copyId: copy.id, boardId: board.id, sourceWidth });
+  const parked = await sourceNodeInfo(call, fileId, copy.id);
+  const rowInfo = await sourceNodeInfo(call, fileId, group.id);
+  const held = parkedCopyHolds(source, parked, rowInfo);
+  if (!held.ok) {
+    log(`  ✗ ${id} · ${rowLabel} — ${held.reason}`);
+    return { written: false, reason: held.reason };
+  }
   log(`  ✓ ${id} · ${rowLabel} → ${boardName}`);
-  return { written: true, board: boardName, nodeId: group.id, parkedNodeId: copy.id };
+  return { written: true, board: boardName, nodeId: group.id, parkedNodeId: copy.id, sourceWidth };
 }
 
 /** Duplicate a parked default CTA into the Hover cell and apply source CSS paint. */
@@ -1122,8 +1388,8 @@ export async function parkCssHoverOnRow({
   let second = await findNamed(call, states?.id || groupId, fileId, ["second"]);
   if (!second?.id && states?.id) {
     await writeBoardChildren(call, states.id, fileId, `
-      <div layer-name="second" style="display:flex;width:100%;min-height:48px;">
-        <div layer-name="slot" style="display:flex;width:100%;min-height:48px;"></div>
+      <div layer-name="second" style="${REVIEW_SLOT_STYLE}">
+        <div layer-name="slot" style="${REVIEW_SLOT_STYLE}"></div>
       </div>`);
     second = await findNamed(call, states.id, fileId, ["second"]);
   }
@@ -1139,20 +1405,14 @@ export async function parkCssHoverOnRow({
   for (const [key, value] of Object.entries(styles)) {
     if (value) paint[key] = value;
   }
+  const sourceWidth = nodePixelWidth(await sourceNodeInfo(call, fileId, parkedNodeId));
   try {
     await call("update_styles", {
       fileId,
-      updates: [{
-        nodeIds: [copy.id],
-        styles: {
-          position: "relative",
-          left: "auto",
-          top: "auto",
-          width: "fit-content",
-          height: "fit-content",
-          ...paint,
-        },
-      }],
+      updates: [
+        { nodeIds: [slotId, second.id].filter(Boolean), styles: reviewSlotHugStyles() },
+        { nodeIds: [copy.id], styles: { ...parkedSpecimenStyles(sourceWidth), ...paint } },
+      ],
     });
   } catch { /* paint is best-effort */ }
   try {

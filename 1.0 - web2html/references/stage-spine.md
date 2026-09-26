@@ -327,11 +327,12 @@ region manifest is copied out of Stage L's `library.json`.
     source clip fails 1.3 with no retry. Missing any clip dir fails 1.3.
     Write `design-library/library.json`. After seed QA is green, pull unique
     buttons and components from token-seeded `home-desktop` onto FRAME `Buttons`
-    and FRAME `Components` on a `#6F6F6F` review stage (Pitfall #222,
-    `references/13-buttons-components.md`). Then author
+    and FRAME `Components` on a `#6F6F6F` review stage that hugs the source
+    pixel width (Pitfall #222 #230, `references/13-buttons-components.md`).
+    Then author
     button hover from source CSS (`author-button-hover.mjs`). Receipts
     `qa/buttons-components-pull.json` and `qa/button-hover.json` are required
-    to mark 1.3 done (Pitfall #205 #207 #222).
+    to mark 1.3 done (Pitfall #205 #207 #222 #230).
     P-0 and every earlier stage must leave Design Library absent.
 4c. **2.1 comment gate:** first Build action is `list-paper-comments.mjs`.
     Exit 2 = apply every open thread, resolve it, re-run. Do this even if

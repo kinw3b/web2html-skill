@@ -5,7 +5,7 @@
 //
 //   PAPER_FILE_ID=<id> node scripts/list-paper-comments.mjs [--file <id>] [--out qa/paper-comments.json]
 
-import { mkdirSync, writeFileSync, realpathSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { call, setFileId } from "./mcp-client.mjs";
@@ -56,7 +56,26 @@ export async function listOpenPaperComments({
   };
   mkdirSync(dirname(dest), { recursive: true });
   writeFileSync(dest, JSON.stringify(report, null, 2));
+  appendCommentLog(dest, report);
   return { ...report, out: dest };
+}
+
+/** Append-only history so the run report keeps every comment even after threads resolve. */
+export function commentLogPath(out) {
+  return resolve(dirname(out), "paper-comments-log.jsonl");
+}
+
+export function appendCommentLog(out, report) {
+  const slim = (report.threads || []).map((t) => ({
+    id: t.commentThreadId || t.id || null,
+    status: t.status || "open",
+    text: t.firstMessagePreview?.text || t.firstMessage?.text || "",
+    author: t.firstMessagePreview?.authorName || t.authorName || "",
+  }));
+  appendFileSync(
+    commentLogPath(out),
+    JSON.stringify({ generatedAt: report.generatedAt, openCount: report.openCount, threads: slim }) + "\n",
+  );
 }
 
 const invoked = process.argv[1]

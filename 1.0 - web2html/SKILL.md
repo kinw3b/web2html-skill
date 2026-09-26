@@ -1,7 +1,7 @@
 ---
 name: web2html
-description: "Convert a live URL to pixel-perfect static HTML via Paper. Invoke as /web2html or Convert <URL> to HTML. First tool: pipeline-progress.py start for a NEW run, resume for a continued session. Never write rebuild HTML before 2.1. Never scrape-to-site, Firecrawl-to-HTML, Tailwind CDN, or freehand a homepage. If rebuild/index.html exists without a live board and 1.4 sign-off, quarantine it and start from 1.1. 2.1 emits the Design System page from 1.3 tokens; 2.2 authors rebuild/index-semantic.html from Paper using those tokens. A run spans three sessions (1 capture / 2 build / 3 QA) plus optional Phase 4 (Paper) and Phase 5 (Astro site: shared chrome pulled once from the 3.4 polish, then each page's body); 2.0 and optional 5.0 are recommended on the strong model; the tier is advice, never a gate — run any session on whichever model the operator chose. Homepage only until 3.4. file:// preview. No GIFs, no local server."
-version: 2.26.0
+description: "Convert a live URL to pixel-perfect static HTML via Paper. Invoke as /web2html or Convert <URL> to HTML. First tool: orca_workspace.py ensure (single primary workspace, Orca project when reachable) then pipeline-progress.py start for a NEW run, resume for a continued session. Never write rebuild HTML before 2.1. Never scrape-to-site, Firecrawl-to-HTML, Tailwind CDN, or freehand a homepage. If rebuild/index.html exists without a live board and 1.4 sign-off, quarantine it and start from 1.1. 2.1 emits the Design System page from 1.3 tokens; 2.2 authors rebuild/index-semantic.html from Paper using those tokens. A run spans three sessions (1 capture / 2 build / 3 QA) plus optional Phase 4 (Paper) and Phase 5 (Astro site: shared chrome pulled once from the 3.4 polish, then each page's body); 2.0 and optional 5.0 are recommended on the strong model; the tier is advice, never a gate — run any session on whichever model the operator chose. Homepage only until 3.4. file:// preview. No GIFs, no local server."
+version: 2.30.0
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]
@@ -39,12 +39,36 @@ step** — see the table below. `read_file` that one file, then act.
 **Trigger:** `Convert <URL> to HTML`
 
 ```sh
-# NEW run — writes AND opens <project>/pipeline.html (once)
-python3 $SKILLS/web2html/scripts/pipeline-progress.py start /path/to/templates/<project>
+# NEW run — one primary workspace folder, then the board
+# ensure creates the run folder: an Orca project (folder context) when the
+# Orca CLI is reachable, a plain folder otherwise; it reuses the recorded
+# workspace on every later call — never a second worktree. Pass its RUN ROOT
+# to start. (start also registers the folder if ensure was skipped.)
+python3 $SKILLS/web2html/scripts/orca_workspace.py ensure <project-slug>
+python3 $SKILLS/web2html/scripts/pipeline-progress.py start <RUN ROOT>
 # continued session 2 or 3 — never start, it resets the board
 # resume does not reopen the board; the start tab stays open
+python3 $SKILLS/web2html/scripts/orca_workspace.py show <project-slug>   # the recorded RUN ROOT
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --at 2.1 --owner session-2
+python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --owner session-2   # --at detected from the board
+python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --owner session-2 --model claude-fable-5.1   # record who runs this session
 ```
+
+**Every new session `resume`s first** — it detects where the run sits, logs the
+session, and prints the run total so far. Then `mark --status active` before
+touching the step: marks are the clock. Each step's duration is `ended − started`
+and the run total is the **sum of step durations, never wall clock**.
+`timing <project>` prints the table (Pitfall #227 #228). `--agent` defaults to
+the harness probe; `--model` (or `WEB2HTML_MODEL`) names the model. The board
+HUD names the current session and each phase card carries a
+`duration · agent · model` line, so a phase that mixed agents shows both
+(Pitfall #229).
+
+**Run report (2.29.0).** Every `mark done` refreshes `<project>/run-report.md` —
+the portable run log (sessions, agent + model, per-step / per-phase durations,
+checkpoint outcomes, captured Paper review comments, notes). At a human
+checkpoint, log any additional request the human made with
+`run_report.py note . --step 2.4 --text "…" --author human`. Never a gate.
 
 Both print a **probe** line (`harness_probe.py <project> --brief`): the harness, whether
 Orca is reachable, the same-source agent id, and the rungs `waves orca|subagent|serial` /
@@ -147,7 +171,7 @@ do not mine a second library, and do not rewrite 2.3 geometry.
 |---|---|---|
 | **1.1** | `scrape-web.sh` — URL + images + Latin fonts. Stub contract. | `references/step-11.md` |
 | **1.2** | Headless `hover-reel/scripts/capture-session.mjs`. First capture `create_file`s one Paper document. A retry reopens `qa/paper-file.json` — do not create a second file. Never `list_files`. Then the run-config widths (1600/768/390; fast 1600/390) + Navigation + stretch-root. | `references/12-desktop-source.md` + `references/stage-p-notes.md` |
-| **1.3** | **Fast run: skipped** (intake receipt). Otherwise `run-design-library-step.mjs` once. Foundations only. Then pull unique buttons + components from token-seeded `home-desktop` onto FRAME `Buttons` and FRAME `Components`, and author button hover from source CSS. | `references/pillars.md` (1.3 rows) + `references/13-buttons-components.md` |
+| **1.3** | **Fast run: skipped** (intake receipt). Otherwise `run-design-library-step.mjs` once. Foundations only. Then pull unique buttons + components from token-seeded `home-desktop` onto FRAME `Buttons` and FRAME `Components` (compact card, source pixel width; the script refuses a section shell, a width drift, or a row that does not hug), and author button hover from source CSS. | `references/pillars.md` (1.3 rows) + `references/13-buttons-components.md` |
 | **1.4** | `checkpoints=auto`: self-accepts, nothing opens, continue to 2.1. Otherwise required Paper sign-off. `mark 1.4 active` opens Paper **and** the browser on the stamped source URL (Capture Tool connects off that tab; `capture-doctor` FAIL = OFFLINE, relay its fix). Optional leftover hover only. Fire the two-option question modal. Stop. | `references/live-board.md` + pillars 1.4 row |
 | **2.1** | **Adopted clean HTML: off** (`qa/phase-2-off.json`). Do not emit a Design System page. **Fast run:** `emit_fonts.py .` only. Otherwise `emit-design-system.mjs` writes `rebuild/design-system.html` + `tokens.css` + `fonts.css`. Not the ship. | `references/paper-design-to-code.md` |
 | **2.2** | **Adopted clean HTML: off.** Do not copy into `rebuild/` and do not author. Otherwise `get_jsx` → `dump_index_raw.py` → `rebuild/index-raw.html` (**fast: skip the dump**). `frontend-design` authors `rebuild/index-semantic.html`. | same |
