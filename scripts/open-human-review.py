@@ -11,8 +11,10 @@ Google Chrome on:
   rebuild/index-polish.html?qa-review=final&qa-outlines=off
   rebuild/polish-report.html
 
-Do not stop at 3.4 without this. Exit 2 if the polish file, receipts, or
-report are missing, or verify-semantics.py fails (3.3).
+Do not stop at 3.4 without this. Exit 2 if the polish file or report is
+missing. verify-polish-passes.py and verify-semantics.py also exit 2 unless
+--requested: the human asked this session to move on, those quality gates
+warn, and the review still opens (Pitfall #235).
 """
 from __future__ import annotations
 
@@ -82,6 +84,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Refresh + verify only (CI). Still writes rebuild/polish-report.html.",
     )
+    ap.add_argument(
+        "--requested",
+        action="store_true",
+        help="Human asked this session to move on. Polish / semantics / fidelity / type warn and the review still opens (Pitfall #235).",
+    )
     args = ap.parse_args(argv)
     _hint("3.4", "active", args.root)
     root = args.root.resolve()
@@ -109,16 +116,53 @@ def main(argv: list[str] | None = None) -> int:
     html = ensure_index_link(polish.read_text(encoding="utf-8"))
     polish.write_text(html, encoding="utf-8")
 
+    # Polish phase owns GSAP. Re-apply here so a 3.3 rewrite cannot force a
+    # manual inject at this checkpoint (Pitfall #236). Never touches index.html.
+    rc = subprocess.call(
+        [sys.executable, str(_SCRIPTS / "inject-gsap-reveal.py"), str(polish)]
+    )
+    if rc != 0:
+        print(
+            "FAIL: could not inject GSAP on index-polish.html. "
+            "Do not inject by hand. Pitfall #236.",
+            file=sys.stderr,
+        )
+        return rc
+    rc = subprocess.call(
+        [sys.executable, str(_SCRIPTS / "verify-gsap-reveal.py"), str(root)]
+    )
+    if rc != 0 and not args.requested:
+        print(
+            "FAIL: GSAP in-view is not on the polish file. "
+            "3.2 active injects it; this checkpoint only refreshes that inject. "
+            "Pitfall #236.",
+            file=sys.stderr,
+        )
+        return rc
+    if rc != 0:
+        print(
+            "WARN: GSAP verify red — requested advance, not a stop. Pitfall #236.",
+            file=sys.stderr,
+        )
+    else:
+        print("GSAP in-view → index-polish.html  do not inject by hand")
+
     rc = subprocess.call(
         [sys.executable, str(_SCRIPTS / "verify-polish-passes.py"), str(root)]
     )
-    if rc != 0:
+    if rc != 0 and not args.requested:
         return rc
+    if rc != 0:
+        print(
+            "WARN: quality gate red (polish / semantics / fidelity / type) — "
+            "requested advance, not a stop. Opening the review anyway. Pitfall #235.",
+            file=sys.stderr,
+        )
 
     rc = subprocess.call(
         [sys.executable, str(_SCRIPTS / "verify-semantics.py"), str(polish)]
     )
-    if rc != 0:
+    if rc != 0 and not args.requested:
         print(
             "FAIL: semantics gate (3.4). Run semantics_pass.py (3.3) on "
             "rebuild/index-polish.html before this checkpoint. "
@@ -126,6 +170,11 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return rc
+    if rc != 0:
+        print(
+            "WARN: semantics gate red — requested advance, not a stop. Pitfall #235.",
+            file=sys.stderr,
+        )
 
     report = root / "rebuild" / "polish-report.html"
     if not args.no_open:

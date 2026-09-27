@@ -131,6 +131,20 @@ _author_nav_dropdown = importlib.util.module_from_spec(_AUTHOR_DROPDOWN)
 assert _AUTHOR_DROPDOWN.loader
 _AUTHOR_DROPDOWN.loader.exec_module(_author_nav_dropdown)
 
+_INJECT_GSAP = importlib.util.spec_from_file_location(
+    "inject_gsap_reveal", _SCRIPTS / "inject-gsap-reveal.py"
+)
+_inject_gsap = importlib.util.module_from_spec(_INJECT_GSAP)
+assert _INJECT_GSAP.loader
+_INJECT_GSAP.loader.exec_module(_inject_gsap)
+
+_VERIFY_GSAP = importlib.util.spec_from_file_location(
+    "verify_gsap_reveal", _SCRIPTS / "verify-gsap-reveal.py"
+)
+_verify_gsap = importlib.util.module_from_spec(_VERIFY_GSAP)
+assert _VERIFY_GSAP.loader
+_VERIFY_GSAP.loader.exec_module(_verify_gsap)
+
 STEPS = [
     ("1.1", "Contract, files, fonts"),
     ("1.2", "Breakpoints + Navigation"),
@@ -2847,6 +2861,40 @@ def seed_32_nav_dropdown(root: Path) -> dict:
     return receipt
 
 
+def seed_32_gsap(root: Path) -> dict:
+    """Inject mandatory GSAP in-view on index-polish.html.
+
+    Runs at 3.2 active and again when the 3.4 review opens, so a later
+    polish rewrite cannot drop it and the checkpoint is not a manual inject.
+    Does not touch the 2.4 index.html lock (Pitfall #203 #236).
+    """
+    polish = polish_path(root)
+    if not polish.is_file():
+        raise FileNotFoundError(
+            f"missing {polish} — 3.1 seeds index-polish.html before GSAP inject"
+        )
+    _inject_gsap.copy_assets(polish.parent)
+    count, _changed = _inject_gsap.inject_file(polish)
+    rc = _verify_gsap.main([str(root.resolve())])
+    receipt_path = root / "qa" / "gsap-reveal-qa.json"
+    receipt: dict = {}
+    if receipt_path.is_file():
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            receipt = {}
+    if rc != 0 or receipt.get("ok") is not True:
+        raise FileNotFoundError(
+            "GSAP in-view did not land on index-polish.html "
+            f"({count} data-reveal). Do not inject by hand at 3.4. Pitfall #236."
+        )
+    print(
+        f"3.2 GSAP in-view → {receipt.get('data_reveal')} data-reveal  "
+        "qa/gsap-reveal-qa.json"
+    )
+    return receipt
+
+
 def seed_24_polish(root: Path) -> Path | None:
     """Copy the 2.4 lock to rebuild/index-polish.html. Never overwrite.
 
@@ -2909,7 +2957,9 @@ Then: 3.1 a11y + contrast + anti-slop (Impeccable + Taste) on
       (Pitfall #223 #234).
 
 Receipts land in qa/polish-passes/ plus the three 3.2 companion .md files
-in qa/. verify-polish-passes.py green before 3.4.
+in qa/. verify-polish-passes.py is green before an unsolicited 3.4 close.
+If the human asked this session to move to the next phase, pass --requested:
+red polish / semantics / fidelity / type warns and does not stop (Pitfall #235).
 Escalate: if a fix would change layout, type size, library class names,
 section order, or the colour system, stop and hand back to the build tier.
 """
@@ -3424,12 +3474,90 @@ def cmd_handoff(root: Path) -> int:
     return 0
 
 
+def polish_quality_errors(root: Path) -> list[str]:
+    """Red polish / semantics / fidelity / type checks on a URL polish ship.
+
+    Empty when the gate is green, this is an adopted folder run, or there is
+    no polish file left to check. Does not refuse by itself.
+    """
+    if run_config.adopt_mode(root):
+        return []
+    polish = root / "rebuild" / "index-polish.html"
+    if not polish.is_file():
+        return []
+    script = Path(__file__).resolve().parent / "verify-polish-passes.py"
+    proc = subprocess.run(
+        [sys.executable, str(script), str(root)],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0:
+        return []
+    lines = [ln.strip() for ln in (proc.stderr or "").splitlines() if ln.strip().startswith("FAIL:")]
+    if not lines:
+        lines = [ln.strip() for ln in (proc.stderr or proc.stdout or "").splitlines() if ln.strip()]
+    return lines[:8] or ["verify-polish-passes.py failed"]
+
+
+def _print_quality_warn(errors: list[str]) -> None:
+    print(
+        "WARN: quality gate red (polish / semantics / fidelity / type) — "
+        "requested advance, not a stop. Pitfall #235."
+    )
+    for line in errors[:8]:
+        print(f"  - {line}")
+
+
+def _note_quality_yield(root: Path, step: str, errors: list[str]) -> None:
+    try:
+        import run_report
+
+        run_report.add_note(
+            root,
+            step,
+            "Requested advance: quality gate red (polish / semantics / fidelity / type). "
+            + " | ".join(errors[:4]),
+            "agent",
+        )
+    except Exception:  # noqa: BLE001 — the note is an output, never a gate
+        pass
+
+
+def yield_quality_gate(root: Path, step: str, requested: bool) -> int | None:
+    """Refuse an unsolicited 3.4 close when polish quality is red.
+
+    ``--requested`` (the human asked this session to move on) warns and
+    returns None so the mark continues. Subagents and unsolicited marks
+    get 2. Adopted folder runs and a missing polish file are not this gate.
+    """
+    if step != "3.4":
+        return None
+    errors = polish_quality_errors(root)
+    if not errors:
+        return None
+    if requested:
+        _print_quality_warn(errors)
+        _note_quality_yield(root, step, errors)
+        return None
+    print(
+        "FAIL: cannot mark 3.4 done — quality gate is red "
+        "(polish / semantics / fidelity / type). "
+        "Pass --requested only when the human asked this session to move to the next phase. "
+        "Subagents and unsolicited marks do not pass it. Pitfall #235.",
+        file=sys.stderr,
+    )
+    for line in errors[:8]:
+        print(f"  - {line}", file=sys.stderr)
+    return 2
+
+
 def cmd_resume(
     root: Path,
     at: str | None,
     owner: str,
     agent: str | None = None,
     model: str | None = None,
+    requested: bool = False,
 ) -> int:
     """Continue an existing run in a new session. Never resets, never quarantines.
 
@@ -3461,10 +3589,25 @@ def cmd_resume(
         print(f"resume: no --at given — detected {at} {TITLES[at]} from the board")
     elif detected and detected != at:
         print(f"resume: board sits at {detected} {TITLES[detected]}; you asked for {at}. Timing continues from the board.")
+    if requested and at in {"3.4", "4.1"}:
+        errors = polish_quality_errors(root)
+        if errors:
+            _print_quality_warn(errors)
+            print(
+                "Write the phase receipt they asked for, then "
+                "mark --step 3.4 --status done --requested. Do not remediate the quality gate."
+            )
     pending = pending_predecessors(data, at, for_active=True)
     if pending:
+        extra = ""
+        if requested and "3.4" in pending:
+            extra = (
+                " Requested advance does not skip the checkpoint. "
+                "Write the phase receipt, then mark --step 3.4 --status done --requested. "
+                "Quality gates will warn, not stop. Pitfall #235."
+            )
         print(
-            f"FAIL: cannot resume at {at} \u2014 unfinished predecessors: {', '.join(pending)}.",
+            f"FAIL: cannot resume at {at} \u2014 unfinished predecessors: {', '.join(pending)}.{extra}",
             file=sys.stderr,
         )
         return 2
@@ -3631,6 +3774,7 @@ def cmd_mark(
     owner: str | None = None,
     agent: str | None = None,
     model: str | None = None,
+    requested: bool = False,
 ) -> int:
     if step not in TITLES:
         print(f"FAIL: unknown step {step}. Use: {' '.join(STEP_IDS)}", file=sys.stderr)
@@ -3776,6 +3920,10 @@ def cmd_mark(
             file=sys.stderr,
         )
         return 2
+    if status == "done" and step == "3.4":
+        blocked = yield_quality_gate(root, step, requested)
+        if blocked:
+            return blocked
     if step.startswith("4.") and not phase4_opted(root):
         print(
             "FAIL: Phase 4 is closed. Write qa/phase-4-opted.json at 3.4 to continue, "
@@ -3952,6 +4100,7 @@ def cmd_mark(
                 seed_32_nav_drawer(root)
                 seed_32_faq(root)
                 seed_32_nav_dropdown(root)
+                seed_32_gsap(root)
             except FileNotFoundError as exc:
                 print(f"FAIL: cannot mark 3.2 active — {exc}", file=sys.stderr)
                 return 2
@@ -3969,6 +4118,12 @@ def cmd_mark(
         if step == "3.4" and run_config.adopt_mode(root):
             print("3.4 adopt — do not ask finish vs Phase 4.")
             print("Phase 4 is required. Mark 3.4 done and continue at 4.1. The next human stop is 4.4.")
+        elif step == "3.4":
+            try:
+                seed_32_gsap(root)
+            except FileNotFoundError as exc:
+                print(f"FAIL: cannot mark 3.4 active — {exc}", file=sys.stderr)
+                return 2
         if step == "2.4" and run_config.adopt_mode(root):
             print("2.4 off — Phase 2 is not applicable. source-html/ is the ship. Continue at 3.1.")
         elif step == "2.4" and run_config.auto_accepts(root, "2.4"):
@@ -4273,6 +4428,11 @@ def main(argv: list[str] | None = None) -> int:
     rs.add_argument("--owner", required=True, help="Session name for the controller lease, e.g. session-2")
     rs.add_argument("--agent", default=None, help="Harness running this session (defaults to the probe), e.g. claude-code")
     rs.add_argument("--model", default=None, help="Model id for this session (or WEB2HTML_MODEL), e.g. claude-fable-5.1")
+    rs.add_argument(
+        "--requested",
+        action="store_true",
+        help="Human asked this session to move to the next phase. Quality gates warn; they do not stop (Pitfall #235).",
+    )
     tm = sub.add_parser("timing", help="Per-step started / finished / duration and the run total (sum of step durations, not wall clock)")
     tm.add_argument("root", type=Path)
     tm.add_argument("--json", action="store_true", dest="as_json")
@@ -4285,6 +4445,11 @@ def main(argv: list[str] | None = None) -> int:
     mk.add_argument("--owner", default=None)
     mk.add_argument("--agent", default=None, help="Override the agent recorded for this step")
     mk.add_argument("--model", default=None, help="Override the model recorded for this step")
+    mk.add_argument(
+        "--requested",
+        action="store_true",
+        help="Human asked this session to move on. Red polish / semantics / fidelity / type warns and 3.4 still closes (Pitfall #235).",
+    )
     sk = sub.add_parser("skip")
     sk.add_argument("root", type=Path)
     sk.add_argument("--step", required=True)
@@ -4330,7 +4495,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "start":
         return cmd_start(args.root, args.agent, args.model)
     if args.cmd == "resume":
-        return cmd_resume(args.root, args.at, args.owner, args.agent, args.model)
+        return cmd_resume(args.root, args.at, args.owner, args.agent, args.model, args.requested)
     if args.cmd == "timing":
         return cmd_timing(args.root, args.as_json)
     if args.cmd == "skip":
@@ -4356,7 +4521,17 @@ def main(argv: list[str] | None = None) -> int:
         return release_controller(args.root, args.owner, args.expected_revision)
     if args.cmd == "relay":
         return cmd_relay(args.root, args.owner, args.adapter, args.reason, args.force)
-    return cmd_mark(args.root, args.step, args.status, args.reason, args.expected_revision, args.owner, args.agent, args.model)
+    return cmd_mark(
+        args.root,
+        args.step,
+        args.status,
+        args.reason,
+        args.expected_revision,
+        args.owner,
+        args.agent,
+        args.model,
+        args.requested,
+    )
 
 
 if __name__ == "__main__":

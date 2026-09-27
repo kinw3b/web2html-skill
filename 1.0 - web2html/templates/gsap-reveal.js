@@ -34,14 +34,25 @@
     path: 1,
   };
 
-  function hasQaOutlinesParam() {
+  function outlineQuery() {
     try {
-      var search = location.search || "";
-      if (search.indexOf("qa-outlines=") !== -1) return true;
+      var params = new URLSearchParams(location.search || "");
+      if (params.has("qa-outlines")) return (params.get("qa-outlines") || "").toLowerCase();
       var hash = location.hash || "";
-      if (hash.indexOf("qa-outlines=") !== -1) return true;
+      var body = hash.charAt(0) === "#" ? hash.slice(1) : hash;
+      if (body.indexOf("qa-outlines=") === 0) {
+        return decodeURIComponent(body.slice("qa-outlines=".length).split("&")[0] || "").toLowerCase();
+      }
     } catch (err) {}
-    return false;
+    return null;
+  }
+
+  // Outlines off (the 3.4 review URL) must still run GSAP. Only a painting
+  // mode fights the opacity prep. Pitfall #236.
+  function outlinesAreOn() {
+    var q = outlineQuery();
+    if (q == null) return false;
+    return q === "on" || q === "tags" || q === "mono";
   }
 
   function prefersReducedMotion() {
@@ -57,7 +68,7 @@
   }
 
   function skipPrep() {
-    return hasQaOutlinesParam() || qaOutlinesActive() || prefersReducedMotion();
+    return outlinesAreOn() || qaOutlinesActive() || prefersReducedMotion();
   }
 
   function markReady() {

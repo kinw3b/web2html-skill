@@ -21,7 +21,12 @@ left every later run dead. GSAP in-view is now a required 3.2 pass.
 Above-fold stays visible; below-fold staggers as each section crosses
 the 25%-from-bottom line so the cascade is readable.
 
-## Commands (Emil / tracker 3.2 — always)
+## Commands (Emil / tracker 3.2 — the pipeline runs these)
+
+`mark --step 3.2 --status active` injects GSAP on `index-polish.html` and
+writes `qa/gsap-reveal-qa.json`. `open-human-review.py` refreshes that inject
+before the 3.4 compare. Do not run the inject by hand at the checkpoint
+(Pitfall #236). The commands, if you need to re-apply:
 
 ```sh
 python3 "$SKILLS/website-to-html/scripts/inject-gsap-reveal.py" rebuild/index-polish.html
@@ -98,9 +103,9 @@ Skip:
 - `once: true` (do not replay on scroll-back).
 - `prefers-reduced-motion`: no hide, no tween.
 - QA / headless skip prep (everything stays visible) when:
-  - `?qa-outlines=` is present (query or hash), **or**
-  - `html[data-qa-outlines]` is set and not `off`, **or**
+  - outlines are painting (`?qa-outlines=on|tags|mono`, or `html[data-qa-outlines]` set and not `off`), **or**
   - `prefers-reduced-motion: reduce`
+  - `?qa-outlines=off` (the 3.4 review URL) does **not** skip. Motion must be visible at the checkpoint (Pitfall #236).
 - Scroll-walk in existing Playwright still works: below-fold becomes
   visible on trigger.
 - Expose `window.__gsapRevealReady` and

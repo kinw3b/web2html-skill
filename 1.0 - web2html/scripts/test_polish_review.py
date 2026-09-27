@@ -277,8 +277,12 @@ class PolishReviewTest(unittest.TestCase):
                     "--no-open",
                 ]
             )
-            self.assertEqual(rc, 2)
+            self.assertEqual(rc, 0)
+            polish = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            self.assertIn("js/gsap-reveal.js", polish)
+            self.assertIn("data-reveal", polish)
             lock = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
+            self.assertNotIn("gsap-reveal.js", lock)
             self.assertNotIn("polish-report.html", lock)
 
     def test_open_human_review_fails_without_polish(self) -> None:

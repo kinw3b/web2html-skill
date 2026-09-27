@@ -238,8 +238,13 @@ is 4.4. `qa/phase-4-skipped.json` fails. Pitfall #225.
 
 **URL run**, after the polish compare, fire **one** question:
 
-1. `Done — finish homepage run` → write `qa/phase-4-skipped.json`, `mark --step 3.4 --status done` (promotes polish to `index.html`, archives the other homepage HTML, tidy).
-2. `Continue to optional Phase 4` → write `qa/phase-4-opted.json`, `mark --step 3.4 --status done` (same promote, no tidy), then `mark --step 4.1 --status active`.
+1. `Done — finish homepage run` → write `qa/phase-4-skipped.json`, `mark --step 3.4 --status done --requested` (promotes polish to `index.html`, archives the other homepage HTML, tidy).
+2. `Continue to optional Phase 4` → write `qa/phase-4-opted.json`, `mark --step 3.4 --status done --requested` (same promote, no tidy), then `mark --step 4.1 --status active`.
+
+`--requested` is only because the human just asked. Red polish / semantics /
+fidelity / type warns and does not stop. Do not remediate those checks. Do not
+pass `--requested` from a subagent or from a mark the human did not ask for —
+those still refuse (Pitfall #235).
 
 ### 4.4 — two-option (Paper finish vs optional Phase 5)
 

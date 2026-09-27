@@ -10,7 +10,7 @@ and its native bridge are NOT installed — they are a separate download
 ./scripts/install-skills.sh` opts in. `pipeline-progress.py capture-doctor`
 reports a bridge that would show OFFLINE (Pitfall #217).
 
-**Orchestrator version (web2html):** **2.31.0**
+**Orchestrator version (web2html):** **2.33.0**
 
 This file is the **repo** index. The agent-facing index is `1.0 - web2html/SKILL.md`
 (~130 lines). Detail lives in `web2html/references/` and is read **per step**,
@@ -72,6 +72,18 @@ and the agent total in the HUD. `timing <project> [--json]` prints the table.
 Rule for every new agent session: `resume` first (it prints where the run sits
 and the total so far), then `mark active` before touching the step. Pitfall
 #227 #228 #231.
+
+**GSAP in polish (2.33.0).** `mark 3.2 active` injects GSAP in-view on `index-polish.html`. `mark 3.4 active` and `open-human-review.py` refresh it. Do not inject by hand at the 3.4 checkpoint. `?qa-outlines=off` still runs the animation. Pitfall #236.
+
+**Requested advance (2.32.0).** Quality gates (polish, semantics, fidelity,
+type) bind subagents and unsolicited pipeline marks. They do not bind a
+session the human asked to move into the next phase. That session passes
+`--requested` on `resume` and on `mark --step 3.4 --status done`: the checks
+warn, a note lands in the run report, and the mark still closes so the next
+phase can start. Do not remediate those four checks. Do not pass `--requested`
+from a subagent or from a step the human did not ask to advance — those still
+refuse. Predecessor, artifact, ship-file, and intake-skip gates stay hard
+either way. Pitfall #235.
 
 **Agent + model (2.28.0).** Each session records who ran it: `resume` /
 `start` take `--agent` (defaults to the harness probe) and `--model` (or
@@ -265,7 +277,10 @@ step. 2.0 must not stamp, join, or retag on those ids.
  on 4.x it is allowed only on a URL run after Phase 4 opt-in and is refused
  outright on a Webflow / HTML folder run (Phase 4 is required there). `mark`
  cannot open 2.1+ while 1.1–1.4 are unfinished, 4.x while Phase 4 is closed, or
- 5.x while Phase 5 is closed. If blocked, stay on that step and stop.
+ 5.x while Phase 5 is closed. If blocked on a predecessor, artifact, or
+ intake skip, stay on that step and stop. A red polish / semantics / fidelity /
+ type gate is not that block when the human asked this session to move on:
+ pass `--requested` and enter the next phase (Pitfall #235).
  Pitfall #98 #148.
 2. **Stage L is never skippable on a full run.** No `rebuild/*.html` until Paper has a
  `Design Library` artboard (foundations only), `get_tokens` is non-empty,
@@ -426,7 +441,7 @@ step. 2.0 must not stamp, join, or retag on those ids.
 | **1.2 postflight / A/5-R** | After the 1600 / 768 / 390 landers land, `run-geometry-postflight.mjs` runs `stretch-root.mjs --prove --artboard home-desktop` only. Fail 1.2 if stretch fails. Do not run `qa-paper` or `merge-split-headings` in this postflight (merge-after-census breaks `pc-#`). Evidence in `qa/stretch-root-evidence.md`. Failure keeps 1.2 open. Do not open Capture Tool until stretch is green. |
 | **2.3** | Agent loop — disk clips + index-raw at 1600 / 768 / 390. VALIDATE LOOK is `wave.py` (adapter from the probe). No Paper MCP. Pixel-perfect is a one-pass assist, not a loop. `section_22_gate.py` green. Not a human stop. |
 | **2.4** | After overlay inject, run `open-build-review.py . --stage 2.4`. Chrome must open with TAGS on and write `qa/build-checkpoint-opened.json`. Stop for review. Write `qa/build-checkpoint.md` only after approval. No 3.x before sign-off. **Marking 2.4 done releases the lease and prints the SESSION 3 prompt** (`qa/handoff-3.0.md`). Continue starts 3.0 polish at 3.1. `index-polish.html` is created then, not at 2.4. |
-| **3.4 / C/4** | **URL run:** compare `rebuild/index.html` (2.4 lock) with `rebuild/index-polish.html` (3.1–3.3, outlines off; `?qa-outlines=` toggles) plus the polish report. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to optional Phase 4 (`qa/phase-4-opted.json`, no tidy). **Marking 3.4 done** promotes polish to `index.html`, archives the other homepage HTML under `rebuild/archive/`, and removes the overlay from that file (Pitfall #223 #234). **Webflow / HTML folder:** do not ask. Ship stays `source-html/index.html`. `mark 3.4 done` writes `qa/phase-4-opted.json` and the run continues through 4.4 (Pitfall #225). Do not write `NEXT.html`. Never tidy mid-flow (Pitfall #151 #203). |
+| **3.4 / C/4** | **URL run:** compare `rebuild/index.html` (2.4 lock) with `rebuild/index-polish.html` (3.1–3.3, outlines off; `?qa-outlines=` toggles) plus the polish report. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to optional Phase 4 (`qa/phase-4-opted.json`, no tidy). **Marking 3.4 done** promotes polish to `index.html`, archives the other homepage HTML under `rebuild/archive/`, and removes the overlay from that file (Pitfall #223 #234). If the human asked to move on, `mark 3.4 done --requested` warns on red polish / semantics / fidelity / type and still closes (Pitfall #235). **Webflow / HTML folder:** do not ask. Ship stays `source-html/index.html`. `mark 3.4 done` writes `qa/phase-4-opted.json` and the run continues through 4.4 (Pitfall #225). Do not write `NEXT.html`. Never tidy mid-flow (Pitfall #151 #203). |
 | **4.4** | Review extra Paper pages. Two-option: finish (`qa/phase-5-skipped.json`, tidy) or continue to optional Phase 5 (`qa/phase-5-opted.json`, no tidy). Marking 4.4 done without one of those receipts fails. |
 | **5.6** | Review the built Astro routes (`open-phase-5-review.py`, `file://` on `astro/dist`). Marking 5.6 done without `qa/phase-5-review.md` fails; done tidies and keeps `rebuild/` + `astro/` + finished `pipeline.html`. |
 | **Stop-at-every-level** | Only when asked: write `qa/runs/<run-id>/STOP-<stage>.md` after A/1, A/2, A/4, A/8, B/1, B/2a, B/2b, B/4, C/1. |

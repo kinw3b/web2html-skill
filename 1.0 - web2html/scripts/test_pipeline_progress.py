@@ -1322,7 +1322,8 @@ class PipelineProgressTests(unittest.TestCase):
             (root / "rebuild" / "index.html").write_text(
                 "<html><head><link rel=\"stylesheet\" href=\"css/tokens.css\" /></head>"
                 "<body><main><section id='hero'><a href='#go'>Get Started Now</a>"
-                "</section></main></body></html>",
+                "</section><section id='features'><h2>Features</h2>"
+                "<div class='card'>Alpha</div></section></main></body></html>",
                 encoding="utf-8",
             )
             (root / "rebuild" / "css" / "tokens.css").write_text(
@@ -1354,6 +1355,12 @@ class PipelineProgressTests(unittest.TestCase):
             self.assertEqual(receipt["writer"], "apply-hover-css.py")
             polish = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
             self.assertIn("css/hover.css", polish)
+            self.assertIn("js/gsap-reveal.js", polish)
+            self.assertIn("data-reveal", polish)
+            self.assertTrue((root / "qa" / "gsap-reveal-qa.json").is_file())
+            self.assertTrue(
+                json.loads((root / "qa" / "gsap-reveal-qa.json").read_text(encoding="utf-8")).get("ok")
+            )
             css = (root / "rebuild" / "css" / "hover.css").read_text(encoding="utf-8")
             self.assertIn(".btn-primary:hover", css)
             self.assertTrue((root / "qa" / "nav-drawer.json").is_file())
@@ -1384,13 +1391,51 @@ class PipelineProgressTests(unittest.TestCase):
         pipeline_progress.save_progress(root, data, force=True)
         return data
 
+    def test_34_quality_gate_yields_only_when_requested(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._homepage_ready(root)
+            (root / "qa" / "phase-4-opted.json").write_text("{}\n")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 2)
+            self.assertIn("quality gate", err.getvalue())
+            self.assertIn("--requested", err.getvalue())
+            self.assertEqual(pipeline_progress.load_progress(root)["steps"]["3.4"]["status"], "active")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(
+                    pipeline_progress.cmd_mark(root, "3.4", "done", None, requested=True),
+                    0,
+                )
+            self.assertIn("requested advance", out.getvalue())
+            self.assertEqual(pipeline_progress.load_progress(root)["steps"]["3.4"]["status"], "done")
+            notes = json.loads((root / "qa" / "run-report-notes.json").read_text(encoding="utf-8"))
+            self.assertTrue(any("Requested advance" in (row.get("text") or "") for row in notes))
+
+    def test_resume_requested_warns_and_does_not_skip_the_checkpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._homepage_ready(root)
+            out = io.StringIO()
+            err = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                self.assertEqual(
+                    pipeline_progress.cmd_resume(root, "4.1", "session-4", requested=True),
+                    2,
+                )
+            self.assertIn("requested advance", out.getvalue())
+            self.assertIn("unfinished predecessors", err.getvalue())
+            self.assertIn("--requested", err.getvalue())
+            self.assertEqual(pipeline_progress.load_progress(root)["steps"]["3.4"]["status"], "active")
+
     def test_34_done_requires_phase4_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._homepage_ready(root)
             self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 2)
             (root / "qa" / "phase-4-skipped.json").write_text("{}\n")
-            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 0)
+            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None, requested=True), 0)
             self.assertIn('data-run="done"', (root / "pipeline.html").read_text())
             self.assertFalse((root / "qa").exists())
 
@@ -1441,7 +1486,7 @@ class PipelineProgressTests(unittest.TestCase):
             (root / "qa" / "phase-4-opted.json").write_text("{}\n")
             (root / "source-site").mkdir()
             (root / "qa" / "phase-4-sitemap.json").write_text("{}\n")
-            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 0)
+            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None, requested=True), 0)
             self.assertTrue((root / "qa").is_dir())
             self.assertTrue((root / "source-site").is_dir())
             self.assertFalse(pipeline_progress.run_is_complete(pipeline_progress.load_progress(root), root))
@@ -1456,7 +1501,7 @@ class PipelineProgressTests(unittest.TestCase):
             self._homepage_ready(root)
             self.assertEqual(pipeline_progress.cmd_mark(root, "4.1", "active", None), 2)
             (root / "qa" / "phase-4-opted.json").write_text("{}\n")
-            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 0)
+            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None, requested=True), 0)
             self.assertEqual(pipeline_progress.cmd_mark(root, "4.1", "active", None), 0)
 
     def test_skip_allowed_only_on_phase4(self):
@@ -1466,14 +1511,14 @@ class PipelineProgressTests(unittest.TestCase):
             self.assertEqual(pipeline_progress.main(["skip", str(root), "--step", "1.2"]), 2)
             self._homepage_ready(root)
             (root / "qa" / "phase-4-opted.json").write_text("{}\n")
-            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 0)
+            self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None, requested=True), 0)
             self.assertEqual(pipeline_progress.main(["skip", str(root), "--step", "4.1", "--reason", "empty sitemap"]), 0)
             self.assertEqual(pipeline_progress.load_progress(root)["steps"]["4.1"]["status"], "skipped")
 
     def _phase4_ready(self, root: Path) -> dict:
         self._homepage_ready(root)
         (root / "qa" / "phase-4-opted.json").write_text("{}\n")
-        self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 0)
+        self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None, requested=True), 0)
         data = pipeline_progress.load_progress(root)
         for sid in ("4.1", "4.2", "4.3"):
             data["steps"][sid]["status"] = "done"

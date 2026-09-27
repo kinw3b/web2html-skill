@@ -93,6 +93,12 @@ class GsapRevealInjectTest(unittest.TestCase):
         self.assertNotIn("<svg data-reveal", html)
         self.assertNotIn("<path data-reveal", html)
 
+    def test_runtime_keeps_motion_when_outlines_are_off(self) -> None:
+        text = (_TEMPLATES / "gsap-reveal.js").read_text(encoding="utf-8")
+        self.assertIn("function outlinesAreOn()", text)
+        self.assertIn('q === "on" || q === "tags" || q === "mono"', text)
+        self.assertNotIn('search.indexOf("qa-outlines=") !== -1) return true', text)
+
     def test_inject_scripts_idempotent(self) -> None:
         once = _inject.inject_scripts("<html><body></body></html>")
         self.assertIn("gsap.min.js", once)
