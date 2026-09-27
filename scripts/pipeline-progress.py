@@ -3686,13 +3686,8 @@ def cmd_start(root: Path, agent: str | None = None, model: str | None = None) ->
     log_session(data, kind="start", owner="session-1", at="1.1", agent=who, model=what)
     save_progress(root, data, force=True)
     root.mkdir(parents=True, exist_ok=True)
-    try:
-        import orca_workspace
-
-        if not (root / orca_workspace.WORKSPACE_FILE).is_file():
-            orca_workspace.ensure(root.name, base=root.parent)
-    except Exception:  # noqa: BLE001 — the workspace is an accelerator, never a gate
-        pass
+    # Orca workspaces are opt-in: only reuse a folder `orca_workspace.py ensure`
+    # already recorded. `start` never creates or registers one for you.
     dest = write_live(root, data, source=live_template())
     write_capture_tool_session(root)
     uri = dest.resolve().as_uri()
@@ -3734,9 +3729,14 @@ def print_intake_prompt() -> None:
     print("Question 2, one choice:")
     print("  1. Full")
     print("  2. Fast")
+    print("If they choose Full, ask Question 3, one choice:")
+    print("  1. Human checkpoints — stop at 1.4 / 2.4 / 3.4 (default)")
+    print("  2. Autonomous — no stops in Phases 1–3; 1.4 / 2.4 self-accept;")
+    print("     3.4 is still the human check before optional Phase 4")
+    print("Fast never asks Question 3 — it is always autonomous.")
     print("Then:")
     print("  python3 $SKILLS/web2html/scripts/run_config.py intake <project> \\")
-    print("    --source none|/abs/path --speed full|fast")
+    print("    --source none|/abs/path --speed full|fast [--checkpoints human|auto]")
     print("")
 
 

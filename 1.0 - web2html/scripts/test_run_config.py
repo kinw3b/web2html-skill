@@ -127,11 +127,6 @@ class Intake(unittest.TestCase):
 
     def test_cli_intake_and_show(self):
         with tempfile.TemporaryDirectory() as tmp:
-            err = io.StringIO()
-            with contextlib.redirect_stderr(err):
-                code = run_config.main(["intake", tmp, "--source", "none", "--checkpoints", "auto", "--speed", "full"])
-            self.assertEqual(code, 2)
-            self.assertIn("retired", err.getvalue())
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 code = run_config.main(["intake", tmp, "--source", "none", "--speed", "full"])
@@ -141,6 +136,43 @@ class Intake(unittest.TestCase):
             with contextlib.redirect_stdout(out):
                 self.assertEqual(run_config.main(["show", tmp]), 0)
             self.assertIn("human stops: 1.4 2.4 3.4", out.getvalue())
+
+    def test_full_auto_is_the_autonomous_run(self):
+        """Question 3 on a full run: autonomous keeps full fidelity, skips 1.4/2.4, stops at 3.4."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = run_config.intake(root, source="none", checkpoints="auto", speed="full")
+            self.assertEqual(cfg["checkpoints"], "auto")
+            self.assertEqual(cfg["speed"], "full")
+            self.assertEqual(cfg["widths"], [1600, 768, 390])
+            self.assertTrue(cfg["designLibrary"])
+            self.assertTrue(cfg["designSystem"])
+            self.assertTrue(cfg["rawDump"])
+            self.assertEqual(cfg["humanStops"], ["3.4"])
+            self.assertTrue(run_config.auto_accepts(root, "1.4"))
+            self.assertTrue(run_config.auto_accepts(root, "2.4"))
+            self.assertFalse(run_config.auto_accepts(root, "3.4"))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                run_config.main(["show", tmp])
+            self.assertIn("autonomous", out.getvalue())
+            self.assertIn("human stops: 3.4", out.getvalue())
+
+    def test_full_auto_adopt_stops_at_44_only(self):
+        """Autonomous + adopted folder: 1.4 self-accepts, Phase 4 required, stop is 4.4."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "project"
+            root.mkdir()
+            src = Path(tmp) / "webflow-export"
+            src.mkdir()
+            (src / "index.html").write_text(WEBFLOW_INDEX, encoding="utf-8")
+            cfg = run_config.intake(root, source=str(src), checkpoints="auto", speed="full")
+            self.assertEqual(cfg["checkpoints"], "auto")
+            self.assertTrue(cfg["adopt"])
+            self.assertEqual(cfg["humanStops"], ["4.4"])
+            self.assertEqual(cfg["phase4"], "required")
+            self.assertTrue(run_config.auto_accepts(root, "1.4"))
+            self.assertFalse(run_config.auto_accepts(root, "4.4"))
 
 
 class ThreeFourNeverAuto(unittest.TestCase):
@@ -308,17 +340,8 @@ class LiveBoardMode(unittest.TestCase):
         self.assertNotIn("data-run-step=", body)
 
     def test_auto_run_hides_1_4_and_2_4_only(self):
-        # New intake refuses full+auto. Legacy boards may still carry it.
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "qa").mkdir()
-            cfg = run_config.default_config()
-            cfg["checkpoints"] = "auto"
-            cfg["speed"] = "full"
-            cfg["humanStops"] = ["3.4"]
-            cfg["recordedAt"] = "2026-01-01T00:00:00-06:00"
-            (root / "qa" / "run-config.json").write_text(json.dumps(cfg), encoding="utf-8")
-            html = pipeline_progress.stamp_run_mode(pipeline_progress.live_template().read_text(), root)
+        # Full + auto is the autonomous run (Question 3): full fidelity, 3.4 stays a stop.
+        html = self._board("auto", "full")
         self.assertIn('<body data-mode="auto"', html)
         self.assertIn(">Auto Run<", html)
         self.assertRegex(html, r'data-step="1\.4"[^>]*data-run-step="auto"')

@@ -96,6 +96,35 @@ class OrcaWorkspaceTests(unittest.TestCase):
             self.assertIsNone(record["repoId"])
             self.assertTrue((root / "ws" / "demo").is_dir())
 
+    def test_workspace_off_never_registers_even_when_orca_is_reachable(self):
+        """WEB2HTML_ORCA_WORKSPACE=off — plain folder, no repo add, no probe dependence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = self._env(root, orca=True)
+            env["WEB2HTML_ORCA_WORKSPACE"] = "off"
+            calls: list = []
+            record = orca_workspace.ensure("demo", base=root / "ws", env=env, run=_reachable_runner(calls))
+            self.assertFalse(record["orca"])
+            self.assertIsNone(record["repoId"])
+            self.assertEqual([c for c in calls if c[1:3] == ["repo", "add"]], [])
+            self.assertTrue((root / "ws" / "demo" / "qa" / "orca-workspace.json").is_file())
+
+    def test_start_never_creates_or_registers_a_workspace(self):
+        """pipeline-progress start must not call orca_workspace.ensure (opt-in only)."""
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "pipeline_progress", Path(__file__).resolve().parent / "pipeline-progress.py"
+        )
+        pp = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(pp)
+        import inspect
+
+        src = inspect.getsource(pp.cmd_start)
+        self.assertNotIn("orca_workspace.ensure", src)
+        self.assertNotIn("import orca_workspace", src)
+
 
 if __name__ == "__main__":
     unittest.main()

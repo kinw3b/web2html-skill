@@ -1,6 +1,6 @@
 ---
 name: web2html
-description: "Convert a live URL to pixel-perfect static HTML via Paper. Invoke as /web2html or Convert <URL> to HTML. First tool: orca_workspace.py ensure (single primary workspace, Orca project when reachable) then pipeline-progress.py start for a NEW run, resume for a continued session. Never write rebuild HTML before 2.1. Never scrape-to-site, Firecrawl-to-HTML, Tailwind CDN, or freehand a homepage. If rebuild/index.html exists without a live board and 1.4 sign-off, quarantine it and start from 1.1. 2.1 emits the Design System page from 1.3 tokens; 2.2 authors rebuild/index-semantic.html from Paper using those tokens. A run spans three sessions (1 capture / 2 build / 3 QA) plus optional Phase 4 (Paper) and Phase 5 (Astro site: shared chrome pulled once from the 3.4 polish, then each page's body); 2.0 and optional 5.0 are recommended on the strong model; the tier is advice, never a gate — run any session on whichever model the operator chose. Homepage only until 3.4. file:// preview. No GIFs, no local server."
+description: "Convert a live URL to pixel-perfect static HTML via Paper. Invoke as /web2html or Convert <URL> to HTML. First tool: pipeline-progress.py start for a NEW run, resume for a continued session. Optional: orca_workspace.py ensure <slug> first when you want the run folder registered as an Orca project (never automatic; WEB2HTML_ORCA_WORKSPACE=off disables). Never write rebuild HTML before 2.1. Never scrape-to-site, Firecrawl-to-HTML, Tailwind CDN, or freehand a homepage. If rebuild/index.html exists without a live board and 1.4 sign-off, quarantine it and start from 1.1. 2.1 emits the Design System page from 1.3 tokens; 2.2 authors rebuild/index-semantic.html from Paper using those tokens. A run spans three sessions (1 capture / 2 build / 3 QA) plus optional Phase 4 (Paper) and Phase 5 (Astro site: shared chrome pulled once from the 3.4 polish, then each page's body); 2.0 and optional 5.0 are recommended on the strong model; the tier is advice, never a gate — run any session on whichever model the operator chose. Homepage only until 3.4. file:// preview. No GIFs, no local server."
 version: 2.33.0
 author: Hermes Agent
 license: MIT
@@ -39,19 +39,23 @@ step** — see the table below. `read_file` that one file, then act.
 **Trigger:** `Convert <URL> to HTML`
 
 ```sh
-# NEW run — one primary workspace folder, then the board
-# ensure creates the run folder: an Orca project (folder context) when the
-# Orca CLI is reachable, a plain folder otherwise; it reuses the recorded
-# workspace on every later call — never a second worktree. Pass its RUN ROOT
-# to start. (start also registers the folder if ensure was skipped.)
+# NEW run — start the board in the folder you choose (create + cd first if new)
+mkdir -p /path/to/templates/<project> && cd /path/to/templates/<project>
+python3 $SKILLS/web2html/scripts/pipeline-progress.py start .
+# OPTIONAL first, only when you want the run folder registered as an Orca
+# project (folder context in the Orca app): ensure creates/reuses one primary
+# workspace and prints its RUN ROOT — pass that to start instead. Never
+# automatic; start never registers anything. WEB2HTML_ORCA_WORKSPACE=off
+# disables registration globally.
 python3 $SKILLS/web2html/scripts/orca_workspace.py ensure <project-slug>
 python3 $SKILLS/web2html/scripts/pipeline-progress.py start <RUN ROOT>
 # continued session 2 or 3 — never start, it resets the board
 # resume does not reopen the board; the start tab stays open
-python3 $SKILLS/web2html/scripts/orca_workspace.py show <project-slug>   # the recorded RUN ROOT
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --at 2.1 --owner session-2
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --owner session-2   # --at detected from the board
 python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --owner session-2 --model claude-fable-5.1   # record who runs this session
+# only after an explicit ensure: show prints the recorded RUN ROOT
+python3 $SKILLS/web2html/scripts/orca_workspace.py show <project-slug>
 ```
 
 **Every new session `resume`s first** — it detects where the run sits, logs the
@@ -92,14 +96,14 @@ when `waves orca`, this harness's subagent tool when `subagent`, the printed spe
 when `serial`. Anything else → never load `orchestration` / `orca-cli`; still run
 `wave.py` at 2.3 (Pitfall #219 #220 #221).
 
-## Intake — question 1, then a path when they have a folder, then speed (2.26.0)
+## Intake — question 1, then a path when they have a folder, then speed, then checkpoints on full (2.26.0)
 
 `mark --step 1.1 --status active` **refuses** until `qa/run-config.json` exists.
 `start` prints this script. Fire this harness's native question tool, then record:
 
 ```sh
 python3 $SKILLS/web2html/scripts/run_config.py intake /path/to/templates/<project> \
-  --source none|/abs/path/to/html-export --speed full|fast
+  --source none|/abs/path/to/html-export --speed full|fast [--checkpoints human|auto]
 ```
 
 1. **Where does this run start?** One choice, these labels:
@@ -117,8 +121,13 @@ python3 $SKILLS/web2html/scripts/run_config.py intake /path/to/templates/<projec
    Framer runtime, empty React root) is not adopted — 2.2 authors from Paper.
 2. **Full or fast?** `fast` forces auto checkpoints: 1.2 shoots **1600 + 390** · 1.3 skipped ·
    2.1 skipped except `emit_fonts.py` on a non-adopt run · 2.3 at the configured widths ·
-   3.2 button hover from source CSS. **3.4 always stops on a URL run; a folder run's stop is 4.4.** `full` + `--checkpoints auto` is refused.
+   3.2 button hover from source CSS. **3.4 always stops on a URL run; a folder run's stop is 4.4.**
    `run_config.py show <project>` prints the contract.
+3. **Only when they chose full — human checkpoints or autonomous?** `human` (default)
+   stops at 1.4 / 2.4 / 3.4. `auto` is the autonomous run: full fidelity (all three
+   widths + Design Library), 1.4 and 2.4 self-accept, and the session runs unattended
+   through Phase 3 — **3.4 is still the human check on a URL run** (a folder run's stop
+   is 4.4). Pass `--checkpoints auto`. Fast never asks this — it is always auto.
 
 `start` is the only command that opens the live board. If **that** tab does
 not open, **stop**. Print the `file://` URI. `resume` / `mark` / later
@@ -139,7 +148,7 @@ Red means stop. Do not polish a quarantined file (Pitfall #148).
 
 ## Hard rules
 
-1. Never skip a numbered step (1.1 → 3.4). `skip` fails on required steps. A **fast** run does not skip 1.3 / 2.1 — the intake writes `qa/design-library-skipped.json` / `qa/design-system-skipped.json` and those steps mark done on the receipt. Capture Tool is optional leftover hover at 1.4 (tab opened by `mark 1.4 active`; `open-capture` re-opens). On a **URL run**, Phase 4 is optional after 3.4 (`qa/phase-4-opted.json` or `qa/phase-4-skipped.json`). On a **Webflow / HTML folder** run, Phase 4 is required: do not ask, do not write `qa/phase-4-skipped.json`, and do not `skip` 4.1–4.4. Phase 5 is optional after 4.4 (`qa/phase-5-opted.json` or `qa/phase-5-skipped.json`).
+1. Never skip a numbered step (1.1 → 3.4). `skip` fails on required steps. A **fast** run does not skip 1.3 / 2.1 — the intake writes `qa/design-library-skipped.json` / `qa/design-system-skipped.json` and those steps mark done on the receipt. Capture Tool is optional leftover hover at 1.4 (tab opened by `mark 1.4 active`; `open-capture` re-opens). On a **URL run**, Phase 4 is optional after 3.4 (`qa/phase-4-opted.json` or `qa/phase-4-skipped.json`). On a **Webflow / HTML folder** run, Phase 4 is required: do not ask, do not write `qa/phase-4-skipped.json`, and do not `skip` 4.1–4.4. Phase 5 is optional after 4.4 (`qa/phase-5-opted.json` or `qa/phase-5-skipped.json`). A **full + autonomous** run (intake question 3) self-accepts 1.4 / 2.4 and stops at 3.4 (folder run: 4.4).
 2. No `rebuild/*.html` until 1.4 is signed and 2.1 is open. First rebuild HTML is 2.1 `design-system.html` (token contract). First authored write is 2.2 `index-semantic.html` — never scrape-to-site, never a get_jsx dump. 2.3 seeds `index.html` from that file.
 3. Homepage only through 3.4. Extra routes stay out of 1.2. Phase 4 is Paper-only. Phase 5 binds the site into `astro/` after 4.4 opt-in: 5.1 pulls Header / Footer / components **once** from the 3.4 polish, 5.2 authors only each page's `<main>` as `astro/src/pages/{slug}.astro`. 5.5 is the one post-3.4 href exception, plus 3.3-style scrape-only SEO per page. Exit if `plan.pages.length > 1` at 1.2 without `--allow-multi-page`.
 4. Stage L is never skippable on a **full** run. No ship HTML until Paper has a `Design Library` artboard (foundations only), `get_tokens` is non-empty, and `design-library/library.json` exists. Disk-only does not count. On a **fast** run the intake receipt stands in for the library and 2.2 authors without a token contract.

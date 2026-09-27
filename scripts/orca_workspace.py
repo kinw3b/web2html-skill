@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-"""One primary workspace folder per run — in Orca when Orca is there.
+"""One primary workspace folder per run — in Orca only when you ask for it.
 
-The first action of a NEW run, before `pipeline-progress.py start`: create the
-run's project folder. When the Orca CLI is reachable the folder is also
-registered in Orca as a project (folder context) so the run shows up in the
-Orca app and its terminals; when Orca is absent or unreachable this is a plain
-folder and the current agent simply continues in it. Either way exactly ONE
-folder is ever created per run slug — `ensure` reuses the recorded workspace on
-every later call (continued sessions, retries), never a second worktree.
+`ensure` is an explicit opt-in command, never run for you. When the Orca CLI
+is reachable it registers the folder as an Orca project (folder context) so the
+run shows up in the Orca app and its terminals; when Orca is absent, or when
+`WEB2HTML_ORCA_WORKSPACE=off`, this is a plain folder and the current agent
+simply continues in it. Either way exactly ONE folder is ever created per run
+slug — `ensure` reuses the recorded workspace on every later call (continued
+sessions, retries), never a second worktree. `pipeline-progress.py start` does
+NOT call `ensure`: a run begun without it stays a plain folder wherever you
+started it.
 
   python3 orca_workspace.py ensure <slug> [--base <dir>]   # create or reuse, print RUN ROOT
   python3 orca_workspace.py show   <slug>                  # print the recorded RUN ROOT
 
 The session continues on the printed RUN ROOT: `start`, `resume`, `mark` and
 every gate take that path. Registration is best effort — an Orca failure leaves
-a plain folder and never fails the run (Pitfall #219).
+a plain folder and never fails the run (Pitfall #219). Set
+`WEB2HTML_ORCA_WORKSPACE=off` to never register in Orca at all.
 """
 
 from __future__ import annotations
@@ -87,6 +90,11 @@ def _register_in_orca(cli: str, root: Path, run) -> tuple[str | None, str | None
     return (str(repo_id) if repo_id else None), None
 
 
+def workspace_disabled(env: dict) -> bool:
+    """WEB2HTML_ORCA_WORKSPACE=off — never create or register an Orca folder."""
+    return str(env.get("WEB2HTML_ORCA_WORKSPACE") or "").strip().lower() in {"off", "0", "false", "no"}
+
+
 def ensure(slug: str, base: Path | None = None, env: dict | None = None, run=None) -> dict:
     """Create or reuse the single primary workspace for `slug`. Prints RUN ROOT."""
     env = dict(os.environ if env is None else env)
@@ -99,9 +107,10 @@ def ensure(slug: str, base: Path | None = None, env: dict | None = None, run=Non
         base = base or Path(env.get("WEB2HTML_WORKSPACE_BASE") or os.getcwd())
         root = (base / slug).resolve()
 
+    disabled = workspace_disabled(env)
     orca = harness_probe.probe_orca(env, run=run)
     cli = orca.get("cli")
-    reachable = bool(orca.get("reachable") and cli)
+    reachable = bool(orca.get("reachable") and cli) and not disabled
 
     reused = root.is_dir() and (root / WORKSPACE_FILE).is_file()
     record = None
@@ -136,7 +145,9 @@ def ensure(slug: str, base: Path | None = None, env: dict | None = None, run=Non
     index[slug] = record
     save_index(env, index)
 
-    if reachable:
+    if disabled:
+        head = "orca workspace disabled (WEB2HTML_ORCA_WORKSPACE=off) · plain folder — the current agent continues here"
+    elif reachable:
         head = f"orca reachable · {note or ('folder context ' + str(repo_id) + ' already registered' if repo_id else 'plain folder')}"
     else:
         head = "orca absent · plain folder — the current agent continues here"

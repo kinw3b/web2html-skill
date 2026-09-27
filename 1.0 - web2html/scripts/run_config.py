@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Run intake — qa/run-config.json is the run's contract (2.26.0).
 
-Three answers, collected ONCE right after `pipeline-progress.py start`, before
+Answers, collected ONCE right after `pipeline-progress.py start`, before
 1.1 goes active: where the run starts (URL, or a Webflow / HTML folder + its
-path), then speed (`full` or `fast`). `mark --step 1.1 --status active` refuses without this file.
+path), then speed (`full` or `fast`), then — on a full run only — checkpoints
+(`human` or `auto`). `mark --step 1.1 --status active` refuses without this file.
 
-  python3 run_config.py intake <project> --source none|/abs/path --speed full|fast
+  python3 run_config.py intake <project> --source none|/abs/path --speed full|fast [--checkpoints human|auto]
   python3 run_config.py show   <project>
   python3 run_config.py missing-pages <project>
   python3 run_config.py design-system <project> --choice skip|print|seed-from-source
@@ -29,15 +30,17 @@ type-your-answer field). Do not record intake until that path exists.
                   copy/structure reference only.
   none            no source; 2.2 authors from Paper.
 
-Question 2 — speed.  `full` stops at 1.4 / 2.4 / 3.4 and (when the agent
-authors) keeps the Design Library. `fast` is today's fast run: checkpoints
-auto, widths 1600/390, 1.3 and 2.1 skipped, no Buttons/Components pull.
-The separate checkpoints question is retired. Full always means human stops.
-Fast is the only automatic path. A URL run stops at 3.4. A Webflow / HTML
-folder run does not: Phase 4 is required and the stop is 4.4.
+Question 2 — speed.  `full` keeps the Design Library, all three widths, and
+the raw dump. `fast` is today's fast run: checkpoints auto, widths 1600/390,
+1.3 and 2.1 skipped, no Buttons/Components pull.
 
-`--checkpoints` is accepted for old commands. `auto` with `--speed full` is
-refused. Fast still forces auto.
+Question 3 — checkpoints, asked ONLY on a full run. `human` is the default:
+stops at 1.4 / 2.4 / 3.4. `auto` is the autonomous run: 1.4 and 2.4 self-accept
+and the session runs unattended through Phase 3 — 3.4 is still a human stop on
+a URL run (a folder run's stop is 4.4). Fast never asks: it is always auto.
+
+`--checkpoints` defaults to `human` on a full run; fast forces `auto` either
+way.
 """
 from __future__ import annotations
 
@@ -360,11 +363,6 @@ def build_config(*, source_kind_: str, source_path: str | None, source_meta: dic
         raise ValueError(f"speed must be one of {SPEEDS}")
     if source_kind_ not in SOURCE_KINDS:
         raise ValueError(f"source kind must be one of {SOURCE_KINDS}")
-    if speed == "full" and checkpoints == "auto":
-        raise ValueError(
-            "checkpoints=auto is retired on a full run. Fast is the only automatic "
-            "path. A full URL run stops at 1.4, 2.4, and 3.4."
-        )
     fast = speed == "fast"
     if fast:
         checkpoints = "auto"
@@ -464,6 +462,8 @@ def summary_lines(config: dict) -> list[str]:
         lines.append(f"source: {kind} ← {src.get('path')}  ({src.get('reason')})")
     if config.get("speed") == "fast":
         lines.append("fast: 1.3 + 2.1 skipped · 1600/390 · no Buttons/Components pull · 1.4 / 2.4 auto-accept")
+    elif config.get("checkpoints") == "auto":
+        lines.append("autonomous: full fidelity (1600/768/390 + Design Library) · 1.4 / 2.4 auto-accept · no stop until 3.4")
     if config.get("phase4") == "required":
         lines.append("phase 4: required — do not offer finish-homepage. Stop at 4.4.")
     stops = config.get("humanStops") or ["1.4", "2.4", "3.4"]
@@ -820,7 +820,7 @@ def main(argv: list[str] | None = None) -> int:
     it.add_argument("root", type=Path)
     it.add_argument("--source", default="none", help="none | absolute path to an HTML export folder")
     it.add_argument("--checkpoints", choices=CHECKPOINTS, default=None,
-                    help="retired as a question. auto + full is refused. omit to derive from --speed")
+                    help="human (default on full) | auto (1.4/2.4 self-accept; 3.4 still stops). fast forces auto")
     it.add_argument("--speed", choices=SPEEDS, required=True)
     sh = sub.add_parser("show", help="print the recorded config")
     sh.add_argument("root", type=Path)
