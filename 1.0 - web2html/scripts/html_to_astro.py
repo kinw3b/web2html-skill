@@ -134,9 +134,15 @@ def now_pages(root: Path) -> list[dict]:
 
 
 def strip_qa(html: str) -> str:
+    html = re.sub(
+        r"""<script\b[^>]*\bid=["']qa-outlines-boot["'][^>]*>.*?</script>\s*""",
+        "",
+        html,
+        flags=re.I | re.S,
+    )
     html = QA_HREF_RE.sub("", html)
     html = QA_SCRIPT_RE.sub("", html)
-    html = re.sub(r'\sdata-qa-outlines="[^"]*"', "", html)
+    html = re.sub(r'\sdata-qa-(?:outlines|ship|review)="[^"]*"', "", html)
     return html
 
 

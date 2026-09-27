@@ -23,6 +23,35 @@ TEMPLATES = HERE.parent / "templates"
 CSS_NAME = "qa-overlay.css"
 JS_NAME = "qa-overlay.js"
 SKIP_HTML = {"polish-report.html", "index-raw.html", "index-semantic.html"}
+# Runs in <head> before qa-overlay.css so a baked data-qa-outlines="tags"
+# cannot paint chips when the URL has no ?qa-outlines= (or sets off).
+# Keep in sync with urlMode() in templates/qa-overlay.js.
+BOOT_ID = "qa-outlines-boot"
+BOOT_SNIPPET = """<script id="qa-outlines-boot">
+(function () {
+  var MODES = ["off", "on", "tags", "mono"];
+  function read(raw) {
+    if (!raw) return null;
+    try {
+      var body = raw.charAt(0) === "?" || raw.charAt(0) === "#" ? raw.slice(1) : raw;
+      var params = new URLSearchParams(body);
+      if (params.has("qa-outlines")) {
+        var q = params.get("qa-outlines") || "";
+        return MODES.indexOf(q) !== -1 ? q : "off";
+      }
+      if (body.indexOf("qa-outlines=") === 0) {
+        var h = body.slice("qa-outlines=".length).split("&")[0];
+        return MODES.indexOf(h) !== -1 ? h : "off";
+      }
+    } catch (e) {}
+    return null;
+  }
+  var next = read(location.search) || read((location.hash || "").replace(/^#/, "")) || "off";
+  var html = document.documentElement;
+  if (next === "off") html.removeAttribute("data-qa-outlines");
+  else html.setAttribute("data-qa-outlines", next);
+})();
+</script>"""
 
 
 def fail(msg: str) -> None:
@@ -56,6 +85,13 @@ def copy_assets(rebuild: Path) -> None:
 
 
 def inject(html: str, css_href: str, js_href: str) -> str:
+    if BOOT_ID not in html:
+        if "<head>" in html:
+            html = html.replace("<head>", "<head>\n" + BOOT_SNIPPET, 1)
+        elif "</head>" in html:
+            html = html.replace("</head>", BOOT_SNIPPET + "\n</head>", 1)
+        else:
+            html = BOOT_SNIPPET + html
     if "data-qa-outlines=" not in html:
         if "<html" in html:
             html = html.replace("<html", '<html data-qa-outlines="tags"', 1)

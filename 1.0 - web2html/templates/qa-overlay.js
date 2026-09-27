@@ -1,6 +1,4 @@
 (function () {
-  var KEY = "qa-outlines";
-
   function showPolishChip() {
     try {
       var q = new URLSearchParams(location.search).get("qa-review");
@@ -31,29 +29,41 @@
   var walkStack = [];
   var copyTimer = 0;
 
-  function forcedMode() {
+  // Live mode after the button / Alt+O. The URL is the boot value only —
+  // re-reading it on every click locked a ?qa-outlines=tags page on mono.
+  var current = null;
+
+  function fromRaw(raw) {
+    if (!raw) return null;
     try {
-      var q = new URLSearchParams(location.search).get("qa-outlines");
-      if (q && MODES.indexOf(q) !== -1) return q;
-      var raw = (location.hash || "").replace(/^#/, "");
-      if (!raw) return null;
-      if (raw.indexOf("qa-outlines=") === 0) {
-        var h = raw.slice("qa-outlines=".length).split("&")[0];
-        if (h && MODES.indexOf(h) !== -1) return h;
+      var body = raw.charAt(0) === "?" || raw.charAt(0) === "#" ? raw.slice(1) : raw;
+      var params = new URLSearchParams(body);
+      if (params.has("qa-outlines")) {
+        var q = params.get("qa-outlines") || "";
+        return MODES.indexOf(q) !== -1 ? q : "off";
       }
-      var fromHash = new URLSearchParams(raw).get("qa-outlines");
-      if (fromHash && MODES.indexOf(fromHash) !== -1) return fromHash;
+      if (body.indexOf("qa-outlines=") === 0) {
+        var h = body.slice("qa-outlines=".length).split("&")[0];
+        try { h = decodeURIComponent(h); } catch (e) {}
+        return MODES.indexOf(h) !== -1 ? h : "off";
+      }
     } catch (e) {}
     return null;
   }
 
-  function bootMode() {
-    var forced = forcedMode();
-    if (forced) {
-      try { localStorage.setItem(KEY, forced); } catch (e) {}
-      return forced;
+  // null = param absent. "off" = explicit off, empty, or unknown.
+  function urlMode() {
+    try {
+      var fromSearch = fromRaw(location.search);
+      if (fromSearch) return fromSearch;
+      return fromRaw(location.hash);
+    } catch (e) {
+      return null;
     }
-    return null;
+  }
+
+  function forcedMode() {
+    return urlMode();
   }
 
   function isShipFinal() {
@@ -61,16 +71,21 @@
   }
 
   function mode() {
-    var boot = bootMode();
-    if (boot) return boot;
-    // 3.4 ship: outlines off unless ?qa-outlines= is on the URL. Ignore
-    // localStorage so a review visit cannot stick tags onto the demo.
+    if (current) return current;
+    var fromUrl = urlMode();
+    if (fromUrl) return fromUrl;
+    // No ?qa-outlines=: outlines off. Do not resurrect the baked
+    // data-qa-outlines="tags" or a previous review's localStorage.
     if (isShipFinal()) return "off";
+    return "off";
+  }
+
+  function writeUrl(next) {
     try {
-      return localStorage.getItem(KEY) || "tags";
-    } catch (e) {
-      return "tags";
-    }
+      var url = new URL(location.href);
+      url.searchParams.set("qa-outlines", next);
+      history.replaceState(null, "", url.href);
+    } catch (e) {}
   }
 
   function isMobile() {
@@ -730,15 +745,14 @@
   }
 
   function apply(next) {
+    if (MODES.indexOf(next) === -1) next = "off";
+    current = next;
     var html = document.documentElement;
     if (next === "off") {
       html.removeAttribute("data-qa-outlines");
       clearHover();
       clearTagLabels();
     } else html.setAttribute("data-qa-outlines", next);
-    try {
-      localStorage.setItem(KEY, next);
-    } catch (e) {}
     var btn = document.getElementById("qa-outline-toggle");
     if (btn) {
       btn.setAttribute("aria-pressed", next === "off" ? "false" : "true");
@@ -750,7 +764,10 @@
 
   function cycle() {
     var i = MODES.indexOf(mode());
-    apply(MODES[(i + 1) % MODES.length]);
+    if (i < 0) i = MODES.length - 1;
+    var next = MODES[(i + 1) % MODES.length];
+    apply(next);
+    writeUrl(next);
   }
 
   function mount() {

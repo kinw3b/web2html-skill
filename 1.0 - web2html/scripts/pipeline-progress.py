@@ -1986,8 +1986,34 @@ def stamp_timing(html: str, data: dict, root: Path | None = None) -> str:
     return html
 
 
+def stamp_project_name(html: str, root: Path | None) -> str:
+    """Tab title and the board heading use the project folder, not Web2Html.
+
+    Two live boards otherwise share the tab label "Web2Html — run", so a
+    kp-hubit board and a kp-darkrise board cannot be told apart.
+    """
+    if root is None:
+        return html
+    name = root.resolve().name.strip() or "Web2Html"
+    label = html_escape(name)
+    html = re.sub(
+        r"<title>[^<]*</title>",
+        f"<title>{label} — run</title>",
+        html,
+        count=1,
+    )
+    html = re.sub(
+        r'(<h1 class="run-title"><span>)[^<]*(</span>)',
+        rf"\1{label}\2",
+        html,
+        count=1,
+    )
+    return html
+
+
 def stamp_html(html: str, data: dict, root: Path | None = None) -> str:
     html = stamp_timing(html, data, root)
+    html = stamp_project_name(html, root)
     done, total, current = counts(data, root)
     pct = round(100 * done / total) if total else 0
     complete = run_is_complete(data, root)
@@ -2878,8 +2904,9 @@ Then: 3.1 a11y + contrast + anti-slop (Impeccable + Taste) on
       on index-polish.html) ->
       3.4 compare index.html (2.4) vs index-polish.html (QA, outlines off;
       ?qa-outlines=tags turns them on). Marking 3.4 done promotes the polish
-      file to index.html and archives index-raw / index-semantic / the 2.4 lock
-      under rebuild/archive/ (Pitfall #223).
+      file to index.html, strips the QA overlay from that file, and archives
+      index-raw / index-semantic / the 2.4 lock under rebuild/archive/
+      (Pitfall #223 #234).
 
 Receipts land in qa/polish-passes/ plus the three 3.2 companion .md files
 in qa/. verify-polish-passes.py green before 3.4.
@@ -2898,7 +2925,7 @@ Paper     {file_id}
 Board     {board}
 
 Sessions 1–4 are complete. The homepage ship is rebuild/index.html (3.4
-promoted the polish; outlines off unless ?qa-outlines=). Extra routes are
+promoted the polish; the QA overlay is stripped). Extra routes are
 Paper pages on the home canvas. Do not recapture, re-mine, open a second
 Design Library, or rewrite the homepage. 5.1 reads index.html when
 index-polish.html has been archived.
@@ -4010,7 +4037,7 @@ def cmd_mark(
                 print("ship stays source-html/index.html  no rebuild/")
             else:
                 archived = ", ".join(receipt.get("archived") or []) or "none"
-                print(f"ship promote → rebuild/index.html  outlines off  archived {archived}")
+                print(f"ship promote → rebuild/index.html  overlay removed  archived {archived}")
     if status == "done" and step == "1.4" and run_config.adopt_mode(root):
         for sid in ("2.1", "2.2", "2.3", "2.4"):
             row = data["steps"].get(sid)

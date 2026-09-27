@@ -259,7 +259,7 @@ Live board IDs for Design stay `1.1`–`1.4` — now (contract, capture + Naviga
   **3.4** is `open-human-review.py .` — Chrome opens `index.html` (2.4),
   `index-polish.html?qa-outlines=off` (QA; `?qa-outlines=tags` turns outlines
   on), and the 3.1–3.3 report (Pitfall #63 #203 #223). Marking 3.4 done
-  promotes polish to `index.html` and archives the other homepage HTML, then
+  promotes polish to `index.html`, strips the QA overlay from that file, and archives the other homepage HTML, then
   stops the live-board
   refresh, plays confetti, and shows port targets. Then tidy drops `qa/`,
   `capture/`, scrape trees, and run files. The finished `pipeline.html` stays

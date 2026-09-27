@@ -329,8 +329,8 @@ step. 2.0 must not stamp, join, or retag on those ids.
    3.x writes `rebuild/index-polish.html` (seeded when 3.1 goes active, not at
    2.4 done). **Marking 3.4 done** promotes that file to `index.html`, moves
    `index-raw.html`, `index-semantic.html`, and the 2.4 lock into
-   `rebuild/archive/`, and stamps outlines off (`?qa-outlines=tags` turns them
-   on). Extra `rebuild-semantic/` trees fail `verify-rebuild-trees.py`.
+   `rebuild/archive/`, and strips the QA overlay from that file (no boot
+   script, no qa-overlay link or script, no outline attributes). Extra `rebuild-semantic/` trees fail `verify-rebuild-trees.py`.
    Pitfall #223.
 9. **Never start a local HTTP server.** Do not open Chrome on
    `rebuild/index.html` at 2.1. After the 2.3 loop and overlay, **2.4 must
@@ -426,7 +426,7 @@ step. 2.0 must not stamp, join, or retag on those ids.
 | **1.2 postflight / A/5-R** | After the 1600 / 768 / 390 landers land, `run-geometry-postflight.mjs` runs `stretch-root.mjs --prove --artboard home-desktop` only. Fail 1.2 if stretch fails. Do not run `qa-paper` or `merge-split-headings` in this postflight (merge-after-census breaks `pc-#`). Evidence in `qa/stretch-root-evidence.md`. Failure keeps 1.2 open. Do not open Capture Tool until stretch is green. |
 | **2.3** | Agent loop — disk clips + index-raw at 1600 / 768 / 390. VALIDATE LOOK is `wave.py` (adapter from the probe). No Paper MCP. Pixel-perfect is a one-pass assist, not a loop. `section_22_gate.py` green. Not a human stop. |
 | **2.4** | After overlay inject, run `open-build-review.py . --stage 2.4`. Chrome must open with TAGS on and write `qa/build-checkpoint-opened.json`. Stop for review. Write `qa/build-checkpoint.md` only after approval. No 3.x before sign-off. **Marking 2.4 done releases the lease and prints the SESSION 3 prompt** (`qa/handoff-3.0.md`). Continue starts 3.0 polish at 3.1. `index-polish.html` is created then, not at 2.4. |
-| **3.4 / C/4** | **URL run:** compare `rebuild/index.html` (2.4 lock) with `rebuild/index-polish.html` (3.1–3.3, outlines off; `?qa-outlines=` toggles) plus the polish report. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to optional Phase 4 (`qa/phase-4-opted.json`, no tidy). **Marking 3.4 done** promotes polish to `index.html` and archives the other homepage HTML under `rebuild/archive/` (Pitfall #223). **Webflow / HTML folder:** do not ask. Ship stays `source-html/index.html`. `mark 3.4 done` writes `qa/phase-4-opted.json` and the run continues through 4.4 (Pitfall #225). Do not write `NEXT.html`. Never tidy mid-flow (Pitfall #151 #203). |
+| **3.4 / C/4** | **URL run:** compare `rebuild/index.html` (2.4 lock) with `rebuild/index-polish.html` (3.1–3.3, outlines off; `?qa-outlines=` toggles) plus the polish report. Two-option: finish (`qa/phase-4-skipped.json`, tidy) or continue to optional Phase 4 (`qa/phase-4-opted.json`, no tidy). **Marking 3.4 done** promotes polish to `index.html`, archives the other homepage HTML under `rebuild/archive/`, and removes the overlay from that file (Pitfall #223 #234). **Webflow / HTML folder:** do not ask. Ship stays `source-html/index.html`. `mark 3.4 done` writes `qa/phase-4-opted.json` and the run continues through 4.4 (Pitfall #225). Do not write `NEXT.html`. Never tidy mid-flow (Pitfall #151 #203). |
 | **4.4** | Review extra Paper pages. Two-option: finish (`qa/phase-5-skipped.json`, tidy) or continue to optional Phase 5 (`qa/phase-5-opted.json`, no tidy). Marking 4.4 done without one of those receipts fails. |
 | **5.6** | Review the built Astro routes (`open-phase-5-review.py`, `file://` on `astro/dist`). Marking 5.6 done without `qa/phase-5-review.md` fails; done tidies and keeps `rebuild/` + `astro/` + finished `pipeline.html`. |
 | **Stop-at-every-level** | Only when asked: write `qa/runs/<run-id>/STOP-<stage>.md` after A/1, A/2, A/4, A/8, B/1, B/2a, B/2b, B/4, C/1. |

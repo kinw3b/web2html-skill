@@ -70,14 +70,17 @@ def main(argv: list[str] | None = None) -> int:
             "2.1 authors the page, it does not ship a dump"
         )
         errors += 1
+    promoted = (root / "qa" / "ship-promote.json").is_file()
     css = ship / "css" / "qa-overlay.css"
     js = ship / "js" / "qa-overlay.js"
-    if not css.is_file() or css.stat().st_size < 200:
-        fail(f"{css} missing — run inject-qa-overlay.py (tags in HTML are not enough)")
-        errors += 1
-    if not js.is_file() or js.stat().st_size < 200:
-        fail(f"{js} missing — run inject-qa-overlay.py")
-        errors += 1
+    # 2.4 still needs the overlay. 3.4 promote removes it from the ship.
+    if not promoted:
+        if not css.is_file() or css.stat().st_size < 200:
+            fail(f"{css} missing — run inject-qa-overlay.py (tags in HTML are not enough)")
+            errors += 1
+        if not js.is_file() or js.stat().st_size < 200:
+            fail(f"{js} missing — run inject-qa-overlay.py")
+            errors += 1
     leaked = []
     for folder in (root / "css", root / "js", root.parent / "css", root.parent / "js"):
         for name in ("qa-overlay.css", "qa-overlay.js"):
@@ -91,12 +94,17 @@ def main(argv: list[str] | None = None) -> int:
             + " — keep css/js inside rebuild/ only (Pitfall #197)"
         )
         errors += 1
-    if "qa-overlay.css" not in html:
-        fail(f"{html_path} does not link qa-overlay.css")
-        errors += 1
-    if "qa-overlay.js" not in html:
-        fail(f"{html_path} does not load qa-overlay.js")
-        errors += 1
+    if promoted:
+        if "qa-overlay" in html or "data-qa-outlines" in html or "qa-outlines-boot" in html:
+            fail(f"{html_path} still has the QA overlay — 3.4 promote must strip it")
+            errors += 1
+    else:
+        if "qa-overlay.css" not in html:
+            fail(f"{html_path} does not link qa-overlay.css")
+            errors += 1
+        if "qa-overlay.js" not in html:
+            fail(f"{html_path} does not load qa-overlay.js")
+            errors += 1
     if re.search(r"""id\s*=\s*["']skip(?:-to)?(?:-content)?["']""", html, re.I):
         fail("invented skip-link — Paper did not paint that chrome")
         errors += 1

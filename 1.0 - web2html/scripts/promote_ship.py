@@ -3,8 +3,9 @@
 
 `rebuild/index-polish.html` becomes `rebuild/index.html`. The 2.4 lock,
 `index-raw.html`, and `index-semantic.html` move to `rebuild/archive/`.
-Outlines are off on that ship (`data-qa-ship="final"`). `?qa-outlines=tags`
-(or `on` / `mono` / `off`) turns them back on. Idempotent.
+The promoted document has no QA overlay: no boot script, no qa-overlay
+link or script, no data-qa-outlines, no data-qa-ship. The review toggle
+stays on index-polish.html until this promote. Idempotent.
 
   python3 promote_ship.py /path/to/project
 """
@@ -12,7 +13,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,8 +22,22 @@ TEMPLATES = HERE.parent / "templates"
 ARCHIVE_NAMES = ("index-raw.html", "index-semantic.html", "polish-report.html")
 RECEIPT = Path("qa/ship-promote.json")
 SHIP_ATTR = 'data-qa-ship="final"'
-OUTLINES_OFF = 'data-qa-outlines="off"'
 VERCELIGNORE_LINE = "archive"
+BOOT_RE = re.compile(
+    r"""<script\b[^>]*\bid=["']qa-outlines-boot["'][^>]*>.*?</script>\s*""",
+    re.I | re.S,
+)
+OVERLAY_LINK_RE = re.compile(
+    r"""<link\b[^>]*href=["'][^"']*qa-overlay[^"']*["'][^>]*/?>\s*""",
+    re.I,
+)
+OVERLAY_SCRIPT_RE = re.compile(
+    r"""<script\b[^>]*src=["'][^"']*qa-overlay[^"']*["'][^>]*>\s*</script>\s*""",
+    re.I,
+)
+QA_ATTR_RE = re.compile(
+    r'\s(?:data-qa-outlines|data-qa-ship|data-qa-review)="[^"]*"'
+)
 
 
 def _now() -> str:
@@ -39,6 +53,15 @@ def polish_path(root: Path) -> Path:
 
 
 def ship_is_final(root: Path) -> bool:
+    """True after promote. The receipt is the signal — the ship HTML no longer carries a QA attribute."""
+    receipt = root / RECEIPT
+    if receipt.is_file():
+        try:
+            data = json.loads(receipt.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = None
+        if isinstance(data, dict) and data.get("ok") and data.get("ship") == "rebuild/index.html":
+            return True
     path = ship_path(root)
     if not path.is_file():
         return False
@@ -63,18 +86,18 @@ def ship_ready(root: Path) -> bool:
     return polish_path(root).is_file() or ship_is_final(root)
 
 
-def stamp_ship(html: str) -> str:
-    """Outlines off, ship flag on. Overlay assets stay so a query param can toggle."""
-    if SHIP_ATTR not in html:
-        if "<html" in html:
-            html = html.replace("<html", f"<html {SHIP_ATTR}", 1)
-        else:
-            html = f'<html {SHIP_ATTR}>{html}'
-    if re.search(r'data-qa-outlines="[^"]*"', html):
-        html = re.sub(r'data-qa-outlines="[^"]*"', OUTLINES_OFF, html, count=1)
-    elif "<html" in html:
-        html = html.replace("<html", f"<html {OUTLINES_OFF}", 1)
+def strip_overlay(html: str) -> str:
+    """Drop every QA overlay hook from the promoted document."""
+    html = BOOT_RE.sub("", html)
+    html = OVERLAY_LINK_RE.sub("", html)
+    html = OVERLAY_SCRIPT_RE.sub("", html)
+    html = QA_ATTR_RE.sub("", html)
     return html
+
+
+def stamp_ship(html: str) -> str:
+    """Final source of truth: no overlay, no outlines, no QA attributes."""
+    return strip_overlay(html)
 
 
 def _archive_file(src: Path, archive: Path) -> str | None:
@@ -101,15 +124,12 @@ def _ensure_vercelignore(rebuild: Path) -> None:
     path.write_text((text.rstrip() + "\n" if text.strip() else "") + VERCELIGNORE_LINE + "\n", encoding="utf-8")
 
 
-def _refresh_overlay(rebuild: Path) -> None:
-    """Ship must load the JS that honors data-qa-ship, not a 2.4 copy that defaults to tags."""
-    for name, dest_dir in (("qa-overlay.css", "css"), ("qa-overlay.js", "js")):
-        src = TEMPLATES / name
-        if not src.is_file():
-            continue
-        dest = rebuild / dest_dir / name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
+def _drop_overlay_assets(rebuild: Path) -> None:
+    """The polished ship must not still serve the overlay files."""
+    for rel in ("css/qa-overlay.css", "js/qa-overlay.js"):
+        path = rebuild / rel
+        if path.is_file():
+            path.unlink()
 
 
 def _write_note(archive: Path) -> None:
@@ -119,7 +139,7 @@ def _write_note(archive: Path) -> None:
     note.write_text(
         "Pre-3.4 homepage variants. Do not deploy these as the site root.\n"
         "rebuild/index.html is the ship (promoted index-polish.html).\n"
-        "Outlines are off. ?qa-outlines=tags (or on / mono / off) toggles them.\n",
+        "The overlay and outlines are removed from that file. They are not a query toggle.\n",
         encoding="utf-8",
     )
 
@@ -170,7 +190,7 @@ def promote(root: Path) -> dict:
     html = stamp_ship(polish.read_text(encoding="utf-8", errors="replace"))
     ship.write_text(html, encoding="utf-8")
     polish.unlink()
-    _refresh_overlay(rebuild)
+    _drop_overlay_assets(rebuild)
     _ensure_vercelignore(rebuild)
     _write_note(archive)
     receipt = {
@@ -179,8 +199,8 @@ def promote(root: Path) -> dict:
         "writer": "promote_ship.py",
         "at": _now(),
         "ship": "rebuild/index.html",
-        "outlines": "off",
-        "toggle": "?qa-outlines=tags|on|mono|off",
+        "outlines": "removed",
+        "overlay": "removed",
         "archived": archived,
         "archive": "rebuild/archive",
     }
@@ -205,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
         print("ship promote → already rebuild/index.html")
     else:
         archived = ", ".join(receipt.get("archived") or []) or "none"
-        print(f"ship promote → rebuild/index.html  outlines off  archived {archived}")
+        print(f"ship promote → rebuild/index.html  overlay removed  archived {archived}")
     return 0
 
 

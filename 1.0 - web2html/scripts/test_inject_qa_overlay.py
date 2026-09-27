@@ -42,6 +42,12 @@ class InjectQaOverlayTest(unittest.TestCase):
             html = (project / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertIn("css/qa-overlay.css", html)
             self.assertIn('data-qa-outlines="tags"', html)
+            self.assertIn('id="qa-outlines-boot"', html)
+            self.assertEqual(html.count("qa-outlines-boot"), 1)
+            again = _run(templates, str(project))
+            self.assertEqual(again.returncode, 0, again.stderr)
+            html2 = (project / "rebuild" / "index.html").read_text(encoding="utf-8")
+            self.assertEqual(html2.count("qa-outlines-boot"), 1)
 
     def test_rebuild_index_same(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

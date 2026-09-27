@@ -306,6 +306,20 @@ class PipelineProgressTests(unittest.TestCase):
         )
         self.assertIn("▶ 2.4  Sign-off → 3.0 polish", html)
 
+    def test_live_board_title_uses_project_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "kp-hubit"
+            root.mkdir()
+            data = pipeline_progress.empty_progress("kp-hubit")
+            html = pipeline_progress.stamp_html(
+                pipeline_progress.live_template().read_text(), data, root
+            )
+            self.assertIn("<title>kp-hubit — run</title>", html)
+            self.assertNotIn("<title>Web2Html — run</title>", html)
+            self.assertIn('<h1 class="run-title"><span>kp-hubit</span>', html)
+            self.assertNotIn("<span>Web2Html</span>", html)
+            self.assertIn("<span>Run</span>", html)
+
     def test_start_and_write_live_do_not_ship_next_html(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()

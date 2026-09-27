@@ -354,12 +354,14 @@ def validate_receipt_path(root: Path, section_id: str) -> Path:
     return root / "qa" / "paper-measure" / f"{safe}.validate.json"
 
 
-# What inject-qa-overlay.py adds at 2.4: an <html> attribute, a <link>, a <script>.
+# What inject-qa-overlay.py adds at 2.4: an <html> attribute, a <link>, a
+# <script>, and the head boot snippet. None of that is 2.3 geometry.
 _OVERLAY_RE = re.compile(
     r'\s*data-qa-outlines="[^"]*"'
     r"|<link\b[^>]*qa-overlay[^>]*>"
-    r"|<script\b[^>]*qa-overlay[^>]*>\s*</script>",
-    re.I,
+    r"|<script\b[^>]*qa-overlay[^>]*>\s*</script>"
+    r"|<script\b[^>]*\bid=[\"']qa-outlines-boot[\"'][^>]*>.*?</script>",
+    re.I | re.S,
 )
 
 
