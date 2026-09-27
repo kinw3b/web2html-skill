@@ -60,11 +60,13 @@ stamped. Once qa/paper-file.json exists, the Capture Tool URL is stamped
 under the progress bar so a pull can start anytime.
 
 TIMING. `mark active` stamps `started`, `mark done` stamps `ended`; each closed
-step carries `durationSeconds` and the board shows when it finished and how
-long it took. The run total is the SUM of step durations — never wall clock —
-so pauses between sessions / terminals do not count. `start` and `resume`
+agent step carries `durationSeconds` and the board shows when it finished and
+how long it took. The run total is the SUM of those agent-step durations —
+never wall clock — so pauses between sessions / terminals do not count.
+Human checkpoints (1.4, 2.4, 3.4, 4.4, 5.6) are not timed: no `started`, no
+duration, and the wait is not a session timestamp. `start` and `resume`
 append to `sessions[]`; `resume` without `--at` detects the step from the
-board. A step marked done without a prior `mark active` gets `started`
+board. An agent step marked done without a prior `mark active` gets `started`
 inferred (previous step's end / this session's claim) and is flagged
 `startedInferred`. `timing` prints the table.
 """
@@ -177,10 +179,12 @@ def now_iso() -> str:
 
 
 # ----------------------------------------------------------------- timing ----
-# Each step row carries `started` (first `mark active`) and `ended` (last
-# `mark done`). The run total is the SUM of step durations — never wall clock
+# Each agent step carries `started` (first `mark active`) and `ended` (last
+# `mark done`). The run total is the SUM of those durations — never wall clock
 # between sessions, so a run that pauses overnight between 1.4 and 2.1 does not
-# count the pause. A step closed without ever going active gets `started`
+# count the pause. Human checkpoints are a wait: they keep an `ended` sign-off
+# moment so the next inferred start does not swallow the review, and they never
+# enter the total. An agent step closed without ever going active gets `started`
 # inferred from the tightest lower bound (previous step's end, this session's
 # claim, run start) and is flagged `startedInferred` so the receipt is honest.
 
@@ -231,23 +235,43 @@ def step_phase(sid: str) -> str:
     return sid.split(".", 1)[0]
 
 
+def drop_checkpoint_duration(row: dict) -> None:
+    """A human checkpoint is a wait. Keep `ended` (sign-off); drop the clock."""
+    row.pop("started", None)
+    row.pop("durationSeconds", None)
+    row.pop("startedInferred", None)
+
+
 def refresh_timing(data: dict) -> dict:
     """Recompute derived durations. Idempotent; called on every save and stamp.
 
-    steps[*].durationSeconds — present when both stamps exist.
-    timing.totalSeconds      — sum over done/skipped steps with a duration.
-    timing.humanSeconds      — the part of that spent inside HUMAN_CHECKPOINTS.
-    timing.phases            — per-phase sums ("1".."5").
-    timing.untimedSteps      — closed rows with no measurable duration.
+    Agent steps only. Human checkpoints (1.4, 2.4, 3.4, 4.4, 5.6) are not
+    session timestamps: any `started` / duration is dropped, and the wait is
+    left out of the total, the phase sums, and the agent line. `ended` stays
+    as the sign-off moment so a later inferred start does not swallow the review.
+
+    steps[*].durationSeconds — present on a closed agent step when both stamps exist.
+    timing.totalSeconds      — sum over done/skipped agent steps with a duration.
+    timing.agentSeconds      — same as totalSeconds.
+    timing.humanSeconds      — always 0. The wait is not collected.
+    timing.phases            — per-phase sums of agent steps ("1".."5").
+    timing.untimedSteps      — closed agent rows with no measurable duration.
     """
     steps = data.get("steps") or {}
-    total = human = timed = untimed = 0
+    total = timed = untimed = 0
     phases: dict[str, int] = {}
     last_sid = last_iso = None
     last_dt: datetime | None = None
     for sid in STEP_IDS:
         row = steps.get(sid)
         if not isinstance(row, dict):
+            continue
+        if sid in HUMAN_CHECKPOINTS:
+            drop_checkpoint_duration(row)
+            if row.get("status") in {"done", "skipped"}:
+                ended_dt = parse_iso(row.get("ended"))
+                if ended_dt is not None and (last_dt is None or ended_dt >= last_dt):
+                    last_dt, last_sid, last_iso = ended_dt, sid, row.get("ended")
             continue
         dur = step_duration_seconds(row)
         if dur is None:
@@ -262,16 +286,15 @@ def refresh_timing(data: dict) -> dict:
             timed += 1
             total += dur
             phases[step_phase(sid)] = phases.get(step_phase(sid), 0) + dur
-            if sid in HUMAN_CHECKPOINTS:
-                human += dur
         ended_dt = parse_iso(row.get("ended"))
         if ended_dt is not None and (last_dt is None or ended_dt >= last_dt):
             last_dt, last_sid, last_iso = ended_dt, sid, row.get("ended")
     active = next((sid for sid in STEP_IDS if (steps.get(sid) or {}).get("status") == "active"), None)
+    active_row = (steps.get(active) or {}) if active and active not in HUMAN_CHECKPOINTS else {}
     data["timing"] = {
         "totalSeconds": total,
-        "agentSeconds": total - human,
-        "humanSeconds": human,
+        "agentSeconds": total,
+        "humanSeconds": 0,
         "timedSteps": timed,
         "untimedSteps": untimed,
         "phases": phases,
@@ -279,7 +302,7 @@ def refresh_timing(data: dict) -> dict:
         "lastEndedStep": last_sid,
         "lastEnded": last_iso,
         "activeStep": active,
-        "activeSince": (steps.get(active) or {}).get("started") if active else None,
+        "activeSince": active_row.get("started"),
     }
     return data["timing"]
 
@@ -361,9 +384,16 @@ def infer_started(data: dict, step: str) -> str | None:
 
 
 def close_step_timing(data: dict, step: str, *, infer: bool = True) -> None:
-    """Stamp `ended` now; backfill a missing `started` when asked."""
+    """Stamp `ended` now. Agent steps backfill a missing `started` when asked.
+
+    A human checkpoint records the sign-off moment only. The wait between
+    active and done is not a duration and is not a session timestamp.
+    """
     row = data["steps"][step]
     row["ended"] = now_iso()
+    if step in HUMAN_CHECKPOINTS:
+        drop_checkpoint_duration(row)
+        return
     if infer and not row.get("started"):
         guess = infer_started(data, step)
         if guess:
@@ -440,8 +470,6 @@ def timing_summary_line(data: dict) -> str:
     timing = refresh_timing(data)
     total = fmt_duration(timing["totalSeconds"])
     parts = [f"run total {total}"]
-    if timing["humanSeconds"]:
-        parts.append(f"agent {fmt_duration(timing['agentSeconds'])} · human {fmt_duration(timing['humanSeconds'])}")
     parts.append(f"{timing['timedSteps']} step{'s' if timing['timedSteps'] != 1 else ''} timed")
     if timing["untimedSteps"]:
         parts.append(f"{timing['untimedSteps']} untimed")
@@ -1863,8 +1891,13 @@ def stamp_run_mode(html: str, root: Path | None) -> str:
     return html
 
 
-def step_time_copy(row: dict, *, long: bool) -> str:
-    """Board copy for one step. Grid rows get the short form, timeline the long one."""
+def step_time_copy(row: dict, *, long: bool, human: bool = False) -> str:
+    """Board copy for one step. Grid rows get the short form, timeline the long one.
+
+    Human checkpoints are not on the clock, so the row stays blank.
+    """
+    if human:
+        return ""
     status = row.get("status", "pending")
     if status in {"done", "skipped"}:
         dur = row.get("durationSeconds")
@@ -1894,7 +1927,8 @@ def stamp_timing(html: str, data: dict, root: Path | None = None) -> str:
     def step_sub(m: re.Match) -> str:
         tag, attrs, sid = m.group(1), m.group(2), m.group(3)
         long = "timeline-time" in attrs
-        return f"<{tag}{attrs}data-step-time=\"{sid}\">{step_time_copy(steps.get(sid) or {}, long=long)}</{tag}>"
+        copy = step_time_copy(steps.get(sid) or {}, long=long, human=sid in HUMAN_CHECKPOINTS)
+        return f"<{tag}{attrs}data-step-time=\"{sid}\">{copy}</{tag}>"
 
     html = re.sub(
         r'<(span|p)((?:\s[^>]*?)?\s)data-step-time="([^"]+)">.*?</\1>',
@@ -1938,8 +1972,6 @@ def stamp_timing(html: str, data: dict, root: Path | None = None) -> str:
     total = timing["totalSeconds"]
     if total or timing["timedSteps"]:
         label = f"total {fmt_duration(total)}"
-        if timing["humanSeconds"]:
-            label += f" · agent {fmt_duration(timing['agentSeconds'])}"
         if timing["untimedSteps"]:
             label += f" · {timing['untimedSteps']} untimed"
     else:
@@ -3444,9 +3476,13 @@ def cmd_resume(
     print(f"pipeline resume -> {dest}   {done}/{total} done   next {at}   owner {owner}")
     print(uri)
     print(timing_summary_line(data))
-    if current:
+    if current in HUMAN_CHECKPOINTS:
+        print(f"{current} is the human checkpoint — its wait is not on the clock.")
+    elif current:
         since = (data["steps"][current] or {}).get("started")
         print(f"{current} is still active since {fmt_clock(since)} — its clock keeps running until you mark it done.")
+    elif at in HUMAN_CHECKPOINTS:
+        print(f"mark --step {at} --status active when the checkpoint opens. {at} is not timed.")
     else:
         print(f"mark --step {at} --status active before working so {at} is timed.")
     print("Live board was opened at start — leave that tab. resume does not reopen it.")
@@ -3930,7 +3966,11 @@ def cmd_mark(
                     "source_fidelity.py record-gaps. Do not bind tokens. Do not rewrite pages the export already has."
                 )
         data["current"] = step
-        data["steps"][step]["started"] = data["steps"][step].get("started") or now_iso()
+        if step in HUMAN_CHECKPOINTS:
+            drop_checkpoint_duration(data["steps"][step])
+            data["steps"][step].pop("ended", None)
+        else:
+            data["steps"][step]["started"] = data["steps"][step].get("started") or now_iso()
     if status in {"done", "skipped"}:
         # `done` is real work: backfill `started` when the agent never marked
         # active so the step still lands in the run total. `skipped` is not work.
@@ -3979,6 +4019,8 @@ def cmd_mark(
             row["status"] = "done"
             row["reason"] = "source folder — phase 2 not applicable"
             row["ended"] = row.get("ended") or now_iso()
+            if sid in HUMAN_CHECKPOINTS:
+                drop_checkpoint_duration(row)
         print("phase 2 → off   source-html/ is the ship")
     try:
         save_progress(root, data, actual_revision if expected_revision is not None else None)
@@ -4053,6 +4095,14 @@ def cmd_mark(
 def print_mark_timing(data: dict, step: str, status: str) -> None:
     """One line per mark: when the step started / finished and how long it took."""
     row = data["steps"].get(step) or {}
+    if step in HUMAN_CHECKPOINTS:
+        if status == "active":
+            print(f"{step} human checkpoint — clock not started")
+            return
+        if status in {"done", "skipped"}:
+            print(f"{step} human checkpoint — not added to the run total")
+            print(timing_summary_line(data))
+        return
     if status == "active":
         print(f"{step} started {fmt_clock(row.get('started'), with_date=False)}")
         return
@@ -4072,18 +4122,19 @@ def timing_rows(data: dict, root: Path | None = None) -> list[dict]:
     rows: list[dict] = []
     for sid in ids:
         row = data["steps"].get(sid) or {}
+        human = sid in HUMAN_CHECKPOINTS
         rows.append(
             {
                 "step": sid,
                 "title": TITLES[sid],
                 "status": row.get("status", "pending"),
-                "started": row.get("started"),
-                "ended": row.get("ended"),
-                "durationSeconds": row.get("durationSeconds"),
-                "startedInferred": bool(row.get("startedInferred")),
+                "started": None if human else row.get("started"),
+                "ended": None if human else row.get("ended"),
+                "durationSeconds": None if human else row.get("durationSeconds"),
+                "startedInferred": False if human else bool(row.get("startedInferred")),
                 "agent": row.get("agent"),
                 "model": row.get("model"),
-                "human": sid in HUMAN_CHECKPOINTS,
+                "human": human,
             }
         )
     return rows
@@ -4116,17 +4167,25 @@ def cmd_timing(root: Path, as_json: bool = False) -> int:
         return 0
     print(f"{'step':<5} {'status':<8} {'started':<13} {'finished':<13} {'took':>9}  {'agent':<24}  title")
     for row in rows:
-        took = fmt_duration(row["durationSeconds"]) if row["durationSeconds"] is not None else "—"
-        if row["status"] == "active" and row["started"]:
-            started_dt = parse_iso(row["started"])
-            elapsed = (datetime.now(timezone.utc) - started_dt).total_seconds() if started_dt else None
-            took = f"{fmt_duration(elapsed)}…"
-        flag = "*" if row["startedInferred"] else " "
-        human = " (human)" if row["human"] else ""
+        if row["human"]:
+            took = "—"
+            flag = " "
+            human = " (human, not timed)"
+            started_txt = ended_txt = "—"
+        else:
+            took = fmt_duration(row["durationSeconds"]) if row["durationSeconds"] is not None else "—"
+            if row["status"] == "active" and row["started"]:
+                started_dt = parse_iso(row["started"])
+                elapsed = (datetime.now(timezone.utc) - started_dt).total_seconds() if started_dt else None
+                took = f"{fmt_duration(elapsed)}…"
+            flag = "*" if row["startedInferred"] else " "
+            human = ""
+            started_txt = fmt_clock(row["started"])
+            ended_txt = fmt_clock(row["ended"])
         who = agent_label(row.get("agent"), row.get("model")) or "—"
         print(
-            f"{row['step']:<5} {row['status']:<8} {fmt_clock(row['started']):<13} "
-            f"{fmt_clock(row['ended']):<13} {took:>9}{flag} {who:<24}  {row['title']}{human}"
+            f"{row['step']:<5} {row['status']:<8} {started_txt:<13} "
+            f"{ended_txt:<13} {took:>9}{flag} {who:<24}  {row['title']}{human}"
         )
     print("")
     for phase in sorted(timing["phases"]):
@@ -4135,6 +4194,8 @@ def cmd_timing(root: Path, as_json: bool = False) -> int:
     print(timing_summary_line(data))
     if any(row["startedInferred"] for row in rows):
         print("* start inferred — the step was marked done without a prior `mark --status active`.")
+    if any(row["human"] for row in rows):
+        print("Human checkpoints (1.4, 2.4, 3.4, 4.4, 5.6) are not timed and are not in the total.")
     sessions = data.get("sessions") or []
     if sessions:
         print("")

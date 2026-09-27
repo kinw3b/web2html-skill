@@ -190,7 +190,8 @@
   .row:last-child { padding-bottom: 15px; }
   /* Timing — pipeline-progress.py stamps started / finished / took into
      [data-step-time], the phase sum into [data-phase-time], and the run total
-     (sum of step durations, never wall clock) into [data-pipeline-duration].
+     (sum of agent-step durations, never wall clock; human checkpoints are not timed)
+     into [data-pipeline-duration].
      Times stay muted and right-aligned; weight, not colour, carries them. */
   .row-time { justify-self: end; text-align: right; color: var(--muted); font: 700 10px/1 var(--mono); letter-spacing: .04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .row-time:empty { display: none; }
@@ -346,7 +347,7 @@
         <span class="converting-label" data-pipeline-current>Converting</span>
       </span>
       <span class="hud-right">
-        <span class="hud-time" data-pipeline-duration title="Sum of step durations — pauses between sessions do not count"></span>
+        <span class="hud-time" data-pipeline-duration title="Sum of agent-step durations — human checkpoints and pauses between sessions do not count"></span>
         <span class="hud-agent" data-pipeline-agent title="Agent + model recorded for the current session"></span>
       </span>
     </div>

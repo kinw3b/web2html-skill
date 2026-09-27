@@ -68,7 +68,7 @@ Controller (this session — only rebuild/ writer):
  10. VALIDATE paper_23_validate.py . --shoot-open
               then MUST wave.py prepare/start/wait/apply (LOOK)
               then apply printed patches + --record from the findings
-              ≤ 3 rounds per band, then --residual
+              ≤ 3 rounds per band; --residual allowed from round 2
  11. GATE     section_22_gate.py .  (needs every <id>.validate.json
               AND an applied qa/agent-runs/<run>/2.3/wave.json)
 
@@ -224,8 +224,12 @@ Pitfall #216 #221.
 
 ```
 SHOOT    paper_23_validate.py . --shoot-open
-         re-shoots every open band at 1600 / 768 / 390 (file://) and
+         1) refreshes closed bands a later patch staled: same pixels →
+            restamp (no new look); changed → reopen once (+1 round);
+            changed again → auto-residual (Pitfall #232)
+         2) re-shoots every open band at 1600 / 768 / 390 (file://) and
          rebuilds qa/paper-measure/compare/NN-<band>-{1600,768,390}-side.png
+         wave.py prepare refuses an open band that was not re-shot.
 
 LOOK     MUST wave.py (adapter from qa/harness-probe.json):
            python3 $SKILLS/web2html/scripts/wave.py prepare . --phase 2.3 --run-id rN
@@ -244,10 +248,14 @@ LOOK     MUST wave.py (adapter from qa/harness-probe.json):
 APPLY    For each printed action: patch that band on rebuild/ (scoped
          selectors), then run the printed --record (seen + verdict from
          the finding). Controller writes rebuild/. No Paper MCP.
+         Do not touch rebuild/ while the wave is running — any change
+         stales every finding (workers get exit 3 and stop).
 
-REPEAT   bands still open → --shoot-open again, new run-id, wave again.
-CAP      round 3 still misses → --record … --residual "<what stays off
-         and why>". One line. 2.4 reads it. No round 4.
+REPEAT   --shoot-open once (it also refreshes what this wave staled),
+         then a new run-id and a wave only if a band is still open.
+CAP      from round 2 a band that still misses may close with
+         --record … --residual "<what stays off and why>" (no --patched).
+         Round 3 must. One line. 2.4 reads it. No round 4.
 ```
 
 Rules of the walk:
@@ -258,13 +266,24 @@ Rules of the walk:
 - **Shoot every open band before `wave.py prepare`.** `--shoot-open` is
   the pointer. Do not batch-record bands you did not re-shoot. Do not
   `--record` a band that has no finding in the applied wave.
-- **A miss before round 3 must be patched** (`--patched`). Recording a
-  miss and moving on is the old drop-through; the script refuses it.
+- **A round-1 miss must be patched** (`--patched`). Recording a miss and
+  moving on is the old drop-through; the script refuses it. From round 2
+  the band may patch again or close as a residual.
 - **No patch after the last look.** `--shoot` fingerprints the ship
   (`rebuild/index.html` + `rebuild/css/*.css`, minus the 2.4 QA overlay
-  and the 3.x sheets). The gate recomputes it; a changed ship fails 2.3
-  until you `--shoot` and LOOK again. Round 3 refuses `--patched` for the
-  same reason — a fix nobody re-shot is invisible.
+  and the 3.x sheets) and hashes each shot (`shotSha`). The gate
+  recomputes the fingerprint; a changed ship fails 2.3 until
+  `--shoot-open` refreshes it. A band whose own pixels did not change is
+  restamped without a new look — another band's patch is not its problem.
+  A residual and round 3 refuse `--patched` — a fix nobody re-shot is
+  invisible.
+- **What counts as a miss.** Watch-list only: layout, missing / extra
+  element, radius class, heading line count, visible type size / weight,
+  gap or padding off by more than ~8px. Sub-8px drift, anti-aliasing and
+  font hinting are `match` (Pitfall #232).
+- **Worker budget.** Read the side PNGs once each; grep `index-raw.html`
+  only for a number, never Read it whole. `wave.py check` at most twice;
+  exit 3 (STALE) means stop, not retry.
 - **Caps.** 3 rounds per band. Controller writes `rebuild/`. LOOK is the
   wave. No pixel-perfect inside VALIDATE. No Paper MCP. Not 1.1
   `source-site/screenshots/`.
@@ -293,8 +312,8 @@ Receipt: `qa/paper-measure/<id>.validate.json`
 }
 ```
 
-`status` is `match` (last round all match) or `residual` (round 3, with a
-reason). Anything else keeps 2.3 open. `paper_23_validate.py . --status`
+`status` is `match` (last round all match) or `residual` (round 2 or 3,
+with a reason; or `autoResidual` from a second post-reopen pixel change). Anything else keeps 2.3 open. `paper_23_validate.py . --status`
 prints the table and exits 2 while a band is open.
 
 ## 1. Measure — disk, not live Paper
@@ -427,6 +446,8 @@ round was shot). Pitfall #216 #221.
   orca/subagent rungs, or `--record`ing without an applied wave covering
   that band (Pitfall #221)
 - Recording a round without a finding `seen`, batch-recording bands, a
-  fourth round, or a residual before round 3 (Pitfall #216)
+  fourth round, or a residual before round 2 (Pitfall #216 #232)
+- Patching `rebuild/` while a wave is running, or re-running waves on
+  bands that only went stale — `--shoot-open` refreshes them (Pitfall #232)
 - Loading pixel-perfect inside VALIDATE — LOOK is the wave, not the
   assist's refine loop

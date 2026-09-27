@@ -64,8 +64,8 @@ semantic exist, `index-semantic.html` is not a dump, links `tokens.css`.
 `index.html`, not invented Lucide icons. Pixel-perfect is a **one-pass assist**.
 After APPLY, **VALIDATE LOOK**: `--shoot-open`, then **MUST** `wave.py
 prepare/start/wait/apply` (adapter from the probe), then apply printed
-patches and `--record` from the findings; ≤3 rounds; a band still off at
-round 3 gets a residual line. Receipt `qa/paper-measure/<id>.validate.json`
+patches and `--record` from the findings; ≤3 rounds; a band still off from
+round 2 may close with a residual line (round 3 must; Pitfall #232). Receipt `qa/paper-measure/<id>.validate.json`
 plus an applied `qa/agent-runs/<run>/2.3/wave.json`. Recipe:
 `references/section-23-paper-loop.md`. Missing `index-raw.html`,
 `raw-census.json`, `disk-gold.json`, `clip-compare.json`, `rawCompared`,

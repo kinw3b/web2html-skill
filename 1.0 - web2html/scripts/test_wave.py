@@ -170,6 +170,45 @@ class WaveTests(unittest.TestCase):
         errors = wave.check_one(self.root, "r1", "2.3", "band-hero")
         self.assertTrue(any("stale" in e for e in errors))
 
+    def test_stale_check_exits_3_so_workers_stop_instead_of_looping(self):
+        doc = wave.prepare(self.root, "r1", "2.3")
+        hero = doc["tasks"][0]
+        path = self.root / hero["findings"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "match", "768": "match", "390": "match"},
+            seen="hero headline, CTA pair, and photo frame match the clip at every width with no drift", misses=[], patch="")))
+        argv = ["check", str(self.root), "--phase", "2.3", "--run-id", "r1", "--agent", "band-hero"]
+        self.assertEqual(wave.main(argv), 0)
+        (self.root / "rebuild" / "css" / "tokens.css").write_text(":root{--x:2}")
+        self.assertEqual(wave.main(argv), 3)
+        self.assertIn("STOP RULES", hero["spec"])
+        self.assertIn("never Read that file whole", hero["spec"])
+
+    def test_new_wave_supersedes_an_abandoned_waves_leases(self):
+        wave.prepare(self.root, "r1", "2.3")
+        (self.root / "rebuild" / "css" / "tokens.css").write_text(":root{--x:3}")
+        doc = wave.prepare(self.root, "r2", "2.3")
+        self.assertEqual(len(agent_loop.active_reviewer_leases(self.root)), 2)
+        self.assertEqual(doc["runId"], "r2")
+
+    def test_prepare_refuses_an_open_band_that_was_not_reshot(self):
+        wave._open_bands = self._open_bands
+        import section_22_gate as gate
+        import paper_23_validate as validate
+
+        root = self.root / "proj"
+        root.mkdir()
+        gate.install_passing_artifacts(root)
+        receipt = gate.validate_receipt_path(root, "hero")
+        payload = json.loads(receipt.read_text())
+        payload["status"] = "open"
+        receipt.write_text(json.dumps(payload))
+        with self.assertRaises(FileNotFoundError) as ctx:
+            wave.prepare(root, "r1", "2.3")
+        self.assertIn("--shoot-open", str(ctx.exception))
+        self.assertTrue(validate.round_recorded(validate.last_round(payload)))
+
     def test_question_blocks_ack_and_returns_4(self):
         wave._probe = lambda root: ORCA_PROBE
         wave.prepare(self.root, "r1", "2.3")

@@ -65,7 +65,10 @@ class RunReportTests(unittest.TestCase):
             self.assertIn("claude-fable-5.1", text)
             self.assertIn("opencode", text)
             self.assertIn("10m", text)  # 1.1 duration
+            self.assertIn("Run total: 10m 00s (agent time only)", text)
+            self.assertNotIn("20m", text)
             self.assertIn("### 1.4 — Human checkpoint", text)
+            self.assertIn("not timed", text)
             self.assertIn("## Notes & additional requests", text)
             # No tool names leak into the portable document.
             self.assertNotIn("pipeline-progress", text)

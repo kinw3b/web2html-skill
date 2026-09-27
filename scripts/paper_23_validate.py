@@ -24,6 +24,8 @@ the last look, or a missing wave (Pitfall #216 #221).
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import json
 import re
 import sys
@@ -54,6 +56,15 @@ def run_width_keys(root: Path) -> tuple[str, ...]:
     return tuple(str(width) for width in run_widths(root))
 MEASURE_DIR = Path("qa/paper-measure")
 DEFAULT_MAX_ROUNDS = 3
+# One patch + one re-look is enough to call a residual (2.31.1). Waiting for
+# round 3 on every imperfect band tripled the wave count.
+MIN_RESIDUAL_ROUNDS = 2
+# A closed band whose pixels a later patch changed is reopened once; a second
+# change is recorded as a residual instead of reopening it again (ping-pong cap).
+MAX_REOPENS = 1
+# Share of pixels that may differ (anti-aliasing / font hinting) and still
+# count as the same render when refreshing a closed band.
+PIXEL_TOLERANCE = 0.002
 MIN_SEEN = 12
 VERDICTS = frozenset({"match", "miss"})
 STATUSES = frozenset({"open", "match", "residual"})
@@ -71,6 +82,31 @@ def _spend(root: Path, kind: str) -> None:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+
+
+def _file_sha(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _pixels_close(old: bytes, new: Path, tolerance: float = PIXEL_TOLERANCE) -> bool:
+    """Same size and at most `tolerance` of pixels visibly different. False without PIL."""
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        return False
+    try:
+        with Image.open(io.BytesIO(old)) as a_img, Image.open(new) as b_img:
+            a, b = a_img.convert("RGB"), b_img.convert("RGB")
+            if a.size != b.size:
+                return False
+            diff = ImageChops.difference(a, b).convert("L").point(lambda v: 255 if v > 16 else 0)
+            changed = diff.histogram()[255]
+            return changed <= tolerance * a.size[0] * a.size[1]
+    except (OSError, ValueError):
+        return False
 
 
 def _safe(section_id: str) -> str:
@@ -200,6 +236,7 @@ def open_round(
             "shotsSkipped": skipped,
             "shipFingerprint": ship_fingerprint(root),
             "shots": shot_paths,
+            "shotSha": {key: _file_sha(root / rel) if rel else None for key, rel in shot_paths.items()},
             "sides": sides,
             "seen": "",
             "verdict": {},
@@ -275,6 +312,18 @@ def record_round(
     all_match = all(value == "match" for value in verdict.values())
     if all_match:
         status = "match"
+    elif residual.strip() and number < MIN_RESIDUAL_ROUNDS:
+        raise SystemExit(
+            f"FAIL: a residual needs at least {MIN_RESIDUAL_ROUNDS} looked-at rounds — "
+            "patch this miss (--patched), --shoot, and look once more first. Pitfall #216."
+        )
+    elif residual.strip():
+        if patched:
+            raise SystemExit(
+                "FAIL: a residual closes the band — a patch recorded with it cannot be "
+                "re-shot. Drop --patched (revert the patch) or keep the band open. Pitfall #216."
+            )
+        status = "residual"
     elif number >= cap:
         if patched:
             raise SystemExit(
@@ -290,9 +339,13 @@ def record_round(
         status = "residual"
     else:
         if not patched:
+            hint = (
+                f" From round {MIN_RESIDUAL_ROUNDS} you may instead close it with --residual \"…\"."
+                if number >= MIN_RESIDUAL_ROUNDS else ""
+            )
             raise SystemExit(
                 "FAIL: a miss before the last round must be patched — fix this band, "
-                "then --record --patched, then --shoot the next round. Pitfall #216."
+                "then --record --patched, then --shoot the next round." + hint + " Pitfall #216."
             )
         status = "open"
     current["seen"] = seen
@@ -312,6 +365,88 @@ def band_state(root: Path, section_id: str) -> str:
         return "missing"
     status = str(payload.get("status") or "open")
     return status if status in STATUSES else "open"
+
+
+def refresh_closed(root: Path, *, capture=None) -> dict[str, list[str]]:
+    """Re-check closed bands that went stale because ANOTHER band was patched.
+
+    The ship fingerprint is page-wide, so one band's patch used to stale every
+    band already signed — and a band at its round cap could never be re-shot,
+    so the gate stayed red forever (the 2.3 ping-pong). Re-shoot only the stale
+    closed bands: same pixels → restamp the fingerprint (no new LOOK). Changed
+    pixels → reopen once with one extra round. A second change after that
+    reopen closes it as a residual so the loop is bounded; 2.4 sees the line.
+    """
+    root = root.resolve()
+    capture = capture or shots.capture
+    current = ship_fingerprint(root)
+    widths = run_widths(root)
+    out: dict[str, list[str]] = {"restamped": [], "reopened": [], "residual": []}
+    stale: list[tuple[str, dict, dict]] = []
+    for row in status_rows(root):
+        if row["state"] not in {"match", "residual"}:
+            continue
+        payload = load(root, str(row["id"]))
+        last = last_round(payload) if payload else None
+        if payload is None or last is None or str(last.get("shipFingerprint") or "") == current:
+            continue
+        stale.append((str(row["id"]), payload, last))
+    if not stale:
+        return out
+    before: dict[tuple[str, str], tuple[str | None, bytes | None]] = {}
+    for sid, _payload, last in stale:
+        recorded = last.get("shotSha") if isinstance(last.get("shotSha"), dict) else {}
+        for width in widths:
+            key = str(width)
+            try:
+                data: bytes | None = shots.shot_path(root, sid, width).read_bytes()
+            except OSError:
+                data = None
+            on_disk = hashlib.sha256(data).hexdigest() if data is not None else None
+            want = recorded.get(key) or on_disk
+            before[(sid, key)] = (want, data if data is not None and on_disk == want else None)
+    result = capture(root, [sid for sid, _, _ in stale], widths=widths)
+    skipped = bool(result.get("skipped"))
+    for sid, payload, last in stale:
+        same = not skipped
+        for width in widths if same else ():
+            key = str(width)
+            want, data = before[(sid, key)]
+            new = shots.shot_path(root, sid, width)
+            new_sha = _file_sha(new)
+            if new_sha is not None and new_sha == want:
+                continue
+            if new_sha is not None and data is not None and _pixels_close(data, new):
+                continue
+            same = False
+            break
+        number = last.get("round")
+        if same:
+            last["shipFingerprint"] = current
+            last.setdefault("refreshes", []).append({"at": _now_iso(), "fingerprint": current, "pixels": "same"})
+            out["restamped"].append(sid)
+        elif int(payload.get("reopens") or 0) >= MAX_REOPENS:
+            last["shipFingerprint"] = current
+            last.setdefault("refreshes", []).append({"at": _now_iso(), "fingerprint": current, "pixels": "changed"})
+            payload["status"] = "residual"
+            payload["autoResidual"] = True
+            payload["residual"] = (
+                f"pixels changed after round {number} by a patch to another band; reopen cap "
+                f"({MAX_REOPENS}) reached, not looked at again — check this band at 2.4"
+            )
+            out["residual"].append(sid)
+        else:
+            cap = int(payload.get("maxRounds") or DEFAULT_MAX_ROUNDS)
+            payload["reopens"] = int(payload.get("reopens") or 0) + 1
+            payload["maxRounds"] = max(cap, len(payload.get("rounds") or []) + 1)
+            payload["status"] = "open"
+            payload["residual"] = ""
+            payload.setdefault("reopenLog", []).append(
+                {"at": _now_iso(), "afterRound": number, "why": "no shots" if skipped else "pixels changed"}
+            )
+            out["reopened"].append(sid)
+        save(root, payload)
+    return out
 
 
 def shoot_open(root: Path, *, max_rounds: int = DEFAULT_MAX_ROUNDS, capture=None) -> tuple[list[str], list[str]]:
@@ -361,6 +496,15 @@ def status_rows(root: Path) -> list[dict]:
     return rows
 
 
+def _print_refresh(out: dict[str, list[str]]) -> None:
+    if out.get("restamped"):
+        print("validate: refreshed (pixels unchanged, no new look): " + ", ".join(out["restamped"]))
+    if out.get("reopened"):
+        print("validate: reopened (a later patch changed its pixels): " + ", ".join(out["reopened"]))
+    if out.get("residual"):
+        print("validate: closed as residual (changed again after its reopen): " + ", ".join(out["residual"]))
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("root", type=Path)
@@ -373,7 +517,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--patched", action="store_true", help="this band's CSS/HTML was patched")
     ap.add_argument("--residual", default="", help="last round only: what stays off and why")
     ap.add_argument("--next", action="store_true", help="print the first open band in ship order")
-    ap.add_argument("--shoot-open", action="store_true", help="shoot every open band, then run wave.py")
+    ap.add_argument("--shoot-open", action="store_true", help="refresh stale closed bands, shoot every open band, then run wave.py")
+    ap.add_argument("--refresh", action="store_true", help="re-shoot closed bands a later patch staled; restamp when pixels are unchanged")
     ap.add_argument("--status", action="store_true", help="table of every band; exit 2 while any is open")
     ap.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS)
     args = ap.parse_args(argv)
@@ -383,6 +528,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.id:
             print("FAIL: --shoot-open shoots every open band; drop --id", file=sys.stderr)
             return 2
+        _print_refresh(refresh_closed(root))
         shot, skipped = shoot_open(root, max_rounds=args.max_rounds)
         for _ in shot:
             _spend(root, "shoot")
@@ -394,6 +540,10 @@ def main(argv: list[str] | None = None) -> int:
             print("validate: no open bands — run section_22_gate.py .")
         else:
             print("validate: next is wave.py prepare . --phase 2.3 --run-id rN")
+        return 0
+
+    if args.refresh:
+        _print_refresh(refresh_closed(root))
         return 0
 
     if args.next:

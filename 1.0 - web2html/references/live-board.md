@@ -54,33 +54,36 @@ python3 $SKILLS/web2html/scripts/pipeline-progress.py mark "$PROJECT" --step 1.2
 
 `mark` cannot open 2.1+ while 1.1–1.4 are unfinished. `skip` fails.
 
-## Timing (2.27.0)
+## Timing (2.31.0)
 
-Every step is timed by its own marks, and the run total is the **sum of step
-durations** — never wall clock. A pause between sessions or terminals adds
-nothing.
+Agent steps are timed by their own marks, and the run total is the **sum of
+those durations** — never wall clock. A pause between sessions or terminals
+adds nothing. Human checkpoints (1.4 / 2.4 / 3.4 / 4.4 / 5.6) are not timed
+and are not session timestamps (Pitfall #231).
 
-- `mark --status active` stamps `started` and prints `1.2 started 01:41:05`.
-- `mark --status done` stamps `ended` + `durationSeconds` and prints
+- `mark --status active` on an agent step stamps `started` and prints `1.2 started 01:41:05`.
+  On a human checkpoint it prints `1.4 human checkpoint — clock not started` and writes no `started`.
+- `mark --status done` on an agent step stamps `ended` + `durationSeconds` and prints
   `1.2 finished 26 Sep 01:44   took 2m 57s` followed by the run total line
-  (`run total … agent … · human … N steps timed   last finished …`). Human
-  checkpoints (1.4 / 2.4 / 3.4 / 4.4 / 5.6) count in `human`, everything else in `agent`.
-- A step marked done **without** a prior `mark active` still lands in the total:
+  (`run total … N steps timed   last finished …`). A human checkpoint prints
+  `1.4 human checkpoint — not added to the run total` and does not add a duration.
+- An agent step marked done **without** a prior `mark active` still lands in the total:
   `started` is inferred from the tightest lower bound (previous step's end, this
   session's claim, run start) and flagged `startedInferred` — the board shows a
   `*` and the mark prints `start inferred — mark active next time`. Do not rely
-  on it; mark active when you enter a step.
+  on it; mark active when you enter a step. A checkpoint's `ended` is only the
+  sign-off moment, so that inference does not swallow the human wait.
 - `skipped` is not work: no inference, no duration.
 - `start` and `resume` append `{kind, owner, at, startedAt}` to `sessions[]`.
-- The board stamps finished / took on every grid row and timeline item, the
-  phase sum on each card head, and `total … · agent …` in the HUD.
+- The board stamps finished / took on every agent grid row and timeline item, the
+  phase sum on each card head, and `total …` in the HUD. Checkpoint rows stay blank.
 - `python3 $SKILLS/web2html/scripts/pipeline-progress.py timing <project> [--json]`
-  prints the per-step table, per-phase sums, the total, and the session log.
-  Put that total in the 3.4 / 4.4 / 5.6 hand-back so the human sees the cost.
+  prints the per-step table, per-phase sums, the agent total, and the session log.
+  Put that total in the 3.4 / 4.4 / 5.6 hand-back so the human sees the agent cost.
 
 Rule for every new agent session: `resume` first (it prints where the run
-sits and the total so far), then `mark active` before touching the step. A
-`mark` is the only thing that adds time. Pitfall #227 #228.
+sits and the total so far), then `mark active` before touching an agent step. A
+`mark` on an agent step is the only thing that adds time. Pitfall #227 #228 #231.
 
 ## Agent + model (2.28.0)
 

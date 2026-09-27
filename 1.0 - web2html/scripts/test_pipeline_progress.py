@@ -1753,12 +1753,16 @@ class TimingTests(unittest.TestCase):
 
         self.assertEqual(data["steps"]["1.2"]["durationSeconds"], 177)
         self.assertNotIn("durationSeconds", data["steps"]["2.2"])
-        self.assertEqual(timing["totalSeconds"], 4 + 177 + 300 + 360 + 60)
-        self.assertEqual(timing["humanSeconds"], 360)
-        self.assertEqual(timing["agentSeconds"], timing["totalSeconds"] - 360)
-        self.assertEqual(timing["timedSteps"], 5)
+        self.assertNotIn("started", data["steps"]["1.4"])
+        self.assertNotIn("durationSeconds", data["steps"]["1.4"])
+        self.assertEqual(data["steps"]["1.4"]["ended"], self.T(15, 20))
+        self.assertEqual(timing["totalSeconds"], 4 + 177 + 300 + 60)
+        self.assertEqual(timing["humanSeconds"], 0)
+        self.assertEqual(timing["agentSeconds"], timing["totalSeconds"])
+        self.assertEqual(timing["timedSteps"], 4)
         self.assertEqual(timing["untimedSteps"], 1)
-        self.assertEqual(timing["phases"], {"1": 4 + 177 + 300 + 360, "2": 60})
+        self.assertEqual(timing["phases"], {"1": 4 + 177 + 300, "2": 60})
+        self.assertNotIn("1.4", timing["phaseAgents"].get("1", [{}])[0].get("steps", []) if timing["phaseAgents"].get("1") else [])
         self.assertEqual(timing["lastEndedStep"], "2.2")
         self.assertEqual(timing["activeStep"], "2.3")
         self.assertEqual(timing["activeSince"], "2026-09-26T09:05:10-06:00")
@@ -1906,7 +1910,7 @@ class TimingTests(unittest.TestCase):
             self.assertEqual([s["kind"] for s in data["sessions"]], ["start", "resume"])
             self.assertEqual(data["sessions"][1]["owner"], "session-2")
             self.assertEqual(data["sessions"][1]["at"], "2.1")
-            self.assertIn("run total 4m 00s", out.getvalue())
+            self.assertIn("run total 3m 00s", out.getvalue())
             self.assertIn("mark --step 2.1 --status active before working", out.getvalue())
 
     def test_resume_detects_the_step_when_at_is_omitted(self):
@@ -2028,8 +2032,11 @@ class TimingTests(unittest.TestCase):
             after = pipeline_progress.load_progress(root)
             self.assertNotIn("controller", after, "lease release must be persisted, not just in memory")
             self.assertFalse(pipeline_progress.controller_lease_path(root).exists())
-            self.assertEqual(after["timing"]["timedSteps"], 4)
-            self.assertGreaterEqual(after["steps"]["1.4"]["durationSeconds"], 0)
+            self.assertEqual(after["timing"]["timedSteps"], 3)
+            self.assertNotIn("durationSeconds", after["steps"]["1.4"])
+            self.assertNotIn("started", after["steps"]["1.4"])
+            self.assertIn("ended", after["steps"]["1.4"])
+            self.assertEqual(after["timing"]["totalSeconds"], 3 * 300)
 
             out = io.StringIO()
             err = io.StringIO()
@@ -2043,6 +2050,51 @@ class TimingTests(unittest.TestCase):
             self.assertEqual(resumed["controller"]["owner"], "session-2")
             self.assertEqual(resumed["sessions"][-1], {**resumed["sessions"][-1], "kind": "resume", "owner": "session-2", "at": "2.1"})
             self.assertEqual(resumed["timing"]["totalSeconds"], after["timing"]["totalSeconds"], "resume adds no time — only marks do")
+
+    def test_human_checkpoint_wait_is_not_added_to_the_run(self):
+        """Opening 1.4 and signing it later must not move the agent total."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            (root / "qa").mkdir(parents=True)
+            data = pipeline_progress.empty_progress("demo")
+            data["started"] = self.T(0, 0)
+            for sid in ("1.1", "1.2", "1.3"):
+                data["steps"][sid].update(status="done", started=self.T(0, 0), ended=self.T(1, 0))
+            pipeline_progress.save_progress(root, data, force=True)
+            run_config.intake(root, source="none", checkpoints="human", speed="full")
+            before = pipeline_progress.load_progress(root)["timing"]["totalSeconds"]
+            self.assertEqual(before, 180)
+
+            original = pipeline_progress.open_paper_for_review
+            pipeline_progress.open_paper_for_review = lambda r: True
+            self.addCleanup(lambda: setattr(pipeline_progress, "open_paper_for_review", original))
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.4", "active", None), 0)
+            active = pipeline_progress.load_progress(root)
+            self.assertEqual(active["steps"]["1.4"]["status"], "active")
+            self.assertNotIn("started", active["steps"]["1.4"])
+            self.assertEqual(active["timing"]["totalSeconds"], before)
+            self.assertIn("clock not started", out.getvalue())
+
+            (root / "qa" / "paper-human-review.md").write_text("# signed\n")
+            (root / "qa" / "paper-file.json").write_text(json.dumps({"fileId": "F1", "url": "https://example.com/"}))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pipeline_progress.cmd_mark(root, "1.4", "done", None), 0)
+            text = out.getvalue()
+            done = pipeline_progress.load_progress(root)
+            self.assertNotIn("durationSeconds", done["steps"]["1.4"])
+            self.assertNotIn("started", done["steps"]["1.4"])
+            self.assertEqual(done["timing"]["totalSeconds"], before)
+            self.assertEqual(done["timing"]["humanSeconds"], 0)
+            self.assertIn("not added to the run total", text)
+            self.assertNotIn("took", text)
+
+            html = pipeline_progress.stamp_html(pipeline_progress.live_template().read_text(), done)
+            self.assertIn('<span class="row-time" data-step-time="1.4"></span>', html)
+            self.assertRegex(html, r'data-pipeline-duration[^>]*>total 3m 00s</span>')
 
 
 class AgentTrackingTests(unittest.TestCase):

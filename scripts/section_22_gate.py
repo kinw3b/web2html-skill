@@ -53,6 +53,7 @@ CLIP_COMPARE_FROM = "web2html/section-23-clip-compare"
 REBUILD_SKIP = Path("qa/paper-measure/rebuild-shots-skip.json")
 VALIDATE_FROM = "web2html/section-23-validate"
 VALIDATE_MAX_ROUNDS = 3
+VALIDATE_MIN_RESIDUAL_ROUNDS = 2
 VALIDATE_MIN_SEEN = 12
 WAVE_FROM = "web2html/wave/v1"
 FINDINGS_FROM = "web2html/agent-findings/v1"
@@ -437,10 +438,10 @@ def _validate_errors(root: Path, sections: list) -> list[str]:
         if status == "match" and not all_match:
             errors.append(f"{sid} VALIDATE says match but the last round still misses")
         elif status == "residual":
-            if len(rounds) < cap:
+            if len(rounds) < VALIDATE_MIN_RESIDUAL_ROUNDS and not payload.get("autoResidual"):
                 errors.append(
                     f"{sid} VALIDATE recorded a residual after {len(rounds)} round(s) — "
-                    f"walk it to round {cap} first"
+                    f"patch and look again first (residual from round {VALIDATE_MIN_RESIDUAL_ROUNDS})"
                 )
             if not str(payload.get("residual") or "").strip():
                 errors.append(f"{sid} VALIDATE residual has no reason")
@@ -455,8 +456,9 @@ def _validate_errors(root: Path, sections: list) -> list[str]:
         elif looked_at != current_fingerprint:
             errors.append(
                 f"{sid} VALIDATE: rebuild/index.html or rebuild/css changed after the last "
-                "look (round {n}). A patch you did not re-shoot is invisible — --shoot and "
-                "Read again".replace("{n}", str(last.get("round")))
+                "look (round {n}). Run paper_23_validate.py . --shoot-open — it re-shoots "
+                "closed bands and restamps them when their pixels did not change; only a "
+                "changed band reopens".replace("{n}", str(last.get("round")))
             )
         round_skipped = bool(last.get("shotsSkipped")) or bool(payload.get("shotsSkipped"))
         if shots_skipped or round_skipped:

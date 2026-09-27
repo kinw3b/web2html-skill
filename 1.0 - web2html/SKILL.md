@@ -1,7 +1,7 @@
 ---
 name: web2html
 description: "Convert a live URL to pixel-perfect static HTML via Paper. Invoke as /web2html or Convert <URL> to HTML. First tool: orca_workspace.py ensure (single primary workspace, Orca project when reachable) then pipeline-progress.py start for a NEW run, resume for a continued session. Never write rebuild HTML before 2.1. Never scrape-to-site, Firecrawl-to-HTML, Tailwind CDN, or freehand a homepage. If rebuild/index.html exists without a live board and 1.4 sign-off, quarantine it and start from 1.1. 2.1 emits the Design System page from 1.3 tokens; 2.2 authors rebuild/index-semantic.html from Paper using those tokens. A run spans three sessions (1 capture / 2 build / 3 QA) plus optional Phase 4 (Paper) and Phase 5 (Astro site: shared chrome pulled once from the 3.4 polish, then each page's body); 2.0 and optional 5.0 are recommended on the strong model; the tier is advice, never a gate — run any session on whichever model the operator chose. Homepage only until 3.4. file:// preview. No GIFs, no local server."
-version: 2.30.0
+version: 2.31.0
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]
@@ -56,8 +56,10 @@ python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --owner session-2
 
 **Every new session `resume`s first** — it detects where the run sits, logs the
 session, and prints the run total so far. Then `mark --status active` before
-touching the step: marks are the clock. Each step's duration is `ended − started`
-and the run total is the **sum of step durations, never wall clock**.
+touching an agent step: marks are the clock. Each agent step's duration is
+`ended − started` and the run total is the **sum of those durations, never
+wall clock**. Human checkpoints (1.4, 2.4, 3.4, 4.4, 5.6) are not timed and
+are not added to the total (Pitfall #231).
 `timing <project>` prints the table (Pitfall #227 #228). `--agent` defaults to
 the harness probe; `--model` (or `WEB2HTML_MODEL`) names the model. The board
 HUD names the current session and each phase card carries a
@@ -65,8 +67,9 @@ HUD names the current session and each phase card carries a
 (Pitfall #229).
 
 **Run report (2.29.0).** Every `mark done` refreshes `<project>/run-report.md` —
-the portable run log (sessions, agent + model, per-step / per-phase durations,
-checkpoint outcomes, captured Paper review comments, notes). At a human
+the portable run log (sessions, agent + model, per-step / per-phase agent
+durations, checkpoint outcomes — the wait is not timed — captured Paper review
+comments, notes). At a human
 checkpoint, log any additional request the human made with
 `run_report.py note . --step 2.4 --text "…" --author human`. Never a gate.
 
@@ -175,7 +178,7 @@ do not mine a second library, and do not rewrite 2.3 geometry.
 | **1.4** | `checkpoints=auto`: self-accepts, nothing opens, continue to 2.1. Otherwise required Paper sign-off. `mark 1.4 active` opens Paper **and** the browser on the stamped source URL (Capture Tool connects off that tab; `capture-doctor` FAIL = OFFLINE, relay its fix). Optional leftover hover only. Fire the two-option question modal. Stop. | `references/live-board.md` + pillars 1.4 row |
 | **2.1** | **Adopted clean HTML: off** (`qa/phase-2-off.json`). Do not emit a Design System page. **Fast run:** `emit_fonts.py .` only. Otherwise `emit-design-system.mjs` writes `rebuild/design-system.html` + `tokens.css` + `fonts.css`. Not the ship. | `references/paper-design-to-code.md` |
 | **2.2** | **Adopted clean HTML: off.** Do not copy into `rebuild/` and do not author. Otherwise `get_jsx` → `dump_index_raw.py` → `rebuild/index-raw.html` (**fast: skip the dump**). `frontend-design` authors `rebuild/index-semantic.html`. | same |
-| **2.3** | **Adopted clean HTML: off.** Otherwise pull numbered 1.2 `NN-slug.png` clips at the run-config widths, side-by-side vs rebuild. Measure/APPLY is serial (controller is the only `rebuild/` writer). **No Paper MCP.** Never skip. Then VALIDATE: `paper_23_validate.py . --shoot-open`, **MUST** `wave.py prepare/start/wait/apply` for LOOK, apply printed patches, `--record` from the findings; ≤3 rounds per band, then `--residual`. Adapter from the probe: `orca` opens Orca terminals, `subagent` dispatches this harness's subagents, `serial` means the controller does each printed spec. Do not Read the sides yourself on the orca/subagent rungs (Pitfall #216 #221). | same + `references/responsive-22d.md` + `references/section-23-paper-loop.md` + `references/orca-relay.md` |
+| **2.3** | **Adopted clean HTML: off.** Otherwise pull numbered 1.2 `NN-slug.png` clips at the run-config widths, side-by-side vs rebuild. Measure/APPLY is serial (controller is the only `rebuild/` writer). **No Paper MCP.** Never skip. Then VALIDATE: `paper_23_validate.py . --shoot-open`, **MUST** `wave.py prepare/start/wait/apply` for LOOK, apply printed patches, `--record` from the findings; ≤3 rounds per band, `--residual` from round 2 (`--shoot-open` restamps bands another patch only staled; Pitfall #232). Adapter from the probe: `orca` opens Orca terminals, `subagent` dispatches this harness's subagents, `serial` means the controller does each printed spec. Do not Read the sides yourself on the orca/subagent rungs (Pitfall #216 #221). | same + `references/responsive-22d.md` + `references/section-23-paper-loop.md` + `references/orca-relay.md` |
 | **2.4** | **Adopted clean HTML: off.** Do not open TAGS. Continue at 3.1. `checkpoints=auto`: self-accepts once 2.3 is green, continue to 3.1. Otherwise `open-build-review.py . --stage 2.4` (TAGS on). Stop. Continue starts Session 3 polish. `index-polish.html` does not exist yet. | same |
 | **3.1** | **Adopted clean HTML:** `mark 3.1 active` snapshots `source-html/` (`qa/source-fidelity.json`). Accessibility attributes only. Do not seed `index-polish.html`. Otherwise `mark --step 3.1 --status active` copies `index.html` → `index-polish.html` (unpolished). Then Impeccable + Taste on that copy. Freeze the lock. | `references/polish-visual-restore.md` |
 | **3.2** | **Adopted clean HTML:** do not run hover, drawer, FAQ, dropdown, or GSAP authors. Fidelity lock must stay green. Otherwise hover from 1.3 source CSS (`apply-hover-css.py`; fast run: `mark 3.2 active` first mines it with `source-hover-light.mjs`) + **painted burger drawer** (`author-nav-drawer.py`) + **FAQ accordion** (`author-faq.py`) + **nav dropdowns** (`author-nav-dropdown.py`) + guidelines a11y + **mandatory GSAP in-view** on `index-polish.html`. Never skip hover, the drawer, FAQ, or dropdowns because Capture Tool did not run. Companion receipts `qa/web-design-guidelines.md` / `qa/find-animation-opportunities.md` / `qa/apple-design.md` before `mark --step 3.2 --status done` (Pitfall #215). | `references/gsap-inview.md` + `references/hover-22c.md` + `references/nav-drawer.md` + `references/faq.md` + `references/nav-dropdown.md` + `references/orca-relay.md` (companion wave) |

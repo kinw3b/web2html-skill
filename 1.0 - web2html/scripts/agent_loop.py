@@ -180,7 +180,7 @@ def active_reviewer_leases(root: Path) -> list[Path]:
     return active
 
 
-def claim_reviewer(root: Path, agent: str, snapshot: dict) -> Path:
+def claim_reviewer(root: Path, agent: str, snapshot: dict, supersede: bool = False) -> Path:
     if not str(snapshot.get("sha256") or "").strip():
         raise ValueError("reviewer lease requires a snapshot SHA")
     path = reviewer_lease_path(root, agent)
@@ -189,7 +189,11 @@ def claim_reviewer(root: Path, agent: str, snapshot: dict) -> Path:
             old = json.loads(path.read_text())
         except (OSError, ValueError, json.JSONDecodeError):
             old = {}
-        if old.get("status") == "active" and old.get("inputSha256") != snapshot["sha256"]:
+        if (
+            not supersede
+            and old.get("status") == "active"
+            and old.get("inputSha256") != snapshot["sha256"]
+        ):
             raise ValueError(f"reviewer {agent!r} already has an active lease")
     return _atomic_json(
         path,

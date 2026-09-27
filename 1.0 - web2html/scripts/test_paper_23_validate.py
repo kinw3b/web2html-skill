@@ -227,6 +227,84 @@ class ValidateWalkTest(unittest.TestCase):
             (css / "home.css").write_text("#hero{padding:0}", encoding="utf-8")
             self.assertIn("changed after the last look", " ".join(gate.gate_errors(root)))
 
+    def test_residual_allowed_from_round_two(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _plant(root)
+            verdict = validate.parse_verdict("1600=match,768=match,390=miss")
+            miss = [validate.parse_miss("390|nav wraps to two lines|shrink logo at 390")]
+            validate.open_round(root, "hero", capture=_fake_capture)
+            with self.assertRaises(SystemExit) as ctx:
+                validate.record_round(
+                    root, "hero", seen="round 1: 390 nav wraps under the logo",
+                    verdict=verdict, misses=miss, patched=False, residual="gave up",
+                )
+            self.assertIn("at least 2", str(ctx.exception))
+            validate.record_round(
+                root, "hero", seen="round 1: 390 nav wraps under the logo",
+                verdict=verdict, misses=miss, patched=True,
+            )
+            validate.open_round(root, "hero", capture=_fake_capture)
+            payload = validate.record_round(
+                root, "hero", seen="round 2: 390 nav still wraps under the logo",
+                verdict=verdict, misses=miss, patched=False,
+                residual="390 nav label wraps; the clip has a shorter label",
+            )
+            self.assertEqual(payload["status"], "residual")
+            self.assertEqual(gate.gate_errors(root), [])
+
+    def test_patch_to_another_band_restamps_closed_bands_with_same_pixels(self) -> None:
+        """The ping-pong: band B's patch staled signed band A; A at its cap could never re-shoot."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _plant(root)
+            validate.open_round(root, "hero", capture=_fake_capture)
+            validate.record_round(
+                root, "hero", seen="All three widths match the 1.2 clip and index-raw numbers",
+                verdict=validate.parse_verdict("1600=match,768=match,390=match"), misses=[], patched=False,
+            )
+            self.assertEqual(gate.gate_errors(root), [])
+            css = root / "rebuild" / "css"
+            css.mkdir(exist_ok=True)
+            (css / "home.css").write_text("#pricing{padding:0}", encoding="utf-8")
+            self.assertIn("changed after the last look", " ".join(gate.gate_errors(root)))
+            out = validate.refresh_closed(root, capture=_fake_capture)
+            self.assertEqual(out["restamped"], ["hero"])
+            self.assertEqual(validate.band_state(root, "hero"), "match")
+            self.assertEqual(len(validate.load(root, "hero")["rounds"]), 1)
+            self.assertEqual(gate.gate_errors(root), [])
+
+    def test_changed_pixels_reopen_once_then_close_as_residual(self) -> None:
+        def changed_capture(root: Path, ids: list[str], *, widths=validate.WIDTHS, **_: object) -> dict:
+            for sid in ids:
+                for width in widths:
+                    dest = validate.shots.shot_path(root, sid, width)
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(b"a different render")
+            return {"ok": True, "skipped": False, "shots": []}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _plant(root)
+            match = validate.parse_verdict("1600=match,768=match,390=match")
+            validate.open_round(root, "hero", capture=_fake_capture)
+            validate.record_round(root, "hero", seen="All three widths match the 1.2 clip exactly",
+                                  verdict=match, misses=[], patched=False)
+            _edit(root / "rebuild" / "index.html", "<!-- other band -->\n")
+            out = validate.refresh_closed(root, capture=changed_capture)
+            self.assertEqual(out["reopened"], ["hero"])
+            self.assertEqual(validate.band_state(root, "hero"), "open")
+            validate.open_round(root, "hero", capture=_fake_capture)
+            validate.record_round(root, "hero", seen="Re-looked after the reopen; all three widths match",
+                                  verdict=match, misses=[], patched=False)
+            _edit(root / "rebuild" / "index.html", "<!-- another band again -->\n")
+            out = validate.refresh_closed(root, capture=changed_capture)
+            self.assertEqual(out["residual"], ["hero"])
+            payload = validate.load(root, "hero")
+            self.assertEqual(payload["status"], "residual")
+            self.assertIn("2.4", payload["residual"])
+            self.assertEqual(gate.gate_errors(root), [])
+
     def test_overlay_and_3x_sheets_do_not_change_the_fingerprint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

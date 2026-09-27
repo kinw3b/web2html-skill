@@ -159,9 +159,28 @@ def inputs_for(root: Path, phase: str) -> list[str]:
 
 
 def _open_bands(root: Path) -> list[dict]:
+    """Bands shot and awaiting a look. An open band without a fresh shot would
+    hand the worker pre-patch sides — it sees the same miss again and the band
+    loops — so prepare refuses until --shoot-open has run."""
     import paper_23_validate as validate  # heavy import, only for 2.3
 
-    return [row for row in validate.status_rows(root) if row.get("state") not in {"match", "residual"}]
+    awaiting: list[dict] = []
+    unshot: list[str] = []
+    for row in validate.status_rows(root):
+        if row.get("state") in {"match", "residual"}:
+            continue
+        payload = validate.load(root, str(row["id"]))
+        last = validate.last_round(payload) if payload else None
+        if last is not None and not validate.round_recorded(last):
+            awaiting.append(row)
+        else:
+            unshot.append(str(row["id"]))
+    if unshot:
+        raise FileNotFoundError(
+            f"2.3 bands open but not re-shot: {', '.join(unshot)} — run "
+            "paper_23_validate.py . --shoot-open before wave.py prepare"
+        )
+    return awaiting
 
 
 def _pages(root: Path) -> list[str]:
@@ -223,23 +242,42 @@ def spec_text(root: Path, phase: str, task: dict, sha: str, run_id: str) -> str:
         f"DONE  Under Orca: send worker_done with --report-path {finding} and --outcome succeeded "
         f"(failed if the target could not be read). Elsewhere: stop after the finding is written."
     )
+    stop = (
+        "STOP RULES  Run the check at most twice. Exit 3 (STALE) means the controller changed the\n"
+        "  inputs — you cannot fix that: stop now with outcome failed, do not re-read or rewrite.\n"
+        "  Exit 2 names a field of YOUR finding: fix that field once, re-check once, then stop\n"
+        "  either way (outcome failed if it still fails). Never loop on the check."
+    )
     if phase == "2.3":
         band = task["band"]
         sides = _side_pngs(root, band)
+        sides_block = "\n  ".join(sides)
+        read_budget = len(sides)
+        verdict_keys = ",".join(f'"{w}":"match|miss"' for w in _run_widths(root))
         return f"""web2html 2.3 VALIDATE — band #{band}  (wave {run_id}, snapshot {sha[:12]})
 Project  {root}
 
-TARGET  Read all three side-by-sides for THIS band only (1.2 clip left, rebuild right):
-  {sides[0]}
-  {sides[1]}
-  {sides[2]}
-  Cross-check against rebuild/index-raw.html (Paper dump of this band) and the
-  1.2 clips capture/home-{{desktop,768,390}}/source-sections/NN-*.png.
+TARGET  Read the side-by-sides for THIS band only (1.2 clip left, rebuild right):
+  {sides_block}
+  The left half IS the 1.2 clip — do not open the source-sections PNGs again.
+  Only when a miss needs an exact number, grep rebuild/index-raw.html for this
+  band's copy; never Read that file whole (it is a large Paper dump).
+
+VERDICT  `miss` only for a watch-list difference a reviewer would flag at a glance:
+  layout (split vs stack, column count, band order), a missing / extra element,
+  icon, overlay or image, wrong radius class (pill vs 10px), a heading that wraps
+  on a different line count, type size or weight visibly off, a gap or padding
+  off by more than ~8px. Everything else is `match`: sub-8px drift, anti-aliasing,
+  font hinting, image crop within a few px, colour within one shade, and live
+  content the clip froze differently. When unsure, `match` and say why in `seen`.
+
+BUDGET  At most {read_budget} image Reads and one finding file. No second pass, no
+  re-reading a side you already looked at, no other files.
 
 CHANGE  Write ONE file and nothing else: {finding}
   {{"generatedFrom":"web2html/agent-findings/v1","phase":"2.3","agent":"{agent}",
    "inputSha256":"{sha}","band":"{band}",
-   "verdict":{{"1600":"match|miss","768":"match|miss","390":"match|miss"}},
+   "verdict":{{{verdict_keys}}},
    "seen":"at least 12 words: what each width showed, concretely",
    "misses":[{{"width":768,"what":"cards stack 1-col, Paper paints 2-col","fix":"#{band} .grid: repeat(2, 1fr) at 768"}}],
    "patch":"the exact CSS/HTML change scoped to #{band}, or empty when every width matches",
@@ -254,6 +292,7 @@ CONSTRAINTS  Read-only. Do not edit rebuild/, qa/paper-measure/*.validate.json, 
 OWNERSHIP  You own only {finding}. The controller applies the patch and records the round.
 
 ACCEPTANCE  {check}   → exit 0
+{stop}
 {done}
 """
     if phase == "3.2":
@@ -279,6 +318,7 @@ CONSTRAINTS  Read-only on the ship. Do not write qa/{skill}.md yourself — the 
 OWNERSHIP  You own only the two files above.
 
 ACCEPTANCE  {check}   → exit 0
+{stop}
 {done}
 """
     slug = task["slug"]
@@ -302,6 +342,7 @@ OWNERSHIP  You own astro/src/pages/{slug}.astro and {finding}. The controller ow
 
 ACCEPTANCE  python3 "{skills}/web2html/scripts/record-phase-5-pages.py" "{root}" reports no error for {slug},
   and {check} → exit 0
+{stop}
 {done}
 """
 
@@ -320,7 +361,9 @@ def prepare(root: Path, run_id: str, phase: str, max_workers: int | None = None)
         if phase == "3.2":
             task["report"] = task["findings"][:-5] + ".md"
         task["status"] = "planned"
-        agent_loop.claim_reviewer(root, task["id"], snapshot)
+        # A new wave supersedes an abandoned one (stale findings, killed workers);
+        # its leftover lease must not block the next prepare.
+        agent_loop.claim_reviewer(root, task["id"], snapshot, supersede=True)
         task["spec"] = spec_text(root, phase, task, sha, run_id)
     wave = {
         "generatedFrom": GENERATED_FROM,
@@ -548,6 +591,10 @@ def ready(root: Path, run_id: str, phase: str) -> tuple[bool, list[str]]:
     return (not problems), problems
 
 
+def _is_stale(error: str) -> bool:
+    return "finding is stale" in error
+
+
 def check_one(root: Path, run_id: str, phase: str, agent: str) -> list[str]:
     root = root.resolve()
     wave = load_wave(root, run_id, phase)
@@ -591,7 +638,7 @@ def apply(root: Path, run_id: str, phase: str) -> dict:
                 "verdict": finding.get("verdict"),
                 "patch": patch,
                 "record": _record_command(root, task["band"], finding),
-                "note": "apply `patch` to #%s first (rebuild/index.html or rebuild/css), then run `record`, then --shoot the next round if still open" % task["band"],
+                "note": "apply `patch` to #%s (rebuild/index.html or rebuild/css), then run `record`. After every action: one --shoot-open (it refreshes bands this wave's patches staled), then a new wave only if a band is still open" % task["band"],
             })
         elif phase == "3.2":
             report = root / str(finding.get("report") or task["report"])
@@ -678,11 +725,19 @@ def main(argv: list[str] | None = None) -> int:
             return code
         if args.cmd == "check":
             errors = check_one(args.root, args.run_id, args.phase, args.agent)
+            if errors and any(_is_stale(e) for e in errors):
+                print("STALE: the controller changed this wave's inputs after the snapshot. Not fixable by "
+                      "the worker — stop now (worker_done --outcome failed). Do not retry.")
+                return 3
             print("OK finding is current" if not errors else "FAIL: " + "; ".join(errors))
             return 0 if not errors else 2
         if args.cmd == "ready":
             ok, problems = ready(args.root, args.run_id, args.phase)
             print("OK wave is current; controller may apply." if ok else "FAIL:\n  " + "\n  ".join(problems))
+            if not ok and any(_is_stale(p) for p in problems):
+                print("wave: inputs changed after prepare — do not re-dispatch this wave. "
+                      + ("Run paper_23_validate.py . --shoot-open, then prepare a NEW --run-id."
+                         if args.phase == "2.3" else "Prepare a NEW --run-id."), file=sys.stderr)
             return 0 if ok else 2
         out = apply(args.root, args.run_id, args.phase)
         print(json.dumps(out, indent=2))

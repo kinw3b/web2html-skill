@@ -10,7 +10,7 @@ and its native bridge are NOT installed — they are a separate download
 ./scripts/install-skills.sh` opts in. `pipeline-progress.py capture-doctor`
 reports a bridge that would show OFFLINE (Pitfall #217).
 
-**Orchestrator version (web2html):** **2.30.0**
+**Orchestrator version (web2html):** **2.31.0**
 
 This file is the **repo** index. The agent-facing index is `1.0 - web2html/SKILL.md`
 (~130 lines). Detail lives in `web2html/references/` and is read **per step**,
@@ -61,14 +61,17 @@ controller lease and print a copy-ready prompt for the next session
 omitted, the step is detected from the board) — never `start`,
 which force-resets the board.** Detail in `references/model-routing.md`.
 
-**Timing (2.28.0).** Marks are the clock. `mark active` stamps `started`,
-`mark done` stamps `ended` + `durationSeconds` and prints the step's duration
-plus the run total. The total is the **sum of step durations, never wall clock**
-— pauses between sessions add nothing. `start` / `resume` log the session under
-`sessions[]`; the board shows finished / took per step, per-phase sums, and the
-total in the HUD. `timing <project> [--json]` prints the table. Rule for every
-new agent session: `resume` first (it prints where the run sits and the total so
-far), then `mark active` before touching the step. Pitfall #227 #228.
+**Timing (2.31.0).** Marks are the clock for agent steps. `mark active` stamps
+`started`, `mark done` stamps `ended` + `durationSeconds` and prints the step's
+duration plus the run total. The total is the **sum of agent-step durations,
+never wall clock** — pauses between sessions add nothing. Human checkpoints
+(1.4, 2.4, 3.4, 4.4, 5.6) are not timed: no `started`, no duration, and that
+wait is not a session timestamp. `start` / `resume` log the session under
+`sessions[]`; the board shows finished / took per agent step, per-phase sums,
+and the agent total in the HUD. `timing <project> [--json]` prints the table.
+Rule for every new agent session: `resume` first (it prints where the run sits
+and the total so far), then `mark active` before touching the step. Pitfall
+#227 #228 #231.
 
 **Agent + model (2.28.0).** Each session records who ran it: `resume` /
 `start` take `--agent` (defaults to the harness probe) and `--model` (or
@@ -81,8 +84,8 @@ appear only while step 1.4 is active and the URL exists. Pitfall #229.
 **Run report (2.29.0).** Every `mark done` refreshes `<project>/run-report.md`
 — a plain, portable Markdown log of the run for the human to drop into any
 database afterwards: sessions with agent + model, per-step and per-phase
-durations, each human checkpoint with its status / duration / who ran it, the
-Paper review comments captured around 1.4 (with resolved status from the
+durations, each human checkpoint with its status / who ran it (the wait is
+not timed), the Paper review comments captured around 1.4 (with resolved status from the
 append-only `qa/paper-comments-log.jsonl`), and free-form notes. Log an
 additional request at a checkpoint with
 `run_report.py note . --step 2.4 --text "…" --author human`. The report is an
@@ -319,8 +322,9 @@ step. 2.0 must not stamp, join, or retag on those ids.
    at 1600 / 768 / 390 plus `index-raw.html`. Real tablet + phone CSS, not
    a `width:100% !important` hack. After APPLY, VALIDATE: `--shoot-open`,
    then **MUST** `wave.py prepare/start/wait/apply` for LOOK, then apply
-   patches and `--record` from the findings; ≤3 rounds per band, then a
-   residual line (Pitfall #216 #221). Do not open 2.4 while a section is open.
+   patches and `--record` from the findings; ≤3 rounds per band, a
+   residual line allowed from round 2; `--shoot-open` restamps bands a later
+   patch only staled (Pitfall #216 #221 #232). Do not open 2.4 while a section is open.
 8. **One `rebuild/`.** The 2.4 lock is `rebuild/index.html` until 3.4.
    3.x writes `rebuild/index-polish.html` (seeded when 3.1 goes active, not at
    2.4 done). **Marking 3.4 done** promotes that file to `index.html`, moves

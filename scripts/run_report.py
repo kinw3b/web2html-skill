@@ -6,7 +6,8 @@ template pipeline afterwards. It records, with no tool names and no gates:
 
   - every session with its agent + model
   - per-step and per-phase durations (the sum-of-steps clock from the board)
-  - each human checkpoint: status, duration, who ran it, auto-accepted or not
+  - each human checkpoint: status, who ran it, auto-accepted or not.
+    The wait is not timed and is not part of the run total
   - the Paper review comments captured around the 1.4 sign-off and whether
     each one was still open the last time the canvas was checked
   - free-form notes / additional requests logged at any step
@@ -223,14 +224,7 @@ def build(root: Path) -> Path:
     md.append(f"- Run started: {pp.fmt_clock(data.get('started'))}")
     md.append(f"- Report generated: {pp.fmt_clock(_now_iso())}")
     md.append(f"- Progress: {progress}")
-    md.append(
-        f"- Run total: {pp.fmt_duration(timing['totalSeconds'])}"
-        + (
-            f" (agent {pp.fmt_duration(timing['agentSeconds'])} · human checkpoints {pp.fmt_duration(timing['humanSeconds'])})"
-            if timing["humanSeconds"]
-            else ""
-        )
-    )
+    md.append(f"- Run total: {pp.fmt_duration(timing['totalSeconds'])} (agent time only)")
     md.append("")
 
     if sessions:
@@ -275,12 +269,18 @@ def build(root: Path) -> Path:
     md.append("| Step | Title | Status | Started | Finished | Took | Agent | Model |")
     md.append("|---|---|---|---|---|---|---|---|")
     for row in rows:
+        title = row["title"] + (" †" if row["human"] else "")
+        if row["human"]:
+            md.append(
+                f"| {row['step']} | {title} | {row['status']} | — | — | not timed "
+                f"| {row.get('agent') or '—'} | {row.get('model') or '—'} |"
+            )
+            continue
         took = pp.fmt_duration(row["durationSeconds"]) if row["durationSeconds"] is not None else "—"
         if row["durationSeconds"] is None and row["status"] == "active" and row["started"]:
             started_dt = pp.parse_iso(row["started"])
             if started_dt:
                 took = f"{pp.fmt_duration((datetime.now(timezone.utc) - started_dt).total_seconds())}…"
-        title = row["title"] + (" †" if row["human"] else "")
         md.append(
             f"| {row['step']} | {title} | {row['status']} | {pp.fmt_clock(row['started'])} "
             f"| {pp.fmt_clock(row['ended'])} | {took} | {row.get('agent') or '—'} | {row.get('model') or '—'} |"
@@ -292,12 +292,11 @@ def build(root: Path) -> Path:
     md.append("## Human checkpoints")
     md.append("")
     for cp in checkpoints:
-        took = pp.fmt_duration(cp["durationSeconds"]) if cp["durationSeconds"] is not None else "—"
         who = pp.agent_label(cp["agent"], cp["model"]) or "—"
         auto = " · auto-accepted" if "auto" in cp["reason"].lower() else ""
         md.append(f"### {cp['step']} — {cp['title']}")
         md.append("")
-        md.append(f"Status: {cp['status']} · took {took} · {who}{auto}")
+        md.append(f"Status: {cp['status']} · not timed · {who}{auto}")
         if cp["step"] == "1.4":
             md.append("")
             if comments:
