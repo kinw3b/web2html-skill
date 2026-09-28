@@ -304,7 +304,7 @@ def merge_nav_drawer(root: Path, pass_id: str, data: dict | None) -> dict | None
                     isinstance(existing, dict)
                     and str(existing.get("finding") or "").casefold() == finding.casefold()
                 ):
-                    existing.setdefault("file", row.get("file") or "rebuild/index-polish.html")
+                    existing.setdefault("file", row.get("file") or "rebuild/index.html")
                     existing.setdefault("change", row.get("change") or finding)
                     existing.setdefault(
                         "why",
@@ -314,7 +314,7 @@ def merge_nav_drawer(root: Path, pass_id: str, data: dict | None) -> dict | None
         applied.insert(
             0,
             {
-                "file": row.get("file") or "rebuild/index-polish.html",
+                "file": row.get("file") or "rebuild/index.html",
                 "change": row.get("change") or finding,
                 "why": row.get("why") or row.get("fix") or "Painted burger opens the same links stacked.",
                 "finding": finding,
@@ -391,7 +391,7 @@ def merge_faq(root: Path, pass_id: str, data: dict | None) -> dict | None:
         applied.insert(
             0,
             {
-                "file": row.get("file") or "rebuild/index-polish.html",
+                "file": row.get("file") or "rebuild/index.html",
                 "change": row.get("change") or "FAQ accordion",
                 "why": row.get("why") or row.get("fix") or "Painted FAQ rows open on click.",
                 "finding": row.get("finding") or "FAQ accordion",
@@ -467,7 +467,7 @@ def merge_nav_dropdown(root: Path, pass_id: str, data: dict | None) -> dict | No
         applied.insert(
             0,
             {
-                "file": row.get("file") or "rebuild/index-polish.html",
+                "file": row.get("file") or "rebuild/index.html",
                 "change": row.get("change") or "nav dropdown",
                 "why": row.get("why") or row.get("fix") or "Painted nav dropdowns open on hover/click.",
                 "finding": row.get("finding") or "nav dropdown",
@@ -826,7 +826,7 @@ def semantics_card(data: dict | None, href: str) -> str:
         state, label = "pending", "WAITING"
         body = (
             '<p class="empty">Pass has not been recorded. semantics_pass.py '
-            "--freeze-structure on index-polish.html writes qa/semantics-pass-qa.json.</p>"
+            "--freeze-structure on rebuild/index.html writes qa/semantics-pass-qa.json.</p>"
         )
     else:
         failed = data.get("ok") is False
@@ -903,7 +903,7 @@ def main(argv: list[str] | None = None) -> int:
     semantics = load_semantics(root)
     generated = datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC")
 
-    def page_for(lock_href: str, polish_href: str, qa_prefix: str) -> str:
+    def page_for(ship_href: str, qa_prefix: str) -> str:
         companion_cards = "".join(
             companion_card(skill, title, rel, qa_prefix + rel[len("qa/"):], data)
             for skill, title, rel, data in companions
@@ -929,7 +929,7 @@ def main(argv: list[str] | None = None) -> int:
   <p class="mast"><strong>Polish report</strong><span class="mast-tag">C/3 {done} / 3 · companions {companions_done} / 3</span></p>
   <h1>Polish report</h1>
   <p class="lead">What 3.1–3.3 applied or skipped. Compare the 2.4 lock with the QA polish file before you sign off.</p>
-  <p class="review-nav"><a href="{lock_href}">2.4 ship</a><a href="{polish_href}">QA polish</a><span>generated {esc(generated)}</span></p>
+  <p class="review-nav"><a href="{ship_href}">The ship (polished in place)</a><a href="{ship_href}?qa-outlines=tags">Outlines on</a><span>generated {esc(generated)}</span></p>
   <p class="eyebrow">The run</p>
   <h2>3.1 → 3.3</h2>
   <ol class="spine" aria-label="Polish passes">{"".join(spine)}</ol>
@@ -947,7 +947,7 @@ def main(argv: list[str] | None = None) -> int:
   <div class="passes">
 {semantics_html}
   </div>
-  <footer>qa/polish-passes · verify-polish-passes.py · rebuild/index.html · rebuild/index-polish.html</footer>
+  <footer>qa/polish-passes · verify-polish-passes.py · rebuild/index.html</footer>
 </main>
 </body>
 </html>
@@ -956,16 +956,16 @@ def main(argv: list[str] | None = None) -> int:
     qa_out = root / "qa" / "polish-report.html"
     qa_out.parent.mkdir(parents=True, exist_ok=True)
     qa_out.write_text(
-        page_for("../rebuild/index.html", "../rebuild/index-polish.html", ""),
+        page_for("../rebuild/index.html", ""),
         encoding="utf-8",
     )
     ship_dir = root / "rebuild"
     if ship_dir.is_dir():
         ship = ship_dir / "polish-report.html"
         ship.write_text(
-            page_for("index.html", "index-polish.html", "../qa/"), encoding="utf-8"
+            page_for("index.html", "../qa/"), encoding="utf-8"
         )
-        polish = ship_dir / "index-polish.html"
+        polish = ship_dir / "index.html"
         if polish.is_file():
             html = polish.read_text(encoding="utf-8")
             if "polish-report.html" not in html:

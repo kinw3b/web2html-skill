@@ -7,8 +7,8 @@ sweep for SEO (scrape-only title / description / OG / Twitter), accessibility
 (eager hero, lazy below-fold). Do not invent skip-links, peeking chrome, or
 marketing meta. Encode PATTERNS, not one lifestyle page's class names.
 
-  python3 semantics_pass.py rebuild/index-polish.html -o rebuild/index-polish.html
-  python3 semantics_pass.py rebuild/index-polish.html --qa qa/semantics-pass-qa.json
+  python3 semantics_pass.py rebuild/index.html -o rebuild/index.html
+  python3 semantics_pass.py rebuild/index.html --qa qa/semantics-pass-qa.json
 
 See references/semantics-pass.md.
 """

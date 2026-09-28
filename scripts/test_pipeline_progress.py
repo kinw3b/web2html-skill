@@ -516,8 +516,8 @@ class PipelineProgressTests(unittest.TestCase):
             utilities = root / "rebuild" / "css" / "token-utilities.css"
             utilities.write_text(".ink { color: var(--color-ink); }\n")
             self.assertFalse(pipeline_progress.artifact_done(root, "2.2"))
-            html = (root / "rebuild" / "index-semantic.html").read_text()
-            (root / "rebuild" / "index-semantic.html").write_text(
+            html = (root / "rebuild" / "index.html").read_text()
+            (root / "rebuild" / "index.html").write_text(
                 html.replace(
                     'href="css/tokens.css">',
                     'href="css/tokens.css">'
@@ -526,7 +526,7 @@ class PipelineProgressTests(unittest.TestCase):
             )
             self.assertTrue(pipeline_progress.artifact_done(root, "2.2"))
 
-    def test_22_done_seeds_index_html(self):
+    def test_22_done_keeps_one_ship_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             from author_21_gate import install_passing_artifacts
@@ -536,13 +536,16 @@ class PipelineProgressTests(unittest.TestCase):
             for sid in ("1.1", "1.2", "1.3", "1.4", "2.1"):
                 data["steps"][sid]["status"] = "done"
             pipeline_progress.save_progress(root, data, force=True)
-            self.assertFalse((root / "rebuild" / "index.html").is_file())
+            before = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertEqual(pipeline_progress.cmd_mark(root, "2.2", "done", None), 0)
-            self.assertTrue((root / "rebuild" / "index.html").is_file())
+            # 2.2 authors rebuild/index.html directly — no seed, no siblings.
             self.assertEqual(
+                before,
                 (root / "rebuild" / "index.html").read_text(encoding="utf-8"),
-                (root / "rebuild" / "index-semantic.html").read_text(encoding="utf-8"),
             )
+            self.assertFalse((root / "rebuild" / "index-semantic.html").is_file())
+            self.assertFalse((root / "rebuild" / "index-polish.html").is_file())
+            self.assertFalse((root / "rebuild" / "index-raw.html").is_file())
 
     def test_22_requires_every_section_signed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1279,7 +1282,7 @@ class PipelineProgressTests(unittest.TestCase):
             self.assertIn("3.1", body3)
             self.assertIn("fidelity freeze", body3)
             self.assertIn("font-size", body3)
-            self.assertIn("index-polish.html", body3)
+            self.assertIn("rebuild/index.html", body3)
             self.assertIn("mandatory GSAP", body3)
             self.assertIn("inject-gsap-reveal.py", body3)
             self.assertIn("apply-hover-css.py", body3)
@@ -1289,7 +1292,7 @@ class PipelineProgressTests(unittest.TestCase):
             self.assertFalse((root / "rebuild" / "index-polish.html").is_file())
             self.assertTrue((root / "qa" / "fidelity-freeze-24.json").is_file())
 
-    def test_31_active_seeds_unpolished_copy(self):
+    def test_31_active_polishes_in_place(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "demo"
             (root / "qa").mkdir(parents=True, exist_ok=True)
@@ -1302,14 +1305,15 @@ class PipelineProgressTests(unittest.TestCase):
             for sid in ("1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "2.3", "2.4"):
                 data["steps"][sid]["status"] = "done"
             pipeline_progress.save_progress(root, data, force=True)
-            self.assertFalse((root / "rebuild" / "index-polish.html").is_file())
+            lock_html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertEqual(pipeline_progress.cmd_mark(root, "3.1", "active", None), 0)
-            polish = root / "rebuild" / "index-polish.html"
-            self.assertTrue(polish.is_file())
+            # 2.34.0: 3.1 does not seed a copy — it pins the structural freeze and
+            # Session 3 edits rebuild/index.html in place.
+            self.assertFalse((root / "rebuild" / "index-polish.html").is_file())
             self.assertEqual(
-                polish.read_text(encoding="utf-8"),
-                (root / "rebuild" / "index.html").read_text(encoding="utf-8"),
+                lock_html, (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             )
+            self.assertTrue((root / "qa" / "fidelity-freeze-24.json").is_file())
             board = (root / "pipeline.html").read_text(encoding="utf-8")
             self.assertIn("▶ 3.1", board)
             self.assertNotIn("NEXT  3.1", board)
@@ -1353,10 +1357,10 @@ class PipelineProgressTests(unittest.TestCase):
             )
             self.assertTrue(pipeline_progress.button_hover_css_done(root))
             self.assertEqual(receipt["writer"], "apply-hover-css.py")
-            polish = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
-            self.assertIn("css/hover.css", polish)
-            self.assertIn("js/gsap-reveal.js", polish)
-            self.assertIn("data-reveal", polish)
+            ship = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("css/hover.css", ship)
+            self.assertIn("js/gsap-reveal.js", ship)
+            self.assertIn("data-reveal", ship)
             self.assertTrue((root / "qa" / "gsap-reveal-qa.json").is_file())
             self.assertTrue(
                 json.loads((root / "qa" / "gsap-reveal-qa.json").read_text(encoding="utf-8")).get("ok")
@@ -1386,7 +1390,7 @@ class PipelineProgressTests(unittest.TestCase):
         data["steps"]["3.4"]["status"] = "active"
         data["current"] = "3.4"
         (root / "rebuild").mkdir(exist_ok=True)
-        (root / "rebuild" / "index-polish.html").write_text("<html></html>")
+        (root / "rebuild" / "index.html").write_text("<html></html>")
         (root / "qa").mkdir(exist_ok=True)
         pipeline_progress.save_progress(root, data, force=True)
         return data
@@ -1453,7 +1457,7 @@ class PipelineProgressTests(unittest.TestCase):
             run_config.intake(root, source=str(src), checkpoints="human", speed="fast")
             self.assertEqual(run_config.load(root)["humanStops"], ["4.4"])
             self._homepage_ready(root)
-            (root / "rebuild" / "index-polish.html").unlink()
+            (root / "rebuild" / "index.html").unlink()
             source_fidelity.snapshot(root)
             self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 0)
             self.assertTrue((root / "qa" / "phase-4-opted.json").is_file())
@@ -1474,7 +1478,7 @@ class PipelineProgressTests(unittest.TestCase):
             )
             run_config.intake(root, source=str(src), checkpoints="human", speed="full")
             self._homepage_ready(root)
-            (root / "rebuild" / "index-polish.html").unlink()
+            (root / "rebuild" / "index.html").unlink()
             source_fidelity.snapshot(root)
             (root / "qa" / "phase-4-skipped.json").write_text("{}\n")
             self.assertEqual(pipeline_progress.cmd_mark(root, "3.4", "done", None), 2)

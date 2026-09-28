@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Pesticide TAGS mode is ON. Record approval in qa/build-checkpoint.md.")
     print("YOU ARE HERE  2.4 · polish has not started.")
     print("NEXT          Continue → Session 3 polish at 3.1")
-    print("NOT YET       index-polish.html is created when 3.1 starts.")
+    print("NOT YET       3.x polish — Session 3 edits rebuild/index.html in place.")
     if not args.no_open:
         import open_doc
 

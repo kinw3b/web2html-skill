@@ -1,6 +1,6 @@
 # Model routing — three sessions, two handoffs
 
-**Orchestrator version (web2html):** **2.33.0**
+**Orchestrator version (web2html):** **2.34.0**
 
 A run spans three homepage sessions so the model can change per phase, plus optional all-pages Phase 4 (Paper) and Phase 5 (Astro site — chrome once, then page bodies).
 
@@ -78,7 +78,7 @@ Claude, Codex, Cursor and Grok, a model id does not.
 | 3.1 QA pass 1 | self — `verify-polish-passes.py` checks receipts exist | T2 |
 | 3.2 QA pass 2 | machine — `inject-gsap-reveal.py` + `verify-gsap-reveal.py` + receipts | T2 |
 | 3.3 semantics + SEO | machine — `verify-semantics.py` | T2 |
-| 3.4 handoff | human — compare 2.4 index vs index-polish, no active lease | T3 |
+| 3.4 handoff | human — review `rebuild/index.html` + `rebuild/polish-report.html`, no active lease | T3 |
 | 4.1–4.3 extra Paper pages | machine — sitemap / capture / token-seed receipts | T2 |
 | 4.4 Paper review | human — `phase-4-review.md` + Phase 5 opted/skipped | T3 |
 | 5.1 scaffold Astro + shared chrome | machine — `phase-5-scaffold.json` + `phase-5-components.json` + `phase-5-home.json` | T2 |

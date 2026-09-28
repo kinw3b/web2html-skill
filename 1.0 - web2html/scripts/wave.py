@@ -140,15 +140,15 @@ def inputs_for(root: Path, phase: str) -> list[str]:
     root = root.resolve()
     if phase == "2.3":
         inputs = _existing(
-            root, "rebuild/index.html", "rebuild/css", "rebuild/index-raw.html", "qa/paper-measure/compare"
+            root, "rebuild/index.html", "rebuild/css", "qa/index-raw.html", "qa/paper-measure/compare"
         )
         if "rebuild/index.html" not in inputs:
-            raise FileNotFoundError("2.3 wave needs rebuild/index.html (seed_index.py) and shot side-by-sides")
+            raise FileNotFoundError("2.3 wave needs rebuild/index.html (authored at 2.2) and shot side-by-sides")
         return inputs
     if phase == "3.2":
-        inputs = _existing(root, "rebuild/index-polish.html", "rebuild/css", "rebuild/js")
-        if "rebuild/index-polish.html" not in inputs:
-            raise FileNotFoundError("3.2 wave needs rebuild/index-polish.html (mark 3.1 active seeds it)")
+        inputs = _existing(root, "rebuild/index.html", "rebuild/css", "rebuild/js")
+        if "rebuild/index.html" not in inputs:
+            raise FileNotFoundError("3.2 wave needs rebuild/index.html — 2.2 authors it; 3.x polishes in place")
         return inputs
     if phase == "5.2":
         inputs = _existing(root, "qa/phase-4-pages.json", "astro/src/layouts", "astro/src/components")
@@ -260,7 +260,7 @@ Project  {root}
 TARGET  Read the side-by-sides for THIS band only (1.2 clip left, rebuild right):
   {sides_block}
   The left half IS the 1.2 clip — do not open the source-sections PNGs again.
-  Only when a miss needs an exact number, grep rebuild/index-raw.html for this
+  Only when a miss needs an exact number, grep qa/index-raw.html for this
   band's copy; never Read that file whole (it is a large Paper dump).
 
 VERDICT  `miss` only for a watch-list difference a reviewer would flag at a glance:
@@ -301,7 +301,7 @@ ACCEPTANCE  {check}   → exit 0
         return f"""web2html 3.2 companion — {skill}  (wave {run_id}, snapshot {sha[:12]})
 Project  {root}
 
-TARGET  rebuild/index-polish.html (the 3.x polish copy — never the 2.4 lock rebuild/index.html).
+TARGET  rebuild/index.html (the single ship file — 3.x polishes it in place).
   Load the `{skill}` skill and run its audit on that file, read-only.
 
 CHANGE  Write TWO files and nothing else:
@@ -309,7 +309,7 @@ CHANGE  Write TWO files and nothing else:
                 rows; a fidelity lock (Pitfall #81 #152 #196 #203) makes a skipped row, never a missing row.
   {finding}     {{"generatedFrom":"web2html/agent-findings/v1","phase":"3.2","agent":"{agent}",
                  "inputSha256":"{sha}","report":"{report_md}",
-                 "findings":[{{"key":"<row>","severity":"low","source":"rebuild/index-polish.html","evidence":"…","suggestion":"…"}}]}}
+                 "findings":[{{"key":"<row>","severity":"low","source":"rebuild/index.html","evidence":"…","suggestion":"…"}}]}}
 
 CONSTRAINTS  Read-only on the ship. Do not write qa/{skill}.md yourself — the controller promotes
   your report there after validation (Pitfall #215). Do not change layout, type size, library

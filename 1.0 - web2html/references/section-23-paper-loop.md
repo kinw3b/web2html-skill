@@ -10,7 +10,7 @@ Eyeballing `rebuild/index.html` against a zoomed Paper screenshot is not
 |---|---|
 | Visual at 1600 / 768 / 390 | `capture/home-{desktop,768,390}/source-sections/NN-slug.png` — **numbered per band, all three breakpoints** (1.2, not 1.1 scrape full-page) |
 | Pulled compare | `qa/paper-measure/compare/NN-slug-{1600,768,390}-{source,rebuild,side}.png` |
-| Desktop numbers + SVG/icons | `rebuild/index-raw.html` (2.2 Paper `get_jsx` dump) |
+| Desktop numbers + SVG/icons | `qa/index-raw.html` (2.2 Paper `get_jsx` dump) |
 | Clip geometry | matching `NN-slug.json` sidecars |
 | Actual | `qa/paper-measure/rebuild/<id>-{1600,768,390}.png` |
 
@@ -35,7 +35,7 @@ screenshots. It is now inside 2.3 and gated (Pitfall #216 #221).
 ## Why disk, not Paper MCP
 
 1.2 already clipped every homepage band at 1600 / 768 / 390. 1.4 signed
-those frames. 2.2 already dumped Paper desktop into `index-raw.html`
+those frames. 2.2 already dumped Paper desktop into `qa/index-raw.html`
 (inline computed styles + SVG fills). Re-querying Paper at 2.3 does not
 add a number that file does not have — it rate-limits the desktop MCP
 and stalls the session.
@@ -51,8 +51,8 @@ Do not yield to chat. Session 2 runs until 2.4.
 
 ```
 Controller (this session — only rebuild/ writer):
-  0. SEED     seed_index.py .  (copies index-semantic.html → index.html;
-              never overwrite; do not mutate the 2.2 first pass)
+  0. TARGET   2.2 wrote rebuild/index.html; 2.3 patches that file in
+              place (no seed step; it is the only homepage HTML)
   1. LIST     ship bands from rebuild/index.html (<section id> + footer)
   2. CENSUS   raw_23_census.py .
   3. GOLD     paper_23_disk_gold.py .   (maps each band → 01-slug.png)
@@ -72,7 +72,7 @@ Controller (this session — only rebuild/ writer):
  11. GATE     section_22_gate.py .  (needs every <id>.validate.json
               AND an applied qa/agent-runs/<run>/2.3/wave.json)
 
-Do not skip this loop. Missing rebuild/index-raw.html,
+Do not skip this loop. Missing qa/index-raw.html,
 qa/paper-measure/raw-census.json, qa/paper-measure/disk-gold.json, or
 qa/paper-measure/clip-compare.json keeps 2.3 open.
 ```
@@ -80,7 +80,7 @@ qa/paper-measure/clip-compare.json keeps 2.3 open.
 Each compare, for section S at 1600 / 768 / 390:
 
 ```
-  MEASURE  index-raw.html (type / button / overlay / list / SVG)
+  MEASURE  qa/index-raw.html (type / button / overlay / list / SVG)
            + qa/paper-measure/compare/NN-<id>-{1600,768,390}-side.png
              (1.2 numbered clip left, rebuild right). If no side file,
              Read the pulled -source.png and -rebuild.png pair.
@@ -154,7 +154,7 @@ get_computed_styles / get_node_info / get_screenshot / get_children.
 
 Project: <root>
 Section: <id>
-Raw dump: rebuild/index-raw.html
+Raw dump: qa/index-raw.html
 Raw census: qa/paper-measure/raw-census.json
 Disk gold: qa/paper-measure/disk-gold.json
 Clip compare: qa/paper-measure/clip-compare.json
@@ -166,7 +166,7 @@ Recipe: web2html/references/section-23-paper-loop.md
 1. MEASURE from the pulled 1.2 clips. Read the three
    NN-<id>-{1600,768,390}-side.png files (1.2 numbered clip left,
    rebuild right). Those are the 1.2 source-sections/NN-slug.png shots
-   at each breakpoint — not a Paper MCP screenshot. Census index-raw.html
+   at each breakpoint — not a Paper MCP screenshot. Census qa/index-raw.html
    (inline <svg>, polyline/chevrons, background-image url(….svg)). Use
    sidecar bbox when you need a number. Read raw-census.json for dump
    assets whose nearby text sits in this section. Port those glyphs.
@@ -178,14 +178,14 @@ Recipe: web2html/references/section-23-paper-loop.md
 4. On a miss: propose CSS/HTML for THIS section only in
    qa/paper-measure/<id>.patch.md. Selectors must be scoped to <id>
    (#hero, section.features, …). No global token restyle. Do not edit
-   index-raw.html. Missing icons: copy SVG markup or the asset URL from
+   qa/index-raw.html. Missing icons: copy SVG markup or the asset URL from
    index-raw. Do not invent a Lucide/Heroicon stand-in.
 5. Pixel-perfect is optional and bounded. Load it only for this section,
    only for watch-list misses, only against the disk PNGs, one compare +
    one fix, then stop. Do not read the standalone studio body. Do not
    ask the user. Do not open Paper.
 6. MUST NOT write rebuild/index.html or tokens.css. MUST NOT write
-   index-raw.html.
+   qa/index-raw.html.
 7. MUST NOT invent 1024 / 1320. MUST NOT touch another section.
 8. MUST NOT skip 2.3. A clean watch list skips the assist, not the step.
 
@@ -281,7 +281,7 @@ Rules of the walk:
   element, radius class, heading line count, visible type size / weight,
   gap or padding off by more than ~8px. Sub-8px drift, anti-aliasing and
   font hinting are `match` (Pitfall #232).
-- **Worker budget.** Read the side PNGs once each; grep `index-raw.html`
+- **Worker budget.** Read the side PNGs once each; grep `qa/index-raw.html`
   only for a number, never Read it whole. `wave.py check` at most twice;
   exit 3 (STALE) means stop, not retry.
 - **Caps.** 3 rounds per band. Controller writes `rebuild/`. LOOK is the
@@ -325,7 +325,7 @@ paper_23_clip_compare.py .  # pulls 01-slug.png at 1600 / 768 / 390
 qa/paper-measure/compare/NN-<id>-1600-side.png
 qa/paper-measure/compare/NN-<id>-768-side.png
 qa/paper-measure/compare/NN-<id>-390-side.png
-rebuild/index-raw.html
+qa/index-raw.html
 ```
 
 1.1 `source-site/screenshots/` is the 3.x live scrape. 2.3 gold is the
@@ -352,7 +352,7 @@ section that paints them — not only the hero.
 | **ul / perk vectors** | icon box px (often 22×22), fill (`--color-accent-2` yellow, not a generic green check), radius 100px, grid vs stack, gap. **Copy the glyph from index-raw** (bg SVG asset or inline svg) — do not draw a new check. |
 | **Nav chrome** | compact 768/390 = logo + burger only; desktop link padding / CTA radius. Chevron from index-raw polyline, not a made-up caret. |
 
-`get_jsx` of the lander is **2.2** (`rebuild/index-raw.html`), not a 2.3
+`get_jsx` of the lander is **2.2** (`qa/index-raw.html`), not a 2.3
 re-dump. That file is the icon/SVG brief **and** the desktop number
 brief. Run `raw_23_census.py .` before comparing. Do not dump Tailwind.
 Do not snap a measured `92px` line-height onto `1.15` because it “looks

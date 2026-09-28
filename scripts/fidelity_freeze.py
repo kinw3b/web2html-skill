@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""2.4 → 3.x fidelity freeze (2.10.10).
+"""2.4 → 3.x fidelity freeze (2.34.0).
 
 2.3 signed layout / type / geometry against Paper. 2.4 is the human
-acceptance of that ship. 3.x may add a11y, scrape-only SEO, contrast on
-existing tokens, anti-slop, and hover.css. It must not:
+acceptance of that ship. 3.x polishes rebuild/index.html **in place** — it
+may add a11y, scrape-only SEO, contrast on existing tokens, anti-slop, and
+hover.css. It must not:
 
-  - mutate rebuild/index.html (write rebuild/index-polish.html instead)
   - change font-size or --text-* token uses
   - drop or rename Design Library class names
   - reorder or retitle homepage <section> ids
+
+The 2.4 state is pinned structurally in qa/fidelity-freeze-24.json; verify
+compares the live index.html against that snapshot (not a byte hash — the
+polish edits the same file by design).
 
   python3 fidelity_freeze.py snapshot .
   python3 fidelity_freeze.py verify .
@@ -18,13 +22,27 @@ Writes qa/fidelity-freeze-24.json. Exit 0 ok · 1 usage · 2 failed checks.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
 from collections import Counter
 from pathlib import Path
 
-from seed_index_polish import index_path, live_html, sha256_file
+
+def index_path(root: Path) -> Path:
+    return root / "rebuild" / "index.html"
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_file(path: Path) -> str | None:
+    try:
+        return sha256_text(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
 
 FREEZE_NAME = "fidelity-freeze-24.json"
 IGNORE_CSS = {"hover.css", "qa-overlay.css", "faq.css", "nav-dropdown.css", "nav-drawer.css"}
@@ -145,17 +163,11 @@ def verify(root: Path) -> list[str]:
     frozen = _load_freeze(root)
     if frozen is None:
         return [f"missing {freeze_path(root)} — snapshot at 2.4 before 3.x"]
-    lock = index_path(root)
-    want_hash = frozen.get("html_sha256")
     errors: list[str] = []
-    if isinstance(want_hash, str) and want_hash:
-        got_hash = sha256_file(lock) if lock.is_file() else None
-        if got_hash != want_hash:
-            errors.append(
-                "rebuild/index.html changed after 2.4. 3.x writes "
-                "rebuild/index-polish.html only (Pitfall #203)."
-            )
-    live = collect(root, live_html(root))
+    # 2.34.0: no byte-hash check — 3.x polishes rebuild/index.html in place.
+    # The structural rows below are the contract; the pinned html_sha256 is
+    # kept in the snapshot for the record only.
+    live = collect(root)
 
     frozen_classes = frozen.get("library_classes") or {}
     live_classes = live.get("library_classes") or {}

@@ -35,7 +35,7 @@ ticks on filled buttons are dropped. Empty `applied` is valid.
 
    That writes `rebuild/css/hover.css` as `.{library-name}:hover`
    (section-scope if the same label has two skins: `#hero .btn-primary:hover`),
-   links it from `index-polish.html`, and writes `qa/button-hover-css.json`.
+   links it from `rebuild/index.html`, and writes `qa/button-hover-css.json`.
    Map hex onto `var(--color-*)` when `tokens.css` already has that value.
 3. If a matching `<a>` / `<button>` is missing the library class, **add**
    it alongside existing classes. Never strip `btn-primary` for a new label.

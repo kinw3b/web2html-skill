@@ -94,7 +94,7 @@ class Phase5AstroTests(unittest.TestCase):
         (rebuild / "js" / "main.js").write_text("console.log('ok');\n")
         (rebuild / "images" / "hero.png").write_bytes(b"png")
         (rebuild / "fonts" / "figtree-500.woff2").write_bytes(b"woff")
-        (rebuild / "index-polish.html").write_text(HOME)
+        (rebuild / "index.html").write_text(HOME)
         (root / "qa").mkdir()
         (root / "qa" / "phase-4-pages.json").write_text(
             json.dumps({"pages": [{"slug": "about", "url": "https://example.com/about"}]}) + "\n"

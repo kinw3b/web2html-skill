@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""2.2 — write rebuild/index-raw.html as file:// HTML, not JSON.
+"""2.2 — write qa/index-raw.html as file:// HTML, not JSON (2.34.0: evidence, not a homepage).
 
 Paper get_jsx returns JSON. This script converts it, expands self-closing
 non-void tags, and links 2.1 tokens.css (and fonts.css when present).
@@ -7,7 +7,7 @@ non-void tags, and links 2.1 tokens.css (and fonts.css when present).
   python3 dump_index_raw.py /path/to/project
   python3 dump_index_raw.py /path/to/project --from qa/index-raw.jsx.json
 
-If --from is omitted, uses rebuild/index-raw.html (when it is still JSON)
+If --from is omitted, uses rebuild/index-raw.html (legacy runs, when it is still JSON)
 or qa/index-raw.jsx.json.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ from emit_fonts import emit_fonts
 
 GENERATED_FROM = "web2html/dump-index-raw"
 RECEIPT = Path("qa/index-raw-22.json")
-DEST = Path("rebuild/index-raw.html")
+DEST = Path("qa/index-raw.html")
 TOKENS = Path("rebuild/css/tokens.css")
 FONTS = Path("rebuild/css/fonts.css")
 CANDIDATES = (
@@ -63,12 +63,12 @@ def dump_index_raw(root: Path, source: Path | None = None) -> dict:
             "missing rebuild/css/tokens.css — emit the 2.1 Design System first"
         )
     emit_fonts(root)
-    fonts_href = "css/fonts.css" if (root / FONTS).is_file() else None
+    fonts_href = "rebuild/css/fonts.css" if (root / FONTS).is_file() else None
     html = to_static_html(
         src.read_text(encoding="utf-8"),
         wrap=True,
-        tokens_href="css/tokens.css",
-        fonts_href=fonts_href,
+        tokens_href="../rebuild/css/tokens.css",
+        fonts_href="../rebuild/css/fonts.css" if fonts_href else None,
     )
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(html, encoding="utf-8")

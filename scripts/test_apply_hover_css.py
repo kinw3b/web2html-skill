@@ -24,7 +24,7 @@ def _project(tmp: str) -> Path:
         ":root { --color-ink: #111111; --color-text-inverse-2: #ffffff; }\n",
         encoding="utf-8",
     )
-    (root / "rebuild" / "index-polish.html").write_text(
+    (root / "rebuild" / "index.html").write_text(
         "<html><head><link rel=\"stylesheet\" href=\"css/tokens.css\" /></head>"
         "<body><a href=\"#go\">Get Started Now</a></body></html>\n",
         encoding="utf-8",
@@ -58,7 +58,7 @@ class ApplyHoverCssTest(unittest.TestCase):
             receipt = apply_mod.apply_hover_css(root)
             self.assertTrue(apply_mod.hover_receipt_ok(receipt))
             self.assertEqual(len(receipt["applied"]), 1)
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertIn("css/hover.css", html)
             self.assertIn("btn-primary", html)
             css = (root / "rebuild" / "css" / "hover.css").read_text(encoding="utf-8")
@@ -80,7 +80,7 @@ class ApplyHoverCssTest(unittest.TestCase):
             receipt = apply_mod.apply_hover_css(root)
             self.assertTrue(receipt["ok"])
             self.assertEqual(receipt["applied"], [])
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertNotIn("css/hover.css", html)
 
     def test_preserves_faq_block_already_in_hover_css(self):

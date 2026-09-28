@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""3.2 — author a burger open drawer on rebuild/index-polish.html.
+"""3.2 — author a burger open drawer on rebuild/index.html.
 
 If the polish file paints a hamburger, open = the same desktop links stacked.
 Do not wait for Capture Tool. Do not invent a burger that was never painted.
@@ -7,7 +7,7 @@ Do not wait for Capture Tool. Do not invent a burger that was never painted.
   python3 author-nav-drawer.py .
 
 Writes rebuild/css/nav-drawer.css + rebuild/js/nav-drawer.js, links both
-from index-polish.html, and records qa/nav-drawer.json.
+from rebuild/index.html, and records qa/nav-drawer.json.
 Does not mutate rebuild/index.html.
 """
 
@@ -388,9 +388,9 @@ def drawer_receipt_ok(payload: dict) -> bool:
 
 def author_nav_drawer(root: Path) -> dict:
     root = root.resolve()
-    polish = root / "rebuild" / "index-polish.html"
+    polish = root / "rebuild" / "index.html"
     if not polish.is_file():
-        raise FileNotFoundError("need rebuild/index-polish.html — 3.1 seeds it")
+        raise FileNotFoundError("need rebuild/index.html — 2.2 authors it; 3.x polishes it in place")
 
     html = polish.read_text(encoding="utf-8")
     site_css = ""
@@ -408,7 +408,7 @@ def author_nav_drawer(root: Path) -> dict:
             {
                 "finding": "burger open drawer",
                 "reason": (
-                    "No painted hamburger on index-polish.html. "
+                    "No painted hamburger on rebuild/index.html. "
                     "Do not invent a burger (Pitfall #145)."
                 ),
             }
@@ -460,7 +460,7 @@ def author_nav_drawer(root: Path) -> dict:
         applied.append({
             "finding": "burger toggle",
             "fix": "stamped data-nav-toggle + aria-controls=nav-panel",
-            "file": "rebuild/index-polish.html",
+            "file": "rebuild/index.html",
             "change": "data-nav-toggle",
             "why": "Painted hamburger is a click control (Pitfall #43).",
         })
@@ -473,7 +473,7 @@ def author_nav_drawer(root: Path) -> dict:
                 {
                     "finding": "burger open drawer",
                     "fix": "filled #nav-panel with the same desktop links stacked",
-                    "file": "rebuild/index-polish.html",
+                    "file": "rebuild/index.html",
                     "change": "#nav-panel",
                     "why": "Same desktop links stacked. Capture Tool not required.",
                 }
@@ -495,7 +495,7 @@ def author_nav_drawer(root: Path) -> dict:
             {
                 "finding": "burger open drawer",
                 "fix": "authored #nav-panel from desktop nav links (no Capture Tool pair)",
-                "file": "rebuild/index-polish.html",
+                "file": "rebuild/index.html",
                 "change": "#nav-panel",
                 "why": "Same desktop links stacked. Capture Tool not required.",
             }
@@ -520,7 +520,7 @@ def author_nav_drawer(root: Path) -> dict:
 
     if html_out != html:
         polish.write_text(html_out, encoding="utf-8")
-        files.append("rebuild/index-polish.html")
+        files.append("rebuild/index.html")
 
     receipt = {
         "ok": True,

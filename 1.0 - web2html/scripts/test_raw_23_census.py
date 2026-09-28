@@ -15,7 +15,7 @@ class Raw23CensusTest(unittest.TestCase):
             root = Path(tmp)
             (root / "rebuild").mkdir()
             (root / "qa" / "paper-measure").mkdir(parents=True)
-            (root / "rebuild" / "index-raw.html").write_text(
+            (root / "qa" / "index-raw.html").write_text(
                 '<html data-export="get_jsx-inline-styles"><body>'
                 "<div>All Pages</div>"
                 '<div style="background-image: url(https://app.paper.design/file-assets/x/chevron.svg)"></div>'
@@ -37,7 +37,8 @@ class Raw23CensusTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "rebuild").mkdir()
-            (root / "rebuild" / "index-raw.html").write_text(
+            (root / "qa").mkdir()
+            (root / "qa" / "index-raw.html").write_text(
                 '<div style="background-image: url(https://app.paper.design/star.svg)"></div>',
                 encoding="utf-8",
             )

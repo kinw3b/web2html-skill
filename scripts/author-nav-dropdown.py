@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""3.2 — author nav dropdown panels on rebuild/index-polish.html.
+"""3.2 — author nav dropdown panels on rebuild/index.html.
 
 If the polish file paints a dropdown trigger, or a nav label whose scrape
 submenu exists, wire hover/click. Do not wait for Capture Tool or
@@ -303,9 +303,9 @@ def dropdown_receipt_ok(payload: dict) -> bool:
 
 def author_nav_dropdown(root: Path) -> dict:
     root = root.resolve()
-    polish = root / "rebuild" / "index-polish.html"
+    polish = root / "rebuild" / "index.html"
     if not polish.is_file():
-        raise FileNotFoundError("need rebuild/index-polish.html — 3.1 seeds it")
+        raise FileNotFoundError("need rebuild/index.html — 2.2 authors it; 3.x polishes it in place")
 
     html = polish.read_text(encoding="utf-8")
     scrape = ""
@@ -366,7 +366,7 @@ def author_nav_dropdown(root: Path) -> dict:
                 "finding": "nav dropdown",
                 "label": label,
                 "fix": "wired panel" + (" + scrape items" if info["filled"] else ""),
-                "file": "rebuild/index-polish.html",
+                "file": "rebuild/index.html",
                 "change": "data-nav-dropdown-trigger",
                 "why": "Painted or scrape-matched nav dropdowns open on hover/click. Capture Tool is not required (Pitfall #210).",
             })
@@ -390,7 +390,7 @@ def author_nav_dropdown(root: Path) -> dict:
     linked = ensure_link(linked, JS_SRC, css=False)
     if linked != html:
         polish.write_text(linked, encoding="utf-8")
-        files.append("rebuild/index-polish.html")
+        files.append("rebuild/index.html")
 
     receipt = {
         "ok": True,

@@ -213,8 +213,8 @@ Live board IDs for Design stay `1.1`–`1.4` — now (contract, capture + Naviga
   No get_jsx dump. No gallery-as-the-build.
 - **B/2** = **2.1 Design System / 2.2 author / 2.3 validate / 2.4 TAGS**. 2.1
   emits `rebuild/design-system.html` + tokens from `library.json`. 2.2
-  frontend-design writes `rebuild/index-semantic.html` from Paper desktop
-  using those tokens (aesthetic-risk OFF). 2.3 seeds `index.html` and walks each homepage band
+  frontend-design writes `rebuild/index.html` from Paper desktop
+  using those tokens (aesthetic-risk OFF). 2.3 patches that file in place and walks each homepage band
   against the 1.2 source clips at those three widths (`section_22_gate.py`). 2.4 injects the overlay
   with TAGS on and stops (`open-build-review.py . --stage 2.4`).
   B/2b get_jsx is deleted. B/2b-T / B/2b-S are deleted as ship. B/2b-R
@@ -256,13 +256,14 @@ Live board IDs for Design stay `1.1`–`1.4` — now (contract, capture + Naviga
   (Pitfall #204).
   **3.3** is `semantics_pass.py --freeze-structure` + `verify-semantics.py`.
   Pitfall #93 #196.
-  **3.4** is `open-human-review.py .` — Chrome opens `index.html` (2.4),
-  `index-polish.html?qa-outlines=off` (QA; `?qa-outlines=tags` turns outlines
-  on), and the 3.1–3.3 report (Pitfall #63 #203 #223). An unsolicited close
+  **3.4** is `open-human-review.py .` — Chrome opens `rebuild/index.html?qa-outlines=off`
+  (QA; `?qa-outlines=tags` turns outlines on) and `rebuild/polish-report.html`
+  (the 3.1–3.3 report; Pitfall #63 #203 #223). An unsolicited close
   refuses while polish / semantics / fidelity / type are red. If the human
   asked this session to move on, pass `--requested`: those checks warn and
   the checkpoint still closes (Pitfall #235). Marking 3.4 done
-  promotes polish to `index.html`, strips the QA overlay from that file, and archives the other homepage HTML, then
+  runs `finalize_ship.py`, which strips the QA overlay from `rebuild/index.html` in place (a resumed
+  pre-2.34 run's leftover variant files still get archived under `rebuild/archive/`), then
   stops the live-board
   refresh, plays confetti, and shows port targets. Then tidy drops `qa/`,
   `capture/`, scrape trees, and run files. The finished `pipeline.html` stays
@@ -348,9 +349,9 @@ region manifest is copied out of Stage L's `library.json`.
 5. **Preview default is `file://`** — no HTTP server in the pipeline.
    Relative asset paths are therefore mandatory. HTTP is **user-opt-in**
    only (overlay extensions like Pesticide often fail on `file://`).
-5b. **2.2 Paper-first (2.13.0)** — first `index-semantic.html` is frontend-design
-   authored semantic HTML+CSS of the QA-passed homepage. 2.3 seeds
-   `index.html` from that file. Paper is the
+5b. **2.2 Paper-first (2.13.0)** — the first `rebuild/index.html` is frontend-design
+   authored semantic HTML+CSS of the QA-passed homepage. 2.3 patches
+   that file in place. Paper is the
    brief, not a JSX dump. Never freehand. Never React / Tailwind CDN.
    Never a get_jsx dump — the dump is not even a lock assistant
    (Pitfall #109). B/2a does not author site pages.

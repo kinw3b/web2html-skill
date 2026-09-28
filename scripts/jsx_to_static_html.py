@@ -5,7 +5,7 @@ Paper `get_jsx` (format=inline-styles) returns JSON `{ "jsx": "..." }`.
 That JSX uses `style={{ camelCase: 'value' }}` and self-closing `<div />`.
 A browser treats those divs as unclosed tags, so the dump paints blank.
 
-  python3 jsx_to_static_html.py dump.json -o rebuild/index-raw.html --wrap
+  python3 jsx_to_static_html.py dump.json -o qa/index-raw.html --wrap
   python3 jsx_to_static_html.py dump.json --check -o out.html
 
 Idempotent on already-converted HTML.

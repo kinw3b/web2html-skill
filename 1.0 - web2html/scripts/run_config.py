@@ -574,7 +574,7 @@ def write_adopt_qa(root: Path) -> Path:
                 "generatedFrom": GENERATED_FROM,
                 "mode": "adopt",
                 "polish": False,
-                "reason": "adopted source — do not write index-polish.html or pipeline CSS",
+                "reason": "adopted source — do not write rebuild polish HTML or pipeline CSS",
                 "recordedAt": _now_iso(),
             },
             indent=2,

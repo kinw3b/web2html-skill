@@ -35,26 +35,26 @@ Not the ship. No new palette, fonts, or copy. Folder
 `design_system_21_gate.py` — page links `tokens.css`, receipt from
 `emit-design-system.mjs`, no invented `--color` / `--font` names.
 
-**2.2 author.** Three files in `rebuild/`:
+**2.2 author.** Two files:
 
-1. `index-raw.html` — Paper `get_jsx` of `home-desktop` run through
+1. `qa/index-raw.html` — Paper `get_jsx` of `home-desktop` run through
    `dump_index_raw.py` (JSON/JSX → file:// HTML, expand `<div />`,
-   link `css/tokens.css` + `css/fonts.css`). Reference dump, not the ship. Do not overlay it.
-2. `index-semantic.html` — `/frontend-design` authors semantic HTML+CSS from Paper
+   link `css/tokens.css` + `css/fonts.css`). Measurement evidence for
+   2.3's census — a reference dump, not the ship. Do not overlay it.
+2. `rebuild/index.html` — `/frontend-design` authors semantic HTML+CSS from Paper
    desktop + 2.1 tokens. Aesthetic-risk OFF. No dump metadata on this file.
-   This is the 2.2 first pass. Do not write `index.html` here.
-3. `index.html` — seeded at 2.3 from `index-semantic.html` (`seed_index.py`,
-   never overwrite). 2.3 patches this file. 2.4 freezes it.
+   This is the 2.2 first pass and the only homepage HTML. 2.3 patches this
+   file in place. 2.4 freezes it (`qa/fidelity-freeze-24.json`).
 
 Paper 1600 / 768 / 390 + the 2.1 page are the visual brief. `file://`
 homepage only. No new palette, fonts, or copy. No skip-link. **No source
-or external `<a href>`** on `index-semantic.html`. Gate: `author_21_gate.py` — raw +
-semantic exist, `index-semantic.html` is not a dump, links `tokens.css`.
+or external `<a href>`** on `rebuild/index.html`. Gate: `author_21_gate.py` — raw +
+ship exist, `rebuild/index.html` is not a dump, links `tokens.css`.
 
-**2.3 validation.** **Never skip.** First action: `seed_index.py` copies
-`index-semantic.html` → `index.html` (never overwrite). Self-validate each section against
+**2.3 validation.** **Never skip.** 2.3 patches `rebuild/index.html` in place.
+Self-validate each section against
 **disk gold**: the 1.2 source-section clips at 1600 / 768 / 390 plus
-`rebuild/index-raw.html`. Controller runs `raw_23_census.py`,
+`qa/index-raw.html`. Controller runs `raw_23_census.py`,
 `paper_23_disk_gold.py`, then `paper_23_clip_compare.py` so the numbered
 1.2 `NN-slug.png` clips at 1600 / 768 / 390 land as side-by-sides under
 `qa/paper-measure/compare/`. Measure/APPLY is serial (controller is the only
@@ -67,7 +67,7 @@ prepare/start/wait/apply` (adapter from the probe), then apply printed
 patches and `--record` from the findings; ≤3 rounds; a band still off from
 round 2 may close with a residual line (round 3 must; Pitfall #232). Receipt `qa/paper-measure/<id>.validate.json`
 plus an applied `qa/agent-runs/<run>/2.3/wave.json`. Recipe:
-`references/section-23-paper-loop.md`. Missing `index-raw.html`,
+`references/section-23-paper-loop.md`. Missing `qa/index-raw.html`,
 `raw-census.json`, `disk-gold.json`, `clip-compare.json`, `rawCompared`,
 `diskCompared`, `clipCompared`, or the wave keeps 2.3 open. Receipts: `qa/paper-measure/_index.json` +
 `qa/section-align-22.json`. **Do not return to chat until 2.4 is open.**
@@ -80,9 +80,9 @@ query. Then 3.x.
 Same `rebuild/`. Plain HTML/CSS. `file://`. No React runtime. No Tailwind
 CDN. `rebuild_write_gate.py --allow design-system` at 2.1;
 `--allow index` at 2.2 (keeps the Design System page and allows
-`index-semantic.html`). A scrape-to-site
+`rebuild/index.html`). A scrape-to-site
 homepage is a failed run (Pitfall #148). A get_jsx dump is not the ship
-(`index-semantic.html` / `index.html`). It **is** the 2.2 raw reference (`index-raw.html`) that
+(`rebuild/index.html` is). It **is** the 2.2 raw reference (`qa/index-raw.html`) that
 2.3 measures against it + the 1.2 source clips (Pitfall #198). Shipping
 `design-system.html` as the homepage is a failed run (Pitfall #193).
 
@@ -120,7 +120,7 @@ Do not teach as live 2.0:
 
 **3.0** does **not** restore Paper geometry. 2.3 signed each section;
 2.4 froze that ship (`qa/fidelity-freeze-24.json`) as `rebuild/index.html`.
-3.x writes `rebuild/index-polish.html` only. 3.x is a11y,
+3.x polishes `rebuild/index.html` in place. 3.x is a11y,
 scrape-only SEO, contrast on existing tokens, anti-slop, hover-if-live,
 a painted burger drawer, and mandatory GSAP in-view
 (`references/polish-visual-restore.md`, `references/gsap-inview.md`,

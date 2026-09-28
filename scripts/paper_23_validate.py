@@ -138,7 +138,7 @@ def ship_sections(root: Path) -> list[dict]:
     """Ship bands in document order with their 1.2 clip mapping."""
     ship = root / gold.ship_rel_for("home")
     if not ship.is_file():
-        raise SystemExit("FAIL: missing rebuild/index.html — seed_index.py first")
+        raise SystemExit("FAIL: missing rebuild/index.html — 2.2 authors it; 2.3 patches it in place")
     return list(gold.build_index(root).get("sections") or [])
 
 

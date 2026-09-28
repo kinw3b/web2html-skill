@@ -2,7 +2,7 @@
 """HARD GATE — 2.1 emitted the Design System page from 1.3 library.json.
 
 rebuild/design-system.html is the token contract, not the ship.
-rebuild/index-semantic.html and rebuild/index.html are still forbidden here.
+rebuild/index.html is still forbidden here.
 
   python3 design_system_21_gate.py /path/to/project
 

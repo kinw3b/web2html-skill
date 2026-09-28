@@ -150,7 +150,8 @@ class GsapRevealInjectTest(unittest.TestCase):
             self.assertGreater(qa["data_reveal"], 0)
             self.assertEqual(qa["class_reveal"], 0)
 
-    def test_inject_skips_index_html_when_polish_exists(self) -> None:
+    def test_inject_targets_index_despite_legacy_polish(self) -> None:
+        """2.34.0: a leftover pre-2.34 index-polish.html never diverts the inject."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             rebuild = root / "rebuild"
@@ -167,15 +168,8 @@ class GsapRevealInjectTest(unittest.TestCase):
                 ]
             )
             self.assertEqual(rc, 0)
-            self.assertNotIn("gsap-reveal.js", lock.read_text(encoding="utf-8"))
-            self.assertNotIn("data-reveal", lock.read_text(encoding="utf-8"))
-            polished = polish.read_text(encoding="utf-8")
-            self.assertIn("gsap-reveal.js", polished)
-            self.assertGreater(polished.count("data-reveal"), 0)
-            rc = subprocess.call(
-                [sys.executable, str(_SCRIPTS / "verify-gsap-reveal.py"), str(root)]
-            )
-            self.assertEqual(rc, 0)
+            self.assertIn("gsap-reveal.js", lock.read_text(encoding="utf-8"))
+            self.assertNotIn("gsap-reveal.js", polish.read_text(encoding="utf-8"))
 
     def test_verify_fails_class_reveal_and_empty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

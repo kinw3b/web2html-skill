@@ -50,7 +50,7 @@ def _project(tmp: str, html: str, scrape: str = "") -> Path:
     (root / "qa").mkdir()
     (root / "rebuild" / "css").mkdir(parents=True)
     (root / "rebuild" / "js").mkdir(parents=True)
-    (root / "rebuild" / "index-polish.html").write_text(html, encoding="utf-8")
+    (root / "rebuild" / "index.html").write_text(html, encoding="utf-8")
     if scrape:
         (root / "source-site").mkdir()
         (root / "source-site" / "index.html").write_text(scrape, encoding="utf-8")
@@ -65,7 +65,7 @@ class AuthorFaqTest(unittest.TestCase):
             self.assertTrue(mod.faq_receipt_ok(receipt))
             self.assertTrue(receipt["painted"])
             self.assertGreaterEqual(len(receipt["applied"]), 2)
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertIn('data-action="toggle-faq"', html)
             self.assertIn("Plans start at forty a month.", html)
             self.assertIn("Invoices go out on the first.", html)
@@ -82,7 +82,7 @@ class AuthorFaqTest(unittest.TestCase):
             self.assertTrue(mod.faq_receipt_ok(receipt))
             self.assertFalse(receipt["painted"])
             self.assertEqual(receipt["applied"], [])
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertNotIn("js/faq.js", html)
 
     def test_banned_empty_bodies_skip_fails_when_painted(self):

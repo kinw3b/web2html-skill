@@ -15,7 +15,7 @@ Review files for compliance with Web Interface Guidelines.
 
 If the parent is **website-to-html** polish (or the target is a Paper-exported rebuild):
 
-1. Target is the QA polish file only: `rebuild/index-polish.html` plus its `css/` and `js/`. Never write the 2.4 lock `rebuild/index.html` (Pitfall #203). Write the receipt to `qa/web-design-guidelines.md`.
+1. Target is the one homepage file: `rebuild/index.html` plus its `css/` and `js/` — 3.x polishes it in place and keeps the 2.4 fidelity-freeze structure (Pitfall #196 #237). Write the receipt to `qa/web-design-guidelines.md`.
 2. Fetch fresh guidelines from the source URL below **before** the review.
 3. **Audit first.** Apply only fixes that do not swap fonts, change font-size, invent motion, rename Design Library classes, or add chrome Paper never painted. **Do not** restore Paper text-align, gaps, or icons — that is 2.3 only (Pitfall #196 / `polish-visual-restore.md`).
 4. **Do not invent skip-links**, skip-to-content, back-to-top, dark-mode toggles, or i18n chrome (Pitfall #81). `:focus-visible` on existing controls is fine. A painted hamburger opening the same desktop links stacked is **not** new chrome — `author-nav-drawer.py` already authors it; do not skip that row for Capture Tool (Pitfall #208).
@@ -25,7 +25,7 @@ If the parent is **website-to-html** polish (or the target is a Paper-exported r
 ## How It Works
 
 1. Fetch the latest guidelines from the source URL below
-2. Read the specified files (or `rebuild/index-polish.html` when run as 3.2)
+2. Read the specified files (or `rebuild/index.html` when run as 3.2)
 3. Check against all rules in the fetched guidelines
 4. Output findings in the terse `file:line` format, then the receipt
 

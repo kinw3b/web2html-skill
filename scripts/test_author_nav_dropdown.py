@@ -57,7 +57,7 @@ def _project(tmp: str, html: str, scrape: str = "") -> Path:
     (root / "qa").mkdir()
     (root / "rebuild" / "css").mkdir(parents=True)
     (root / "rebuild" / "js").mkdir(parents=True)
-    (root / "rebuild" / "index-polish.html").write_text(html, encoding="utf-8")
+    (root / "rebuild" / "index.html").write_text(html, encoding="utf-8")
     if scrape:
         (root / "source-site").mkdir()
         (root / "source-site" / "index.html").write_text(scrape, encoding="utf-8")
@@ -72,7 +72,7 @@ class AuthorNavDropdownTest(unittest.TestCase):
             self.assertTrue(mod.dropdown_receipt_ok(receipt))
             self.assertTrue(receipt["painted"])
             self.assertGreaterEqual(len(receipt["applied"]), 1)
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertIn("data-nav-dropdown-trigger", html)
             self.assertIn("Feature One", html)
             self.assertIn("Feature Two", html)
@@ -86,7 +86,7 @@ class AuthorNavDropdownTest(unittest.TestCase):
             receipt = mod.author_nav_dropdown(root)
             self.assertTrue(mod.dropdown_receipt_ok(receipt))
             self.assertFalse(receipt["painted"])
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertNotIn("js/nav-dropdown.js", html)
 
     def test_capture_tool_skip_fails(self):

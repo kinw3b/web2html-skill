@@ -34,13 +34,13 @@ def _receipt(pass_id: str, skill: str) -> dict:
         "ended_at": "2026-08-16T02:00:00Z",
         "applied": [
             {
-                "file": "rebuild/index-polish.html",
+                "file": "rebuild/index.html",
                 "finding": f"{skill} contrast fix",
                 "why": f"{skill} raised muted text to --text",
             }
         ],
         "skipped": [{"finding": "fidelity lock", "reason": "Paper geometry"}],
-        "files_changed": [{"path": "rebuild/index-polish.html", "kind": "modified"}],
+        "files_changed": [{"path": "rebuild/index.html", "kind": "modified"}],
         "notes": "test",
     }
 
@@ -49,9 +49,6 @@ def _project(root: Path) -> None:
     (root / "rebuild").mkdir()
     (root / "qa" / "polish-passes").mkdir(parents=True)
     (root / "rebuild" / "index.html").write_text(SHIP, encoding="utf-8")
-    subprocess.check_call(
-        [sys.executable, str(_SCRIPTS / "seed_index_polish.py"), str(root)]
-    )
     for pid, skill, name in (
         ("3.1", "impeccable", "c3-3.1-impeccable.json"),
         ("3.2", "design-taste-frontend", "c3-3.2-design-taste-frontend.json"),
@@ -75,7 +72,7 @@ def _project(root: Path) -> None:
             "writer": "apply-hover-css.py",
             "applied": [{"className": "btn-primary", "label": "Primary CTA"}],
             "skipped": [{"finding": "button hover", "reason": "1.3 found no source CSS :hover paint on pulled buttons"}],
-            "files": ["rebuild/css/hover.css", "rebuild/index-polish.html"],
+            "files": ["rebuild/css/hover.css", "rebuild/index.html"],
             "linked": True,
         }),
         encoding="utf-8",
@@ -138,7 +135,7 @@ class PolishReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _project(root)
-            self.assertEqual(_run("inject-gsap-reveal.py", str(root / "rebuild" / "index-polish.html")), 0)
+            self.assertEqual(_run("inject-gsap-reveal.py", str(root / "rebuild" / "index.html")), 0)
             self.assertEqual(_run("render-polish-report.py", str(root)), 0)
             ship = (root / "rebuild" / "polish-report.html").read_text(encoding="utf-8")
             emil_at = ship.index("emil-design-eng")
@@ -167,7 +164,7 @@ class PolishReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _project(root)
-            self.assertEqual(_run("inject-gsap-reveal.py", str(root / "rebuild" / "index-polish.html")), 0)
+            self.assertEqual(_run("inject-gsap-reveal.py", str(root / "rebuild" / "index.html")), 0)
             self.assertEqual(_run("render-polish-report.py", str(root)), 0)
             self.assertEqual(_run("verify-polish-passes.py", str(root)), 0)
             (root / "qa" / "apple-design.md").write_text("   \n", encoding="utf-8")
@@ -204,7 +201,7 @@ class PolishReviewTest(unittest.TestCase):
                 [
                     sys.executable,
                     str(_SCRIPTS / "inject-gsap-reveal.py"),
-                    str(root / "rebuild" / "index-polish.html"),
+                    str(root / "rebuild" / "index.html"),
                 ]
             )
             self.assertEqual(rc, 0)
@@ -216,7 +213,7 @@ class PolishReviewTest(unittest.TestCase):
             self.assertIn("3.1", ship)
             self.assertIn("impeccable", ship)
             self.assertIn('href="index.html"', ship)
-            self.assertIn('href="index-polish.html"', ship)
+            self.assertIn('href="index.html?qa-outlines=tags"', ship)
             self.assertIn("apply-hover-css.py", ship)
             self.assertIn("Btn-primary:hover", ship)
             self.assertIn("author-nav-drawer.py", ship)
@@ -226,10 +223,8 @@ class PolishReviewTest(unittest.TestCase):
             self.assertNotIn("None recorded", ship)
             self.assertIn("#c7ff52", ship)
             self.assertIn("#0b0d0a", ship)
-            lock = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
-            polish = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
-            self.assertNotIn("polish-report.html", lock)
-            self.assertIn("polish-report.html", polish)
+            ship_html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("polish-report.html", ship_html)
             rc = subprocess.call(
                 [sys.executable, str(_SCRIPTS / "verify-polish-passes.py"), str(root)]
             )
@@ -243,11 +238,11 @@ class PolishReviewTest(unittest.TestCase):
                 [
                     sys.executable,
                     str(_SCRIPTS / "inject-gsap-reveal.py"),
-                    str(root / "rebuild" / "index-polish.html"),
+                    str(root / "rebuild" / "index.html"),
                 ]
             )
             (root / "qa" / "web-design-guidelines.md").write_text(
-                "rebuild/index-polish.html:25 - burger opens no drawer — "
+                "rebuild/index.html:25 - burger opens no drawer — "
                 "skipped; Capture Tool did not park an open nav; "
                 "inventing a sheet would be new chrome\n",
                 encoding="utf-8",
@@ -278,18 +273,15 @@ class PolishReviewTest(unittest.TestCase):
                 ]
             )
             self.assertEqual(rc, 0)
-            polish = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
-            self.assertIn("js/gsap-reveal.js", polish)
-            self.assertIn("data-reveal", polish)
-            lock = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
-            self.assertNotIn("gsap-reveal.js", lock)
-            self.assertNotIn("polish-report.html", lock)
+            ship_html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("js/gsap-reveal.js", ship_html)
+            self.assertIn("data-reveal", ship_html)
 
-    def test_open_human_review_fails_without_polish(self) -> None:
+    def test_open_human_review_fails_without_ship(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _project(root)
-            (root / "rebuild" / "index-polish.html").unlink()
+            (root / "rebuild" / "index.html").unlink()
             rc = subprocess.call(
                 [
                     sys.executable,

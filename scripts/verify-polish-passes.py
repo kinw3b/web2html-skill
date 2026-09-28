@@ -14,21 +14,21 @@ FAIL (exit 2) unless:
   4. File changes require applied rows
   5. qa/polish-report.html exists and mentions 3.1, 3.2, 3.3, impeccable,
      emil, and the three 3.2 companion skills
-  6. rebuild/index-polish.html exists, links polish-report.html, and
-     verify-semantics.py passes on that file (3.3). Pitfall #93 #203.
+  6. rebuild/index.html (the single ship file, polished in place) links
+     polish-report.html, and verify-semantics.py passes on it (3.3). Pitfall #93.
   7. When qa/fidelity-freeze-24.json exists, fidelity_freeze.py verify
-     passes (index.html hash still matches 2.4; polish did not restyle
-     type, library classes, or section ids). Pitfall #196 #203.
+     passes (the in-place polish kept the 2.4 structure: type, library
+     classes, and section ids unchanged). Pitfall #196.
   8. GSAP in-view is mandatory. verify-gsap-reveal.py must pass on
-     rebuild/index-polish.html. Do not skip from a 1.4 archive
+     rebuild/index.html. Do not skip from a 1.4 archive
      (Pitfall #204).
   9. 3.2 button hover CSS from 1.3 (`apply-hover-css.py`).
      qa/button-hover-css.json `"ok": true`. If 1.3 applied source CSS
-     hover, rebuild/css/hover.css must be linked from index-polish.html
+     hover, rebuild/css/hover.css must be linked from rebuild/index.html
      (Pitfall #207).
  10. 3.2 burger open drawer (`author-nav-drawer.py`).
-     qa/nav-drawer.json `"ok": true`. If index-polish paints a hamburger,
-     the polish file must have a stacked `#nav-panel` and a binder.
+     qa/nav-drawer.json `"ok": true`. If the ship paints a hamburger,
+     rebuild/index.html must have a stacked `#nav-panel` and a binder.
      Do not skip because Capture Tool did not run (Pitfall #208).
  11. 3.2 FAQ accordion (`author-faq.py`).
      qa/faq.json `"ok": true`. If FAQ rows are painted, wire toggle and
@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     if not ship_report.is_file():
         fail(
             "missing rebuild/polish-report.html — 3.4 Chrome review needs "
-            "the report next to index-polish.html. Run render-polish-report.py "
+            "the report next to the ship. Run render-polish-report.py "
             "or open-human-review.py. Pitfall #63."
         )
         errors += 1
@@ -165,19 +165,18 @@ def main(argv: list[str] | None = None) -> int:
                 fail(f"rebuild/polish-report.html does not mention {token}")
                 errors += 1
 
-    polish = root / "rebuild" / "index-polish.html"
+    polish = root / "rebuild" / "index.html"
     if not polish.is_file():
         fail(
-            "missing rebuild/index-polish.html — 3.x copies the 2.4 "
-            "index.html and writes QA there. Run seed_index_polish.py. "
-            "Pitfall #203."
+            "missing rebuild/index.html — 2.2 authors it and 3.x polishes "
+            "it in place (single-file ship, 2.34.0)."
         )
         errors += 1
     elif "polish-report.html" not in polish.read_text(
         encoding="utf-8", errors="replace"
     ):
         fail(
-            "rebuild/index-polish.html does not link polish-report.html. "
+            "rebuild/index.html does not link polish-report.html. "
             "Run open-human-review.py so 3.4 Chrome has the Polish control. "
             "Pitfall #63."
         )
@@ -189,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             fail(
                 "GSAP in-view is mandatory at 3.2. Run "
-                "inject-gsap-reveal.py rebuild/index-polish.html then "
+                "inject-gsap-reveal.py rebuild/index.html then "
                 "verify-gsap-reveal.py . Do not skip because 1.4 did not "
                 "record motion (Pitfall #204). See references/gsap-inview.md."
             )
@@ -219,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
                     applied = []
             if applied and "css/hover.css" not in polish_html:
                 fail(
-                    "1.3 authored button hover but index-polish.html does not "
+                    "1.3 authored button hover but rebuild/index.html does not "
                     "link css/hover.css. Run apply-hover-css.py . Pitfall #207."
                 )
                 errors += 1
@@ -283,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 fail(
                     "qa/nav-drawer.json says a hamburger was painted but "
-                    "index-polish.html has no open drawer. Run "
+                    "rebuild/index.html has no open drawer. Run "
                     "author-nav-drawer.py . Pitfall #208."
                 )
                 errors += 1
@@ -322,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
             if "toggle-faq" not in polish_html or "js/faq.js" not in polish_html:
                 fail(
                     "qa/faq.json says FAQ rows were painted but "
-                    "index-polish.html has no accordion. Run author-faq.py . "
+                    "rebuild/index.html has no accordion. Run author-faq.py . "
                     "Pitfall #209."
                 )
                 errors += 1
@@ -363,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 fail(
                     "qa/nav-dropdown.json says a dropdown was painted but "
-                    "index-polish.html has no panel. Run "
+                    "rebuild/index.html has no panel. Run "
                     "author-nav-dropdown.py . Pitfall #210."
                 )
                 errors += 1
@@ -372,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             fail(
                 "semantics contract failed — run semantics_pass.py (3.3) "
-                "on rebuild/index-polish.html before 3.4. "
+                "on rebuild/index.html before 3.4. "
                 "See references/semantics-pass.md. Pitfall #93."
             )
             errors += 1

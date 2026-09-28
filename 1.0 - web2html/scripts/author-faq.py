@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""3.2 — author FAQ accordion on rebuild/index-polish.html.
+"""3.2 — author FAQ accordion on rebuild/index.html.
 
 If the polish file paints FAQ rows, wire open/close and fill empty answers
 from source-site/index.html. Do not wait for Capture Tool. Do not invent copy.
@@ -308,9 +308,9 @@ def faq_receipt_ok(payload: dict) -> bool:
 
 def author_faq(root: Path) -> dict:
     root = root.resolve()
-    polish = root / "rebuild" / "index-polish.html"
+    polish = root / "rebuild" / "index.html"
     if not polish.is_file():
-        raise FileNotFoundError("need rebuild/index-polish.html — 3.1 seeds it")
+        raise FileNotFoundError("need rebuild/index.html — 2.2 authors it; 3.x polishes it in place")
 
     html = polish.read_text(encoding="utf-8")
     scrape = ""
@@ -335,7 +335,7 @@ def author_faq(root: Path) -> dict:
     if not painted:
         skipped.append({
             "finding": "FAQ accordion",
-            "reason": "No painted FAQ rows on index-polish.html. Do not invent a FAQ section.",
+            "reason": "No painted FAQ rows on rebuild/index.html. Do not invent a FAQ section.",
         })
         receipt = {
             "ok": True,
@@ -358,7 +358,7 @@ def author_faq(root: Path) -> dict:
                 "finding": "FAQ accordion",
                 "label": info["question"],
                 "fix": "wired toggle" + (" + scrape answer" if info["filled"] else ""),
-                "file": "rebuild/index-polish.html",
+                "file": "rebuild/index.html",
                 "change": "data-action=toggle-faq",
                 "why": "Painted FAQ rows open on click. Scrape copy is not invented (Pitfall #209).",
             })
@@ -384,7 +384,7 @@ def author_faq(root: Path) -> dict:
     linked = ensure_link(linked, JS_SRC, css=False)
     if linked != html:
         polish.write_text(linked, encoding="utf-8")
-        files.append("rebuild/index-polish.html")
+        files.append("rebuild/index.html")
 
     receipt = {
         "ok": True,

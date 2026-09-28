@@ -40,7 +40,7 @@ a 3.x polish pass. The driver is
 
 1. You are called for **one** homepage section, after that worker already
    MEASURED from disk. Widths: **1600 / 768 / 390** only. Do not invent 1024 / 1320.
-2. **Disk gold** is the 1.2 source-section PNGs plus `rebuild/index-raw.html`.
+2. **Disk gold** is the 1.2 source-section PNGs plus `qa/index-raw.html`.
    Do not call Paper MCP (`get_computed_styles` / `get_screenshot` /
    `get_guide`). Not the live URL, not Figma, not `source-site/screenshots/`.
    The worker already wrote `qa/paper-measure/<id>.json` — do not restyle

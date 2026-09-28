@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """5.1 — convert the signed 3.4 homepage into astro/src/pages/index.astro.
 
-Homepage body comes from rebuild/index-polish.html (falls back to index.html).
+Homepage body comes from rebuild/index.html (the finalized ship).
 Chrome is the 5.1 Header/Footer. In-page Paper / comment components replace
 matching markup. Remaining <main> stays as signed HTML. Interiors are NOT
 converted here — 5.2 authors them as .astro bodies on the same chrome.
@@ -38,10 +38,10 @@ def convert(root: Path) -> dict:
     footer = astro / "src" / "components" / "Footer.astro"
     if not header.is_file() or not footer.is_file():
         raise FileNotFoundError("need Header.astro and Footer.astro from 5.1 extract-astro-components.py")
-    polish = root / "rebuild" / "index-polish.html"
+    polish = root / "rebuild" / "index.html"
     home = polish if polish.is_file() else root / "rebuild" / "index.html"
     if not home.is_file():
-        raise FileNotFoundError("need rebuild/index-polish.html or rebuild/index.html from 3.4")
+        raise FileNotFoundError("need rebuild/index.html from 3.4")
     pages_dir.mkdir(parents=True, exist_ok=True)
     catalog: list[dict] = []
     receipt_path = root / "qa" / "phase-5-components.json"

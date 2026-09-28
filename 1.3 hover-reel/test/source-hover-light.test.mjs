@@ -55,13 +55,13 @@ test("light pass writes a 1.3-shaped receipt from source CSS without Paper", asy
   assert.equal(onDisk.ship, "rebuild/index.html");
 });
 
-test("light pass prefers index-polish.html when present", async () => {
+test("light pass prefers index.html over a legacy index-polish.html", async () => {
   const root = project();
-  writeFileSync(join(root, "rebuild", "index-polish.html"), SHIP);
+  writeFileSync(join(root, "rebuild", "index-polish.html"), SHIP.replace("Buy now", "Legacy"));
   const receipt = await authorHoverLight({
     projectRoot: root,
     log: () => {},
     fetchImpl: async () => { throw new Error("no network"); },
   });
-  assert.equal(receipt.ship, "rebuild/index-polish.html");
+  assert.equal(receipt.ship, "rebuild/index.html");
 });

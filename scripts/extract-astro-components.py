@@ -29,10 +29,10 @@ def _now_iso() -> str:
 
 def extract(root: Path) -> dict:
     root = root.resolve()
-    polish = root / "rebuild" / "index-polish.html"
+    polish = root / "rebuild" / "index.html"
     home = polish if polish.is_file() else root / "rebuild" / "index.html"
     if not home.is_file():
-        raise FileNotFoundError("need rebuild/index-polish.html or rebuild/index.html")
+        raise FileNotFoundError("need rebuild/index.html")
     astro = root / "astro"
     if not (astro / "src" / "layouts" / "BaseLayout.astro").is_file():
         raise FileNotFoundError("need astro/ from 5.1 scaffold-astro.py")

@@ -33,15 +33,15 @@ authored earlier in the run (A/6, 1.4, C/3.2).
 **5.4** runs the same freeze-structure pass on each `rebuild/{slug}.html`
 after hrefs are wired. Scrape meta is that page's live URL (or
 `capture/{slug}-desktop` HTML), never the homepage `qa/scrape-meta.json`
-title / description / OG. `index.html` and `index-polish.html` stay
+title / description / OG. `rebuild/index.html` stays
 href-only — 3.3 already did the homepage.
 
 ## Commands
 
 ```sh
 # 3.3 — SEO / a11y after polish; freeze file auto-enables structure lock
-python3 "$SKILLS/website-to-html/scripts/semantics_pass.py" rebuild/index-polish.html -o rebuild/index-polish.html --freeze-structure
-python3 "$SKILLS/website-to-html/scripts/verify-semantics.py" rebuild/index-polish.html
+python3 "$SKILLS/website-to-html/scripts/semantics_pass.py" rebuild/index.html -o rebuild/index.html --freeze-structure
+python3 "$SKILLS/website-to-html/scripts/verify-semantics.py" rebuild/index.html
 python3 "$SKILLS/website-to-html/scripts/fidelity_freeze.py" verify .
 
 # 5.5 — Astro site: routes + per-page scrape-only SEO into each page's frontmatter (BaseLayout props), then astro build

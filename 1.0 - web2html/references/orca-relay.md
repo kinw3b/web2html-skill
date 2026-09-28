@@ -111,7 +111,7 @@ cannot tell `orca` from `serial` — both write that file.
 | Step | Task | Worker does (read-only) | Controller does |
 |---|---|---|---|
 | 2.3 | one open band | Read the three `NN-<band>-{1600,768,390}-side.png`, write verdict + `seen` + misses + patch proposal | `--shoot` every open band **before** `prepare`; after the wave: apply each patch, `--record` from the finding, `--shoot` the next round |
-| 3.2 | one companion skill | run `web-design-guidelines` / `find-animation-opportunities` / `apple-design` on `index-polish.html`; write the report `.md` + finding | `apply` promotes each report to `qa/<skill>.md` (Pitfall #215) |
+| 3.2 | one companion skill | run `web-design-guidelines` / `find-animation-opportunities` / `apple-design` on `rebuild/index.html`; write the report `.md` + finding | `apply` promotes each report to `qa/<skill>.md` (Pitfall #215) |
 | 5.2 | one interior page | author `astro/src/pages/{slug}.astro` `<main>` only | serial `get_jsx` dumps first; `record-phase-5-pages.py` after |
 
 Never a wave: 1.2 / 1.3 (serial Paper writes), 2.2 (one author, one vocabulary).

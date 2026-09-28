@@ -2,8 +2,9 @@
 
 Phase 5 turns the 3.4 homepage lock plus the 4.4 Paper pages into `astro/`.
 The move that makes it one phase: **Header, Footer, and every shared
-component are pulled ONCE from `rebuild/index.html` at 5.1** (the 3.4
-promote; falls back to `index-polish.html` if that file is still on disk). Every
+component are pulled ONCE from `rebuild/index.html` at 5.1** (the
+3.4-finalized ship — `rebuild/index.html` with the overlay stripped in place at 3.4 done;
+no polish-file fallback exists). Every
 later page reuses them, so 5.2 authors only the `<main>` body (the sections
 that page actually has). Homepage 1.1–3.4 stays the lock. `rebuild/` stays
 the static homepage ship and is never replaced. No React. No Tailwind CDN.
@@ -28,13 +29,13 @@ python3 "$SKILLS/web2html/scripts/convert-astro-home.py" .          # qa/phase-5
   BaseLayout takes `title / description / lang / canonical / ogImage` props —
   5.5 SEO is props, never markup. QA overlay CSS/JS never copies in.
 - `extract-astro-components.py` lifts `<header>` → `Header.astro` and
-  `<footer>` → `Footer.astro` from the polish homepage, then every
+  `<footer>` → `Footer.astro` from `rebuild/index.html`, then every
   Paper-backed control (Design Library names, Capture Tool
   `source-site/components`, FRAME Components / Buttons / Navigation) and
   comment nomination (`<!-- component: Name -->`, Paper comments that call a
   block a reusable component) that appears in signed HTML. One-off sections
   stay inlined. Hrefs inside the chrome become routes (`about.html` → `/about/`).
-- `convert-astro-home.py` writes `src/pages/index.astro` from the polish
+- `convert-astro-home.py` writes `src/pages/index.astro` from the homepage
   `<main>` on that chrome, swapping matching component markup for the
   extracted components. Interiors are **not** converted here.
 
@@ -144,7 +145,7 @@ python3 "$SKILLS/web2html/scripts/wire-astro-routes.py" .    # qa/phase-5-links.
 python3 "$SKILLS/web2html/scripts/open-phase-5-review.py" .   # qa/phase-5-review.md, opens built home + first interior
 ```
 
-Walk the routes. Shared chrome must match the 3.4 polish; bodies must match
+Walk the routes. Shared chrome must match the 3.4 ship; bodies must match
 Paper. Human preview server is optional (`cd astro && npm run preview`).
 Then `mark --step 5.6 --status done` — that tidies and keeps `rebuild/` +
 `astro/` + `pipeline.html`.
@@ -159,7 +160,7 @@ astro/
   src/components/Header.astro     # pulled once at 5.1
   src/components/Footer.astro
   src/components/{Name}.astro     # Paper buttons + comment-nominated blocks
-  src/pages/index.astro           # 5.1 from the polish homepage
+  src/pages/index.astro           # 5.1 from rebuild/index.html
   src/pages/{slug}.astro          # 5.2 authored bodies
   public/styles/                  # tokens.css, fonts.css, site.css, hover.css
   public/images/  public/fonts/  public/scripts/

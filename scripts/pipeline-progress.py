@@ -99,9 +99,7 @@ from rebuild_write_gate import (
     quarantine_unauthorized_ship,
 )
 import run_config
-from seed_index import seed as seed_index_html
-from promote_ship import promote as promote_ship, ship_ready
-from seed_index_polish import polish_path, seed as seed_index_polish
+from finalize_ship import finalize as finalize_ship, ship_ready
 
 _APPLY_HOVER = importlib.util.spec_from_file_location(
     "apply_hover_css", _SCRIPTS / "apply-hover-css.py"
@@ -732,7 +730,7 @@ def authored_page_ready(root: Path) -> bool:
     """2.2 Author: first-pass page exists and is not a get_jsx soup dump."""
     from rebuild_write_gate import RAW_PAPER_EXPORT_RE, ship_markup_errors
 
-    ship = root / "rebuild" / "index-semantic.html"
+    ship = root / "rebuild" / "index.html"
     if not ship.is_file():
         return False
     try:
@@ -741,7 +739,7 @@ def authored_page_ready(root: Path) -> bool:
         return False
     if RAW_PAPER_EXPORT_RE.search(html):
         return False
-    if run_config.raw_dump_enabled(root) and not (root / "rebuild" / "index-raw.html").is_file():
+    if run_config.raw_dump_enabled(root) and not (root / "qa" / "index-raw.html").is_file():
         return False
     return not ship_markup_errors(html)
 
@@ -761,7 +759,7 @@ def design_system_bound(root: Path) -> bool:
     """
     if not run_config.design_system_enabled(root):
         return True
-    ship = root / "rebuild" / "index-semantic.html"
+    ship = root / "rebuild" / "index.html"
     tokens = root / "rebuild" / "css" / "tokens.css"
     if not ship.is_file() or not tokens.is_file():
         return False
@@ -983,7 +981,7 @@ def button_hover_done(root: Path) -> bool:
 
 
 def button_hover_css_done(root: Path) -> bool:
-    """3.2 linked 1.3 button hover CSS onto index-polish.html."""
+    """3.2 linked 1.3 button hover CSS onto rebuild/index.html."""
     path = root / "qa" / "button-hover-css.json"
     if not path.is_file():
         return False
@@ -2375,15 +2373,14 @@ def print_24_hard_stop(root: Path) -> None:
     print("2.4 HARD STOP — TAGS review. Session 3 polish has not started.")
     print("YOU ARE HERE  2.4 Sign-off → 3.0 polish · in progress")
     print("NEXT          After Continue: Session 3 polish starting at 3.1")
-    print("NOT YET       index-polish.html — created when 3.1 starts as an")
-    print("               unpolished copy of the lock. Not polished until 3.1–3.3 run.")
+    print("NOT YET       3.1–3.3 polish — Session 3 edits this same file in place.")
     if ship.is_file():
         print(f"Ship lock     {ship.as_uri()}")
     print("Question modal — fire this harness's native choice / question tool:")
     print("  1. Continue to 3.0 polish (3.1–3.4)")
     print("The resume token is the word Continue.")
-    print("Do not start 3.1 until Continue. Do not treat an existing")
-    print("index-polish.html as finished polish.")
+    print("Do not start 3.1 until Continue. The ship is this same file,")
+    print("polished in place — do not pre-polish it.")
     print("")
 
 
@@ -2715,8 +2712,9 @@ First actions, in order:
   4. node "$SKILLS/web2html/scripts/list-paper-comments.mjs"   -> exit 0 required.
 
 Then: 2.1 emit Design System (tokens + rebuild/design-system.html) ->
-2.2 author index-semantic.html from Paper using those tokens -> 2.3 section loop
-(disk clips + index-raw; no Paper MCP), then 2.3 VALIDATE LOOK
+2.2 author rebuild/index.html (the one homepage file) from Paper using those
+tokens -> 2.3 section loop patches it in place (disk clips + qa/index-raw;
+no Paper MCP), then 2.3 VALIDATE LOOK
 (paper_23_validate.py --shoot-open, then MUST wave.py prepare/start/wait/apply;
 controller records; <= 3 rounds per band, Pitfall #216 #221)
 -> 2.4 Human checkpoint.
@@ -2739,16 +2737,6 @@ def snapshot_fidelity_freeze(root: Path) -> Path | None:
         return None
     dest = snapshot(root)
     print(f"fidelity freeze snapshot → {dest}")
-    return dest
-
-
-def seed_22_index(root: Path) -> Path | None:
-    """Copy the 2.2 first pass to rebuild/index.html. Never overwrite."""
-    dest_rel = root / "rebuild" / "index.html"
-    existed = dest_rel.is_file()
-    dest = seed_index_html(root)
-    if dest is not None and not existed:
-        print(f"index seed → {dest}")
     return dest
 
 
@@ -2838,7 +2826,7 @@ def write_auto_accept_24(root: Path) -> Path:
 
 
 def seed_32_nav_drawer(root: Path) -> dict:
-    """Author a painted burger drawer on index-polish.html. 3.2 active."""
+    """Author a painted burger drawer on rebuild/index.html. 3.2 active."""
     receipt = _author_nav_drawer.author_nav_drawer(root)
     applied = len(receipt.get("applied") or [])
     print(f"3.2 burger drawer → {applied} applied  qa/nav-drawer.json")
@@ -2846,7 +2834,7 @@ def seed_32_nav_drawer(root: Path) -> dict:
 
 
 def seed_32_faq(root: Path) -> dict:
-    """Author FAQ accordion + scrape answers on index-polish.html. 3.2 active."""
+    """Author FAQ accordion + scrape answers on rebuild/index.html. 3.2 active."""
     receipt = _author_faq.author_faq(root)
     applied = len(receipt.get("applied") or [])
     print(f"3.2 FAQ accordion → {applied} applied  qa/faq.json")
@@ -2862,19 +2850,19 @@ def seed_32_nav_dropdown(root: Path) -> dict:
 
 
 def seed_32_gsap(root: Path) -> dict:
-    """Inject mandatory GSAP in-view on index-polish.html.
+    """Inject mandatory GSAP in-view on rebuild/index.html.
 
     Runs at 3.2 active and again when the 3.4 review opens, so a later
-    polish rewrite cannot drop it and the checkpoint is not a manual inject.
-    Does not touch the 2.4 index.html lock (Pitfall #203 #236).
+    polish rewrite cannot drop it and the checkpoint is not a manual inject
+    (Pitfall #236).
     """
-    polish = polish_path(root)
-    if not polish.is_file():
+    ship = root / "rebuild" / "index.html"
+    if not ship.is_file():
         raise FileNotFoundError(
-            f"missing {polish} — 3.1 seeds index-polish.html before GSAP inject"
+            f"missing {ship} — 2.2 authors it; 3.x polishes it in place"
         )
-    _inject_gsap.copy_assets(polish.parent)
-    count, _changed = _inject_gsap.inject_file(polish)
+    _inject_gsap.copy_assets(ship.parent)
+    count, _changed = _inject_gsap.inject_file(ship)
     rc = _verify_gsap.main([str(root.resolve())])
     receipt_path = root / "qa" / "gsap-reveal-qa.json"
     receipt: dict = {}
@@ -2885,7 +2873,7 @@ def seed_32_gsap(root: Path) -> dict:
             receipt = {}
     if rc != 0 or receipt.get("ok") is not True:
         raise FileNotFoundError(
-            "GSAP in-view did not land on index-polish.html "
+            "GSAP in-view did not land on rebuild/index.html "
             f"({count} data-reveal). Do not inject by hand at 3.4. Pitfall #236."
         )
     print(
@@ -2895,29 +2883,15 @@ def seed_32_gsap(root: Path) -> dict:
     return receipt
 
 
-def seed_24_polish(root: Path) -> Path | None:
-    """Copy the 2.4 lock to rebuild/index-polish.html. Never overwrite.
-
-    Call only when 3.x goes active. 2.4 done must not create this file —
-    an unpolished copy on disk reads as polish already done (Pitfall #203).
-    """
-    existed = polish_path(root).is_file()
-    dest = seed_index_polish(root)
-    if dest is not None and not existed:
-        print(f"index-polish seed → {dest}  (unpolished copy; 3.1–3.3 write here)")
-    return dest
-
-
 def _handoff_3(root: Path, paper: dict, board: str) -> str:
     ship = (root / "rebuild" / "index.html")
     return f"""web2html \u2014 SESSION 3 of 3 \u00b7 {SESSION_TITLE[3]}
 Model: {SESSION_TIER[3]}
 
-YOU ARE HERE  2.4 done \u00b7 homepage signed \u00b7 index.html frozen
+YOU ARE HERE  2.4 done \u00b7 homepage signed \u00b7 index.html locked
 NEXT          Session 3 polish starting at 3.1
               resume . --at 3.1 --owner session-3
-NOT YET       index-polish.html \u2014 created when 3.1 starts as an unpolished
-              copy of the lock. It is not polished until 3.1\u20133.3 run.
+NOT YET       3.1\u20133.3 polish \u2014 Session 3 edits this same file in place.
 
 Project   {root}
 Ship      {ship.as_uri() if ship.is_file() else ship}
@@ -2926,35 +2900,34 @@ Board     {board}
 Sessions 1\u20132 are complete. The page is authored from Paper, token-bound,
 section-validated at 1600/768/390, and human-approved at the 2.4 checkpoint.
 Do not re-author the page. Do not revisit Paper geometry or the token set.
-2.4 is the fidelity freeze (qa/fidelity-freeze-24.json). rebuild/index.html
-is the lock. Do not mutate it (Pitfall #203). Do not change font-size,
-Design Library class names, or signed section ids.
+2.4 pins the fidelity freeze (qa/fidelity-freeze-24.json). 3.x polishes
+rebuild/index.html IN PLACE \u2014 same file, no copies \u2014 but the freeze holds:
+no font-size, Design Library class name, or signed section id changes.
 
 First actions, in order:
   1. Load the web2html skill.
   2. python3 "$SKILLS/web2html/scripts/pipeline-progress.py" resume . \\
        --at 3.1 --owner session-3
-     That mark copies index.html \u2192 index-polish.html (unpolished).
+     That mark opens the polish; index.html is edited in place.
   3. Read references/polish-visual-restore.md, then the 3.1 \u2013 3.4 rows in
      references/pillars.md.
 
 Then: 3.1 a11y + contrast + anti-slop (Impeccable + Taste) on
-      index-polish.html ->
-      3.2 hover from 1.3 source CSS (apply-hover-css.py on index-polish.html)
+      rebuild/index.html ->
+      3.2 hover from 1.3 source CSS (apply-hover-css.py on rebuild/index.html)
       + burger open drawer (author-nav-drawer.py; never skip for Capture Tool)
       + FAQ accordion (author-faq.py; scrape answers, never skip empty Paper bodies)
       + nav dropdowns (author-nav-dropdown.py; never skip for Capture Tool)
       + guidelines a11y + mandatory GSAP in-view
-      (inject-gsap-reveal.py on index-polish.html; never skip from 1.4)
+      (inject-gsap-reveal.py on rebuild/index.html; never skip from 1.4)
       + companion receipts qa/web-design-guidelines.md,
       qa/find-animation-opportunities.md, qa/apple-design.md (Pitfall #215) ->
       3.3 scrape-only SEO + a11y labels (semantics_pass --freeze-structure
-      on index-polish.html) ->
-      3.4 compare index.html (2.4) vs index-polish.html (QA, outlines off;
-      ?qa-outlines=tags turns them on). Marking 3.4 done promotes the polish
-      file to index.html, strips the QA overlay from that file, and archives
-      index-raw / index-semantic / the 2.4 lock under rebuild/archive/
-      (Pitfall #223 #234).
+      on rebuild/index.html) ->
+      3.4 review rebuild/index.html with outlines off (?qa-outlines=tags
+      turns them on) plus the polish report. Marking 3.4 done strips the QA
+      overlay from that same file (finalize_ship.py) \u2014 no promote, no
+      archive, one source of truth (Pitfall #223 #234 #237).
 
 Receipts land in qa/polish-passes/ plus the three 3.2 companion .md files
 in qa/. verify-polish-passes.py is green before an unsolicited 3.4 close.
@@ -2977,8 +2950,8 @@ Board     {board}
 Sessions 1–4 are complete. The homepage ship is rebuild/index.html (3.4
 promoted the polish; the QA overlay is stripped). Extra routes are
 Paper pages on the home canvas. Do not recapture, re-mine, open a second
-Design Library, or rewrite the homepage. 5.1 reads index.html when
-index-polish.html has been archived.
+Design Library, or rewrite the homepage. 5.1 reads the finalized
+rebuild/index.html (QA overlay stripped at 3.4 done).
 
 First actions, in order:
   1. Load the web2html skill.
@@ -3084,8 +3057,8 @@ SESSION_LOCK = {
     1: "Paper is being built; never reuse another project's capture, library, or Paper file (Pitfall #187).",
     2: "Paper desktop is gold. 2.1 tokens/classes as-is. No new palette, fonts, or copy. Homepage only, file://. "
        "No get_jsx dump as the ship. No skip-link. Aesthetic-risk OFF. The only human stop is 2.4 (Pitfall #192).",
-    3: "2.4 is the fidelity freeze. rebuild/index.html is the lock — never mutate it (Pitfall #203). 3.x writes "
-       "index-polish.html only. No type-scale, class rename, or visual restore (Pitfall #196). The only human stop is 3.4.",
+    3: "2.4 pins the fidelity freeze (qa/fidelity-freeze-24.json). 3.x polishes rebuild/index.html in place. "
+       "No type-scale, class rename, or section-id change against the freeze (Pitfall #196). The only human stop is 3.4.",
     4: "Paper-only. Extra pages onto the HOME canvas of the 1.2 file; one sample per dynamic template; no second library.",
     5: "astro/ only. Chrome pulled once at 5.1; each page authors its <main> only. Geometry, type, and library classes frozen.",
 }
@@ -3478,12 +3451,12 @@ def polish_quality_errors(root: Path) -> list[str]:
     """Red polish / semantics / fidelity / type checks on a URL polish ship.
 
     Empty when the gate is green, this is an adopted folder run, or there is
-    no polish file left to check. Does not refuse by itself.
+    no ship file to check. Does not refuse by itself.
     """
     if run_config.adopt_mode(root):
         return []
-    polish = root / "rebuild" / "index-polish.html"
-    if not polish.is_file():
+    ship = root / "rebuild" / "index.html"
+    if not ship.is_file():
         return []
     script = Path(__file__).resolve().parent / "verify-polish-passes.py"
     proc = subprocess.run(
@@ -3528,7 +3501,7 @@ def yield_quality_gate(root: Path, step: str, requested: bool) -> int | None:
 
     ``--requested`` (the human asked this session to move on) warns and
     returns None so the mark continues. Subagents and unsolicited marks
-    get 2. Adopted folder runs and a missing polish file are not this gate.
+    get 2. Adopted folder runs and a missing ship file are not this gate.
     """
     if step != "3.4":
         return None
@@ -3824,12 +3797,12 @@ def cmd_mark(
             print(
                 "FAIL: cannot mark 2.2 done — the adopted export is not rebuild/index.html, "
                 "or pipeline CSS was invented. mark 2.2 active copies source-html/. "
-                "Do not author index-semantic.html.",
+                "Do not author rebuild/index.html.",
                 file=sys.stderr,
             )
         else:
             print(
-                "FAIL: cannot mark 2.2 done — rebuild/index-semantic.html is missing or is a "
+                "FAIL: cannot mark 2.2 done — rebuild/index.html is missing or is a "
                 "get_jsx dump, or it is not bound to the 2.1 tokens. Author from "
                 "Paper using design-system.html + tokens.css. No new --color/--font names.",
                 file=sys.stderr,
@@ -3896,10 +3869,10 @@ def cmd_mark(
             )
         else:
             print(
-                "FAIL: cannot mark 3.4 done — missing rebuild/index-polish.html. "
-                "3.x copies the 2.4 index and writes QA there. "
-                "open-human-review.py compares both files (Pitfall #203). "
-                "mark 3.4 done promotes that file to index.html.",
+                "FAIL: cannot mark 3.4 done — missing rebuild/index.html. "
+                "2.2 authors it; 2.3 patches and 3.x polishes that same file "
+                "in place; open-human-review.py reviews it with outlines off. "
+                "mark 3.4 done finalizes it (strips the QA overlay).",
                 file=sys.stderr,
             )
         return 2
@@ -3998,9 +3971,9 @@ def cmd_mark(
                 " adopted source — do not copy into rebuild/ and do not author a homepage."
                 if run_config.adopt_mode(root)
                 else (
-                    " 2.2 authors rebuild/index-semantic.html from Paper using the 2.1 "
-                    "tokens. Link tokens.css. No new --color/--font names. 2.3 seeds "
-                    "index.html from that file."
+                    " 2.2 authors rebuild/index.html — the one homepage file — from Paper "
+                    "using the 2.1 tokens. Link tokens.css. No new --color/--font names. "
+                    "2.3 patches that same file in place."
                 )
             )
         if step == "2.3":
@@ -4013,7 +3986,7 @@ def cmd_mark(
         if step == "3.2":
             detail = (
                 " 3.2 writes hover CSS from 1.3 qa/button-hover.json "
-                "(apply-hover-css.py → rebuild/css/hover.css on index-polish.html), "
+                "(apply-hover-css.py → rebuild/css/hover.css linked into rebuild/index.html), "
                 "authors a painted burger drawer (author-nav-drawer.py; "
                 "Capture Tool is not required), FAQ accordion (author-faq.py), "
                 "nav dropdowns (author-nav-dropdown.py), guidelines a11y, and mandatory "
@@ -4062,15 +4035,12 @@ def cmd_mark(
                     print("fidelity snapshot → qa/source-fidelity.json  accessibility attributes only")
             allow = ALLOW_INDEX
         elif step.startswith("3."):
-            seed_24_polish(root)
             allow = ALLOW_POLISH
         elif step.startswith("5."):
             allow = ALLOW_PAGES
         elif step == "2.1":
             allow = ALLOW_DESIGN_SYSTEM
         else:
-            if step == "2.3":
-                seed_22_index(root)
             allow = ALLOW_INDEX
         blocked = rebuild_write_errors(root, allow)
         if blocked:
@@ -4183,16 +4153,20 @@ def cmd_mark(
         budget_row = None
     if status == "done" and step == "3.4":
         try:
-            receipt = promote_ship(root)
+            receipt = finalize_ship(root)
         except FileNotFoundError as exc:
             print(f"FAIL: cannot mark 3.4 done — {exc}", file=sys.stderr)
             return 2
         if not receipt.get("already"):
             if receipt.get("adopted"):
                 print("ship stays source-html/index.html  no rebuild/")
+            elif receipt.get("archived"):
+                print(
+                    "ship finalize → rebuild/index.html  overlay removed  "
+                    f"archived {', '.join(receipt['archived'])} (legacy pre-2.34 variants)"
+                )
             else:
-                archived = ", ".join(receipt.get("archived") or []) or "none"
-                print(f"ship promote → rebuild/index.html  overlay removed  archived {archived}")
+                print("ship finalize → rebuild/index.html  overlay removed")
     if status == "done" and step == "1.4" and run_config.adopt_mode(root):
         for sid in ("2.1", "2.2", "2.3", "2.4"):
             row = data["steps"].get(sid)
@@ -4247,8 +4221,6 @@ def cmd_mark(
             print("2.4 auto — no TAGS stop. Mark 2.4 done and continue into 3.1 in this session.")
         else:
             print_24_hard_stop(root)
-    if status == "done" and step == "2.2" and not run_config.adopt_mode(root):
-        seed_22_index(root)
     if status == "done" and step == "4.4" and run_config.adopt_mode(root):
         print(
             "adopt: missing layouts were authored at 4.3 from Paper screenshots.\n"

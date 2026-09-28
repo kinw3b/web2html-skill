@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
-"""3.4 done — one homepage entry for the Vercel / GitHub ship.
+"""3.4 done — finalize the single ship file.
 
-`rebuild/index-polish.html` becomes `rebuild/index.html`. The 2.4 lock,
-`index-raw.html`, and `index-semantic.html` move to `rebuild/archive/`.
-The promoted document has no QA overlay: no boot script, no qa-overlay
-link or script, no data-qa-outlines, no data-qa-ship. The review toggle
-stays on index-polish.html until this promote. Idempotent.
+rebuild/index.html is the one homepage HTML from 2.2 onward: authored (2.2),
+patched in place (2.3), locked (2.4), polished in place (3.1–3.3). Marking
+3.4 done does not promote or archive anything — it strips the QA overlay
+from index.html in place: no boot script, no qa-overlay link or script, no
+data-qa-outlines, no data-qa-ship. The outlines toggle is review chrome, not
+a ship feature (Pitfall #234). Idempotent.
 
-  python3 promote_ship.py /path/to/project
+Legacy bridge (2.34.0): a run started under the old three-file model may
+still carry rebuild/index-polish.html, index-semantic.html, or index-raw.html.
+finalize promotes the polish copy to index.html, moves the variants to
+rebuild/archive/, then strips the overlay — the same outcome the old
+promote_ship.py produced, so a resumed run cannot ship two entry points
+(Pitfall #223). New runs never create those files; the write gate refuses
+them.
+
+  python3 finalize_ship.py /path/to/project
 """
 from __future__ import annotations
 
@@ -18,10 +27,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-TEMPLATES = HERE.parent / "templates"
 ARCHIVE_NAMES = ("index-raw.html", "index-semantic.html", "polish-report.html")
 RECEIPT = Path("qa/ship-promote.json")
-SHIP_ATTR = 'data-qa-ship="final"'
 VERCELIGNORE_LINE = "archive"
 BOOT_RE = re.compile(
     r"""<script\b[^>]*\bid=["']qa-outlines-boot["'][^>]*>.*?</script>\s*""",
@@ -49,11 +56,12 @@ def ship_path(root: Path) -> Path:
 
 
 def polish_path(root: Path) -> Path:
+    """Legacy only (pre-2.34 runs). New writes land on index.html directly."""
     return root / "rebuild" / "index-polish.html"
 
 
 def ship_is_final(root: Path) -> bool:
-    """True after promote. The receipt is the signal — the ship HTML no longer carries a QA attribute."""
+    """True after finalize. The receipt is the signal."""
     receipt = root / RECEIPT
     if receipt.is_file():
         try:
@@ -62,17 +70,11 @@ def ship_is_final(root: Path) -> bool:
             data = None
         if isinstance(data, dict) and data.get("ok") and data.get("ship") == "rebuild/index.html":
             return True
-    path = ship_path(root)
-    if not path.is_file():
-        return False
-    try:
-        return SHIP_ATTR in path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return False
+    return False
 
 
 def ship_ready(root: Path) -> bool:
-    """3.4 may finish when polish still exists, when promote already ran, or when an adopted export is the ship."""
+    """3.4 may finish when the single ship file exists or the adopted export is the ship."""
     try:
         import run_config
 
@@ -83,11 +85,11 @@ def ship_ready(root: Path) -> bool:
             return ship.is_file() and source_fidelity.load_snapshot(root) is not None and not source_fidelity.verify(root)
     except Exception:  # noqa: BLE001
         pass
-    return polish_path(root).is_file() or ship_is_final(root)
+    return ship_path(root).is_file() or polish_path(root).is_file()
 
 
 def strip_overlay(html: str) -> str:
-    """Drop every QA overlay hook from the promoted document."""
+    """Drop every QA overlay hook from the ship document."""
     html = BOOT_RE.sub("", html)
     html = OVERLAY_LINK_RE.sub("", html)
     html = OVERLAY_SCRIPT_RE.sub("", html)
@@ -125,7 +127,7 @@ def _ensure_vercelignore(rebuild: Path) -> None:
 
 
 def _drop_overlay_assets(rebuild: Path) -> None:
-    """The polished ship must not still serve the overlay files."""
+    """The finalized ship must not still serve the overlay files."""
     for rel in ("css/qa-overlay.css", "js/qa-overlay.js"):
         path = rebuild / rel
         if path.is_file():
@@ -137,14 +139,14 @@ def _write_note(archive: Path) -> None:
     if note.exists():
         return
     note.write_text(
-        "Pre-3.4 homepage variants. Do not deploy these as the site root.\n"
-        "rebuild/index.html is the ship (promoted index-polish.html).\n"
-        "The overlay and outlines are removed from that file. They are not a query toggle.\n",
+        "Pre-2.34 homepage variants (legacy three-file model). Do not deploy these.\n"
+        "rebuild/index.html is the only homepage HTML, polished in place since 2.2.\n"
+        "The overlay and outlines are stripped from that file. They are not a query toggle.\n",
         encoding="utf-8",
     )
 
 
-def _promote_adopted(root: Path) -> dict:
+def _finalize_adopted(root: Path) -> dict:
     """Leave source-html/ as the ship. Do not copy it into rebuild/ or stamp the markup."""
     import source_fidelity
 
@@ -154,55 +156,57 @@ def _promote_adopted(root: Path) -> dict:
     errors = source_fidelity.verify(root)
     if errors:
         raise FileNotFoundError(errors[0])
-    if (root / "rebuild" / "index.html").is_file() or (root / "rebuild" / "index-polish.html").is_file():
+    if (root / "rebuild" / "index.html").is_file():
         raise FileNotFoundError("adopted run must not have rebuild/index.html — source-html/ is the ship")
     return {"ok": True, "already": False, "ship": "source-html/index.html", "archived": [], "adopted": True}
 
 
-def promote(root: Path) -> dict:
+def finalize(root: Path) -> dict:
     root = root.resolve()
     try:
         import run_config
     except ImportError:
         run_config = None  # type: ignore[assignment]
     if run_config is not None and run_config.adopt_mode(root):
-        return _promote_adopted(root)
+        return _finalize_adopted(root)
     rebuild = root / "rebuild"
-    polish = polish_path(root)
     ship = ship_path(root)
-    if not polish.is_file() and ship_is_final(root):
-        return {"ok": True, "already": True, "ship": "rebuild/index.html", "archived": []}
-    if not polish.is_file():
-        raise FileNotFoundError(
-            "need rebuild/index-polish.html — 3.1 seeds it; 3.4 promote makes it index.html"
-        )
-    archive = rebuild / "archive"
-    archive.mkdir(parents=True, exist_ok=True)
+    polish = polish_path(root)
     archived: list[str] = []
-    if ship.is_file() and not ship_is_final(root):
-        moved = _archive_file(ship, archive)
-        if moved:
-            archived.append(moved)
-    for name in ARCHIVE_NAMES:
-        moved = _archive_file(rebuild / name, archive)
-        if moved:
-            archived.append(moved)
-    html = stamp_ship(polish.read_text(encoding="utf-8", errors="replace"))
-    ship.write_text(html, encoding="utf-8")
-    polish.unlink()
+    if polish.is_file():
+        # Legacy bridge: a pre-2.34 run polished a copy — that copy is the ship now.
+        archive = rebuild / "archive"
+        archive.mkdir(parents=True, exist_ok=True)
+        html = stamp_ship(polish.read_text(encoding="utf-8", errors="replace"))
+        ship.write_text(html, encoding="utf-8")
+        polish.unlink()
+        for name in ARCHIVE_NAMES:
+            moved = _archive_file(rebuild / name, archive)
+            if moved:
+                archived.append(moved)
+        _ensure_vercelignore(rebuild)
+        _write_note(archive)
+    else:
+        if not ship.is_file():
+            raise FileNotFoundError(
+                "need rebuild/index.html — 2.2 authors it, 3.x polishes it in place"
+            )
+        html = ship.read_text(encoding="utf-8", errors="replace")
+        stamped = stamp_ship(html)
+        if stamped == html and ship_is_final(root):
+            return {"ok": True, "already": True, "ship": "rebuild/index.html", "archived": []}
+        ship.write_text(stamped, encoding="utf-8")
     _drop_overlay_assets(rebuild)
-    _ensure_vercelignore(rebuild)
-    _write_note(archive)
     receipt = {
         "ok": True,
         "already": False,
-        "writer": "promote_ship.py",
+        "writer": "finalize_ship.py",
         "at": _now(),
         "ship": "rebuild/index.html",
         "outlines": "removed",
         "overlay": "removed",
         "archived": archived,
-        "archive": "rebuild/archive",
+        "archive": "rebuild/archive" if archived else None,
     }
     receipt_path = root / RECEIPT
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
@@ -217,15 +221,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("root", type=Path)
     args = ap.parse_args(argv)
     try:
-        receipt = promote(args.root)
+        receipt = finalize(args.root)
     except FileNotFoundError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
-    if receipt.get("already"):
-        print("ship promote → already rebuild/index.html")
+    if receipt.get("adopted"):
+        print("ship stays source-html/index.html — no rebuild/")
+        return 0
+    if receipt.get("archived"):
+        print(f"ship finalize → rebuild/index.html  overlay removed  archived {', '.join(receipt['archived'])} (legacy)")
     else:
-        archived = ", ".join(receipt.get("archived") or []) or "none"
-        print(f"ship promote → rebuild/index.html  overlay removed  archived {archived}")
+        print("ship finalize → rebuild/index.html  overlay removed")
     return 0
 
 

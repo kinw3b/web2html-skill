@@ -13,14 +13,14 @@ class Author21GateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             errors = " ".join(gate.gate_errors(root))
-            self.assertIn("rebuild/index-semantic.html", errors)
+            self.assertIn("rebuild/index.html", errors)
             self.assertFalse(gate.ready(root))
 
     def test_dump_and_skip_link_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            (root / "rebuild" / "index-semantic.html").write_text(
+            (root / "rebuild" / "index.html").write_text(
                 '<html><body data-export="get_jsx-inline-styles">'
                 '<a id="skip-to-content">Skip</a><p><div>Soup</div></p></body></html>'
             )
@@ -40,7 +40,7 @@ class Author21GateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            (root / "rebuild" / "index-raw.html").unlink()
+            (root / "qa" / "index-raw.html").unlink()
             errors = " ".join(gate.gate_errors(root))
             self.assertIn("index-raw.html", errors)
 
@@ -48,7 +48,7 @@ class Author21GateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            (root / "rebuild" / "index-raw.html").write_text(
+            (root / "qa" / "index-raw.html").write_text(
                 '{"jsx": "<div />"}',
                 encoding="utf-8",
             )
@@ -60,7 +60,7 @@ class Author21GateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            (root / "rebuild" / "index-raw.html").write_text(
+            (root / "qa" / "index-raw.html").write_text(
                 '<html data-export="get_jsx-inline-styles">'
                 '<link rel="stylesheet" href="css/tokens.css">'
                 '<div style="background-image:url(x.png)" /></html>\n',
@@ -73,7 +73,7 @@ class Author21GateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            ship = root / "rebuild" / "index-semantic.html"
+            ship = root / "rebuild" / "index.html"
             ship.write_text(
                 ship.read_text(encoding="utf-8").replace(
                     "<p>Brand</p>",
@@ -87,7 +87,7 @@ class Author21GateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            (root / "rebuild" / "index-semantic.html").write_text(
+            (root / "rebuild" / "index.html").write_text(
                 "<!doctype html><html><body>"
                 '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=x">'
                 '<a href="https://calendly.com/book">Book</a>'

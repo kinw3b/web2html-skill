@@ -224,7 +224,6 @@ class WaveTests(unittest.TestCase):
 
     def test_serial_rung_prints_specs_and_apply_promotes_companion_reports(self):
         wave._probe = lambda root: SERIAL_PROBE
-        (self.root / "rebuild" / "index-polish.html").write_text("<main></main>")
         doc = wave.prepare(self.root, "r1", "3.2")
         self.assertEqual([t["id"] for t in doc["tasks"]], ["web-design-guidelines", "find-animation-opportunities", "apple-design"])
         doc = wave.start(self.root, "r1", "3.2", "auto", fake_orca({}))
@@ -243,6 +242,7 @@ class WaveTests(unittest.TestCase):
         self.assertIn("apple-design", (self.root / "qa" / "apple-design.md").read_text())
 
     def test_prepare_refuses_without_the_step_inputs(self):
+        (self.root / "rebuild" / "index.html").unlink()
         with self.assertRaises(FileNotFoundError):
             wave.prepare(self.root, "r1", "3.2")
         with self.assertRaises(FileNotFoundError):

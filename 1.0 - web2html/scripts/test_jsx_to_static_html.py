@@ -65,7 +65,7 @@ class DumpIndexRawTest(unittest.TestCase):
             src = root / "qa" / "index-raw.jsx.json"
             src.write_text(json.dumps({"jsx": JSX}), encoding="utf-8")
             receipt = dump.dump_index_raw(root, src)
-            html = (root / "rebuild" / "index-raw.html").read_text(encoding="utf-8")
+            html = (root / "qa" / "index-raw.html").read_text(encoding="utf-8")
             self.assertTrue(receipt["ok"])
             self.assertIn("css/tokens.css", html)
             self.assertIn("css/fonts.css", html)

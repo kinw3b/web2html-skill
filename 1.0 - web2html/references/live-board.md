@@ -223,11 +223,11 @@ the second label → choice 3.
 Last action is a blocking **Continue to 3.0 polish (3.1–3.4)**. The resume
 token is still the word `Continue` in every harness. Do not mark the step
 done until Continue (or a clear equivalent). Polish has not run. Do not
-create `index-polish.html` here — 3.1 copies the lock when it goes active.
+start polish here — 3.1 edits `rebuild/index.html` in place when it goes active.
 
 The live board after 2.4 done must read **NEXT 3.1** (Session 3 polish —
-not started), never a vague Ready, and must not show a polish file that
-has not been worked.
+not started), never a vague Ready, and must not claim polish work that
+has not run.
 
 ### 3.4 — URL run: two-option. Folder run: do not ask
 
@@ -236,10 +236,10 @@ has not been worked.
 `qa/phase-4-opted.json`. Continue at 4.1 in this session. The next human stop
 is 4.4. `qa/phase-4-skipped.json` fails. Pitfall #225.
 
-**URL run**, after the polish compare, fire **one** question:
+**URL run**, after the polish review, fire **one** question:
 
-1. `Done — finish homepage run` → write `qa/phase-4-skipped.json`, `mark --step 3.4 --status done --requested` (promotes polish to `index.html`, archives the other homepage HTML, tidy).
-2. `Continue to optional Phase 4` → write `qa/phase-4-opted.json`, `mark --step 3.4 --status done --requested` (same promote, no tidy), then `mark --step 4.1 --status active`.
+1. `Done — finish homepage run` → write `qa/phase-4-skipped.json`, `mark --step 3.4 --status done --requested` (`finalize_ship.py` strips the QA overlay from `rebuild/index.html` in place, tidy).
+2. `Continue to optional Phase 4` → write `qa/phase-4-opted.json`, `mark --step 3.4 --status done --requested` (same finalize, no tidy), then `mark --step 4.1 --status active`.
 
 `--requested` is only because the human just asked. Red polish / semantics /
 fidelity / type warns and does not stop. Do not remediate those checks. Do not

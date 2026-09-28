@@ -3,8 +3,8 @@
 //
 // A fast run skips 1.3 (no Design Library, no FRAME Buttons pull), so there is no
 // qa/buttons-components-pull.json to feed author-button-hover.mjs. This script
-// takes the CTA list from the authored page instead (rebuild/index-polish.html,
-// falling back to rebuild/index.html), matches each control by label onto the
+// takes the CTA list from the authored page instead (rebuild/index.html —
+// the one ship file since 2.34.0), matches each control by label onto the
 // source markup, and mines the same source CSS :hover paint with the same
 // parser 1.3 uses (source-button-hover.mjs). The receipt has the exact shape
 // apply-hover-css.py already reads. Nothing is written to Paper.
@@ -81,7 +81,7 @@ export async function authorHoverLight({
   fetchImpl = globalThis.fetch,
 } = {}) {
   const root = resolve(projectRoot);
-  const shipPath = ["index-polish.html", "index.html"]
+  const shipPath = ["index.html", "index-polish.html"] // 2.34.0: the ship first; polish only as a pre-2.34 fallback
     .map((name) => join(root, "rebuild", name))
     .find((path) => readText(path));
   const shipHtml = shipPath ? readText(shipPath) : "";

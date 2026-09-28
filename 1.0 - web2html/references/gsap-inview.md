@@ -7,9 +7,9 @@ as each **parent group**'s top crosses **25% of the viewport from the bottom**
 (`expo.out`, ~950ms, 28px, `start: "top 75%"`). Heads stagger their
 children; grids stagger sibling articles/divs/lis. Not a heading-leaf dump.
 **Never skip because 1.4 did not record in-view motion.** That archive
-rule is retired (Pitfall #204). Write polish only
-(`rebuild/index-polish.html`). Do not mutate the 2.4 `index.html` lock
-(Pitfall #203). Do not hide first paint with CSS or `class="reveal"`
+rule is retired (Pitfall #204). Polish in place
+(`rebuild/index.html`). Do not undo the paint the 2.4
+`qa/fidelity-freeze-24.json` lock guards (Pitfall #203). Do not hide first paint with CSS or `class="reveal"`
 (Pitfall #1 / #196).
 
 Pointed at from `4.4 emil-design-eng` and `4.5 find-animation-opportunities`.
@@ -23,13 +23,13 @@ the 25%-from-bottom line so the cascade is readable.
 
 ## Commands (Emil / tracker 3.2 — the pipeline runs these)
 
-`mark --step 3.2 --status active` injects GSAP on `index-polish.html` and
+`mark --step 3.2 --status active` injects GSAP on `rebuild/index.html` and
 writes `qa/gsap-reveal-qa.json`. `open-human-review.py` refreshes that inject
 before the 3.4 compare. Do not run the inject by hand at the checkpoint
 (Pitfall #236). The commands, if you need to re-apply:
 
 ```sh
-python3 "$SKILLS/website-to-html/scripts/inject-gsap-reveal.py" rebuild/index-polish.html
+python3 "$SKILLS/website-to-html/scripts/inject-gsap-reveal.py" rebuild/index.html
 python3 "$SKILLS/website-to-html/scripts/verify-gsap-reveal.py" .
 ```
 
@@ -49,8 +49,8 @@ Official minified GSAP 3.15.0 lives in the skill:
 
 Inject copies them to `rebuild/js/vendor/` and writes
 `rebuild/js/gsap-reveal.js` from `templates/gsap-reveal.js`. Script tags
-go on `rebuild/index-polish.html` (and other rebuild html except the 2.4
-`index.html` lock and skip-list pages) after existing JS.
+go on `rebuild/index.html` (and other rebuild html except
+skip-list pages) after existing JS.
 
 Never CDN at runtime. Never `paper-asset://`.
 

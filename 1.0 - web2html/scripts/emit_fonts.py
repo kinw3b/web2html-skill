@@ -2,7 +2,7 @@
 """2.1 — self-host Latin fonts into rebuild/fonts + css/fonts.css.
 
 tokens.css only names families (`--font-sans-figtree: Figtree`). file://
-cannot load Google Fonts, so index-raw / design-system stay on system-ui
+cannot load Google Fonts, so the raw dump / design-system stay on system-ui
 until @font-face points at local woff2 (Pitfall #164 #59).
 
   python3 emit_fonts.py /path/to/project

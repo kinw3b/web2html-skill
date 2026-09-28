@@ -14,12 +14,12 @@ pc-id census:
 | 768 | `capture/home-768` + Paper `home-768` | Tablet |
 | 390 | `capture/home-390` + Paper `home-390` | Phone |
 
-**2.2** writes `rebuild/index-semantic.html` that is already responsive.
-2.3 seeds `rebuild/index.html` from that file.
+**2.2** writes `rebuild/index.html` that is already responsive.
+2.3 patches that file in place.
 Do not freeze 1600 and “teach reflow later.” Do not invent a 1024 / 1320.
 
 **2.3** self-validates **each homepage section** against the 1.2
-source-section clips at those three widths plus `index-raw.html` (measure
+source-section clips at those three widths plus `qa/index-raw.html` (measure
 serial; VALIDATE LOOK is `wave.py`; no Paper MCP; pixel-perfect is a
 one-pass assist). Section list from `rebuild/index.html`, not
 `layer-ids.json`. Fail is revert-that-section, then `--shoot-open` +

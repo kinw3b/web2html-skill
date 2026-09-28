@@ -96,22 +96,21 @@ class FidelityFreezeTest(unittest.TestCase):
             )
             self.assertEqual(fidelity_freeze.verify(root), [])
 
-    def test_mutating_index_after_snapshot_fails(self) -> None:
+    def test_in_place_byte_edit_after_snapshot_is_ok(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = self._root(tmp)
             fidelity_freeze.snapshot(root)
             html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             (root / "rebuild" / "index.html").write_text(
-                html + "<!-- 3.x wrote the lock -->", encoding="utf-8"
+                html + "<!-- 3.x polished in place -->", encoding="utf-8"
             )
-            errors = fidelity_freeze.verify(root)
-            self.assertTrue(any("index.html changed" in e for e in errors))
+            self.assertEqual(fidelity_freeze.verify(root), [])
 
-    def test_polish_file_class_drop_fails(self) -> None:
+    def test_in_place_class_drop_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = self._root(tmp)
             fidelity_freeze.snapshot(root)
-            (root / "rebuild" / "index-polish.html").write_text(
+            (root / "rebuild" / "index.html").write_text(
                 SHIP.replace("btn-primary", "hero-cta"), encoding="utf-8"
             )
             errors = fidelity_freeze.verify(root)

@@ -4,7 +4,7 @@
   python3 apply-hover-css.py .
 
 Reads qa/button-hover.json (1.3). Writes rebuild/css/hover.css, links it from
-rebuild/index-polish.html, and records qa/button-hover-css.json.
+rebuild/index.html, in place, and records qa/button-hover-css.json.
 
 Does not invent hover. Bare a:hover / button:hover is not a CTA recipe.
 Does not mutate rebuild/index.html.
@@ -191,9 +191,9 @@ def hover_receipt_ok(payload: dict) -> bool:
 
 def apply_hover_css(root: Path) -> dict:
     root = root.resolve()
-    polish = root / "rebuild" / "index-polish.html"
+    polish = root / "rebuild" / "index.html"
     if not polish.is_file():
-        raise FileNotFoundError("need rebuild/index-polish.html — 3.1 seeds it")
+        raise FileNotFoundError("need rebuild/index.html — 2.2 authors it; 3.x polishes it in place")
 
     source = read_json(root / "qa" / "button-hover.json", {})
     recipes = source.get("applied") if isinstance(source.get("applied"), list) else []
@@ -238,7 +238,7 @@ def apply_hover_css(root: Path) -> dict:
                 continue
             match = find_control(html_out, label)
             if match is None:
-                skipped.append({"label": label, "reason": "no matching control on index-polish.html"})
+                skipped.append({"label": label, "reason": "no matching control on rebuild/index.html"})
                 continue
             class_name = library_class_of(match.group(2), str(row.get("className") or "btn-primary"))
             html_out = add_class(html_out, match, class_name)
@@ -271,8 +271,8 @@ def apply_hover_css(root: Path) -> dict:
         files.append("rebuild/css/hover.css")
         if html_out != html or "css/hover.css" not in html:
             polish.write_text(html_out, encoding="utf-8")
-            if "rebuild/index-polish.html" not in files:
-                files.append("rebuild/index-polish.html")
+            if "rebuild/index.html" not in files:
+                files.append("rebuild/index.html")
     elif not css_path.is_file():
         css_path.write_text(
             "/* 3.2 — no source CSS button hover to apply */\n",

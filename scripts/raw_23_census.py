@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""2.3 — census rebuild/index-raw.html vs authored index.html.
+"""2.3 — census qa/index-raw.html vs authored rebuild/index.html.
 
 Paper get_jsx paints icons as empty divs with background-image: url(….svg)
 and a few inline <svg> chevrons. 2.2 often drops those. Run this before
@@ -23,7 +23,7 @@ from urllib.parse import unquote, urlparse
 
 GENERATED_FROM = "web2html/section-23-raw-census"
 SHIP = Path("rebuild/index.html")
-RAW = Path("rebuild/index-raw.html")
+RAW = Path("qa/index-raw.html")
 OUT = Path("qa/paper-measure/raw-census.json")
 SVG_BLOCK_RE = re.compile(r"<svg\b[^>]*>.*?</svg>", re.I | re.S)
 IMG_SRC_RE = re.compile(r"<img\b[^>]*\bsrc\s*=\s*[\"']([^\"']+)[\"']", re.I)
@@ -179,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     root = args.root.resolve()
     if not (root / RAW).is_file():
-        print("FAIL: missing rebuild/index-raw.html", file=sys.stderr)
+        print("FAIL: missing qa/index-raw.html", file=sys.stderr)
         return 2
     if not (root / SHIP).is_file():
         print("FAIL: missing rebuild/index.html", file=sys.stderr)

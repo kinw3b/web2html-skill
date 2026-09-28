@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Copy vendored GSAP + inject sequential in-view reveals (Emil / 3.2).
 
-  python3 inject-gsap-reveal.py rebuild/index-polish.html
+  python3 inject-gsap-reveal.py rebuild/index.html
   python3 inject-gsap-reveal.py rebuild/
 
 Mandatory on every run. Do not skip because 1.4 did not record motion
-(Pitfall #204). Writes polish only — skips rebuild/index.html when
-index-polish.html is in the set (Pitfall #203).
+(Pitfall #204). Since 2.34.0 the polish IS rebuild/index.html (in place) — it is
+the inject target on every run; legacy index-polish /
+index-semantic / index-raw siblings are never touched.
 
 Idempotent. Marks parent groups with data-reveal (Pitfall #1): section/article
 hosts, section heads, mixed inners, and grids — not every heading leaf.
@@ -49,6 +50,7 @@ SKIP_HTML_NAMES = {
     "design-system.html",
     "index-raw.html",
     "index-semantic.html",
+    "index-polish.html",
 }
 
 SKIP_TAGS = {
@@ -325,7 +327,6 @@ def collect_html(paths: list[Path]) -> list[Path]:
                 for sib in sorted(path.parent.glob("*.html")):
                     if sib not in found:
                         found.append(sib)
-    polish_present = any(path.name == "index-polish.html" for path in found)
     out: list[Path] = []
     seen: set[Path] = set()
     for path in found:
@@ -333,8 +334,6 @@ def collect_html(paths: list[Path]) -> list[Path]:
         if resolved in seen:
             continue
         if path.name in SKIP_HTML_NAMES:
-            continue
-        if polish_present and path.name == "index.html":
             continue
         seen.add(resolved)
         out.append(path)

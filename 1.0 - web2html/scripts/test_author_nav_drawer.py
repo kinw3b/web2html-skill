@@ -65,7 +65,7 @@ def _project(tmp: str, html: str, css: str = "") -> Path:
     (root / "qa").mkdir()
     (root / "rebuild" / "css").mkdir(parents=True)
     (root / "rebuild" / "js").mkdir(parents=True)
-    (root / "rebuild" / "index-polish.html").write_text(html, encoding="utf-8")
+    (root / "rebuild" / "index.html").write_text(html, encoding="utf-8")
     if css:
         (root / "rebuild" / "css" / "site.css").write_text(css, encoding="utf-8")
     return root
@@ -84,7 +84,7 @@ class AuthorNavDrawerTest(unittest.TestCase):
             self.assertFalse(
                 any(mod.BANNED_SKIP.search(str(row.get("reason") or "")) for row in receipt["skipped"])
             )
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertIn('data-nav-toggle=""', html)
             self.assertIn('id="nav-panel"', html)
             self.assertIn("About", html)
@@ -106,7 +106,7 @@ class AuthorNavDrawerTest(unittest.TestCase):
             self.assertTrue(receipt["ok"])
             self.assertFalse(receipt["painted"])
             self.assertEqual(receipt["applied"], [])
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertNotIn("nav-panel", html)
             self.assertNotIn("js/nav-drawer.js", html)
 
@@ -116,7 +116,7 @@ class AuthorNavDrawerTest(unittest.TestCase):
             receipt = mod.author_nav_drawer(root)
             self.assertTrue(receipt["ok"])
             self.assertTrue(receipt["painted"])
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertEqual(html.count("id=\"nav-panel\""), 1)
             self.assertNotIn("js/nav-drawer.js", html)
             self.assertIn("css/nav-drawer.css", html)
@@ -129,7 +129,7 @@ class AuthorNavDrawerTest(unittest.TestCase):
             second = mod.author_nav_drawer(root)
             self.assertTrue(first["ok"])
             self.assertTrue(second["ok"])
-            html = (root / "rebuild" / "index-polish.html").read_text(encoding="utf-8")
+            html = (root / "rebuild" / "index.html").read_text(encoding="utf-8")
             self.assertEqual(html.count('id="nav-panel"'), 1)
             self.assertEqual(html.count("js/nav-drawer.js"), 1)
             payload = json.loads((root / "qa" / "nav-drawer.json").read_text(encoding="utf-8"))

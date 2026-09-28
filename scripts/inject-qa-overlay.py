@@ -22,7 +22,7 @@ HERE = Path(__file__).resolve().parent
 TEMPLATES = HERE.parent / "templates"
 CSS_NAME = "qa-overlay.css"
 JS_NAME = "qa-overlay.js"
-SKIP_HTML = {"polish-report.html", "index-raw.html", "index-semantic.html"}
+SKIP_HTML = {"polish-report.html", "design-system.html", "index-raw.html", "index-semantic.html", "index-polish.html"}
 # Runs in <head> before qa-overlay.css so a baked data-qa-outlines="tags"
 # cannot paint chips when the URL has no ?qa-outlines= (or sets off).
 # Keep in sync with urlMode() in templates/qa-overlay.js.

@@ -106,8 +106,7 @@ def now_pages(root: Path) -> list[dict]:
     if adopted:
         home = root / "source-html" / "index.html"
     else:
-        polish = root / "rebuild" / "index-polish.html"
-        home = polish if polish.is_file() else root / "rebuild" / "index.html"
+        home = root / "rebuild" / "index.html"
     if home.is_file():
         pages.append({
             "slug": "index",

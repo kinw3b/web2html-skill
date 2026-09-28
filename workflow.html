@@ -164,8 +164,8 @@ SESSION 5 · strong tier
   <tr><td>Scope</td><td><code>/</code> only. Extra routes stay out of 1.2.</td><td>Extra sitemap URLs. Homepage stays out of 4.1.</td></tr>
   <tr><td>Paper</td><td>New file. 1600 / 768 / 390 + Navigation at all three.</td><td>Same file. 4.2 is desktop pages only. 5.4 clips live 768 / 390 with no extra Paper frames.</td></tr>
   <tr><td>Tokens</td><td>Mine one Design Library.</td><td>Bind that library. No second library.</td></tr>
-  <tr><td>Ship</td><td><code>rebuild/index.html</code> after 3.4 (promoted polish). Earlier variants live in <code>rebuild/archive/</code>.</td><td><code>astro/</code> after 4.4 — chrome pulled once from the polish, one <code>.astro</code> body per page, built <code>dist/</code>. Does not replace <code>rebuild/</code>.</td></tr>
-  <tr><td>Hover / GSAP</td><td>3.2 on the polish homepage.</td><td>Interiors reuse the 3.4 chrome as shared Astro components. 5.5 is scrape-only SEO with structure frozen.</td></tr>
+  <tr><td>Ship</td><td><code>rebuild/index.html</code> — the one homepage file, from 2.2 on. Polished in place at 3.1–3.3; <code>mark 3.4 done</code> strips the QA overlay. The Paper dump lives at <code>qa/index-raw.html</code> as evidence, not a homepage.</td><td><code>astro/</code> after 4.4 — chrome pulled once from the polished ship, one <code>.astro</code> body per page, built <code>dist/</code>. Does not replace <code>rebuild/</code>.</td></tr>
+  <tr><td>Hover / GSAP</td><td>3.2 on <code>rebuild/index.html</code>, in place.</td><td>Interiors reuse the 3.4 chrome as shared Astro components. 5.5 is scrape-only SEO with structure frozen.</td></tr>
 </table>
 <p class="muted">3.4 can stop the run. 4.x is Paper-only. 5.x binds the site into Astro.</p>
 
@@ -294,11 +294,11 @@ python3 $SKILLS/web2html/scripts/design_system_21_gate.py .</code></pre>
 <p><strong>Artifacts.</strong> <code>rebuild/design-system.html</code>, <code>rebuild/css/tokens.css</code>, <code>rebuild/css/fonts.css</code>, <code>qa/design-system-21.json</code>.</p>
 <p><strong>Mark done.</strong> Foundations page links <code>tokens.css</code> and <code>fonts.css</code> and paints <code>var(--color-*)</code>. Tokens match <code>library.json</code>. Receipt from <code>emit-design-system.mjs</code>.</p>
 <p><strong>Font fidelity gate.</strong> 1.1 retains each face’s style. 2.1 emits distinct family/weight/style/content filenames and preserves actual weight ranges; a lone static face is not a variable font. <code>design_system_21_gate.py</code> and <code>verify-fonts.py</code> compare CSS descriptors and file hashes against the saved source. Missing exact files or unknown legacy hashed styles stop emission—never substitute another style. Keep intentional source italics; widespread slant with computed <code>font-style: normal</code> means check the font binary, not add a global CSS reset. The raw reference shares <code>fonts.css</code>, so validate rendered text against the 1.2 screenshots too.</p>
-<p><strong>Forbidden.</strong> Treating this page as the ship. Freehanding the gallery. Inventing <code>--color</code> / <code>--font</code> names. Hardcoding <code>#1A1A1A</code> chrome. Writing <code>rebuild/index.html</code> or <code>index-semantic.html</code> here.</p>
+<p><strong>Forbidden.</strong> Treating this page as the ship. Freehanding the gallery. Inventing <code>--color</code> / <code>--font</code> names. Hardcoding <code>#1A1A1A</code> chrome. Writing <code>rebuild/index.html</code> here.</p>
 
 <!-- ========== 2.2 ========== -->
 <h2 id="s22">2.2 · Author semantic responsive page</h2>
-<p><strong>Concept.</strong> Two files at this step. Write <code>rebuild/index-raw.html</code> from Paper <code>get_jsx</code> of <code>home-desktop</code> (reference dump, not the ship). Then load 4.8 <code>frontend-design</code> and author <code>rebuild/index-semantic.html</code> from Paper using 2.1 tokens. Aesthetic-risk OFF. No dump metadata on the first pass. No skip-link. No source or external <code>&lt;a href&gt;</code>. Do <strong>not</strong> write <code>index.html</code> here.</p>
+<p><strong>Concept.</strong> One homepage file at this step. Dump first: <code>qa/index-raw.html</code> from Paper <code>get_jsx</code> of <code>home-desktop</code> (evidence, not the homepage). Then load 4.8 <code>frontend-design</code> and author <code>rebuild/index.html</code> from Paper using 2.1 tokens — the one homepage file, from the start. Aesthetic-risk OFF. No dump metadata on the first pass. No skip-link. No source or external <code>&lt;a href&gt;</code>.</p>
 <p><strong>Depends on.</strong> 2.1 Design System page. Paper 1600 / 768 / 390.</p>
 <p><strong>Preflight.</strong></p>
 <pre><code>python3 $SKILLS/web2html/scripts/rebuild_write_gate.py . --allow index
@@ -306,25 +306,25 @@ node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID<
 <p><strong>What you do.</strong></p>
 <ol>
   <li>Comment gate until exit 0 if new threads opened.</li>
-  <li>Paper <code>get_jsx</code> of <code>home-desktop</code> → save JSON → <code>dump_index_raw.py</code> → <code>rebuild/index-raw.html</code>. Real HTML, <code>tokens.css</code> linked, no self-closing <code>&lt;div /&gt;</code>. Do not overlay this file.</li>
-  <li>Load 4.8 frontend-design. Write <code>rebuild/index-semantic.html</code> from Paper desktop (+ 768 / 390) using <code>var(--token)</code> from 2.1. Do not copy live-site URLs. Do not write <code>index.html</code>.</li>
+  <li>Paper <code>get_jsx</code> of <code>home-desktop</code> → save JSON → <code>dump_index_raw.py</code> → <code>qa/index-raw.html</code>. Real HTML, <code>tokens.css</code> linked, no self-closing <code>&lt;div /&gt;</code>. Do not overlay this file.</li>
+  <li>Load 4.8 frontend-design. Author <code>rebuild/index.html</code> — the one homepage file — from Paper desktop (+ 768 / 390) using <code>var(--token)</code> from 2.1. Do not copy live-site URLs.</li>
   <li>Receipt <code>qa/frontend-design-21.md</code>.</li>
 </ol>
 <pre><code>python3 $SKILLS/web2html/scripts/dump_index_raw.py . --from qa/index-raw.jsx.json
 python3 $SKILLS/web2html/scripts/author_21_gate.py .</code></pre>
-<p><strong>Artifacts.</strong> <code>rebuild/index-raw.html</code> (HTML get_jsx reference + tokens), <code>rebuild/index-semantic.html</code> (authored first pass), <code>qa/frontend-design-21.md</code>.</p>
-<p><strong>Mark done.</strong> Both files exist. Raw dump is HTML (not JSON). First pass links <code>tokens.css</code>. Not a get_jsx dump on <code>index-semantic.html</code>. Marking 2.2 done seeds <code>index.html</code>.</p>
-<p><strong>Forbidden.</strong> Writing the MCP JSON blob as <code>index-raw.html</code>. Self-closing <code>&lt;div /&gt;</code>. Shipping the dump as the first pass. Writing <code>index.html</code> at 2.2. Skipping <code>index-raw.html</code>. React / Tailwind CDN. Skip-link. Opening Chrome on this draft.</p>
+<p><strong>Artifacts.</strong> <code>qa/index-raw.html</code> (HTML get_jsx dump — evidence, not a homepage), <code>rebuild/index.html</code> (authored first pass), <code>qa/frontend-design-21.md</code>.</p>
+<p><strong>Mark done.</strong> Both files exist. Raw dump is HTML (not JSON). The homepage links <code>tokens.css</code>. <code>index.html</code> is an authored page, not a get_jsx dump — and it is never re-seeded later; 2.3 and 3.x patch it in place.</p>
+<p><strong>Forbidden.</strong> Writing the MCP JSON blob as <code>qa/index-raw.html</code>. Self-closing <code>&lt;div /&gt;</code>. Shipping the dump as the homepage. Skipping <code>qa/index-raw.html</code>. React / Tailwind CDN. Skip-link. Opening Chrome on this draft.</p>
 
 <!-- ========== 2.3 ========== -->
 <h2 id="s23">2.3 · Validate each section vs Paper</h2>
-<p><strong>Concept.</strong> <strong>Never skip.</strong> Compare each rebuild band to the <strong>1.2 source-section clips</strong> already on disk at <strong>1600 / 768 / 390</strong> and to <code>rebuild/index-raw.html</code>. Measure/APPLY is serial (controller writes <code>rebuild/</code>). VALIDATE LOOK <strong>MUST</strong> run <code>wave.py</code> after <code>--shoot-open</code> (Orca terminals when the probe says <code>waves orca</code>). <strong>No Paper MCP</strong> — do not spawn one <code>get_screenshot</code> worker per section (Pitfall #202). Pixel-perfect is a one-pass assist — not a refine loop. Recipe <code>references/section-23-paper-loop.md</code>.</p>
-<p><strong>Depends on.</strong> 2.2 <code>index-semantic.html</code>, <code>rebuild/index-raw.html</code>, and <code>capture/home-{desktop,768,390}/source-sections/</code>.</p>
+<p><strong>Concept.</strong> <strong>Never skip.</strong> Compare each rebuild band to the <strong>1.2 source-section clips</strong> already on disk at <strong>1600 / 768 / 390</strong> and to <code>qa/index-raw.html</code>. Measure/APPLY is serial (controller writes <code>rebuild/</code>). VALIDATE LOOK <strong>MUST</strong> run <code>wave.py</code> after <code>--shoot-open</code> (Orca terminals when the probe says <code>waves orca</code>). <strong>No Paper MCP</strong> — do not spawn one <code>get_screenshot</code> worker per section (Pitfall #202). Pixel-perfect is a one-pass assist — not a refine loop. Recipe <code>references/section-23-paper-loop.md</code>.</p>
+<p><strong>Depends on.</strong> 2.2 <code>rebuild/index.html</code>, <code>qa/index-raw.html</code>, and <code>capture/home-{desktop,768,390}/source-sections/</code>.</p>
 <p><strong>Loop.</strong></p>
 <ol>
-  <li>Seed the lock: <code>seed_index.py</code> copies <code>index-semantic.html</code> → <code>index.html</code> (never overwrite). Do not mutate the first pass.</li>
+  <li>Work the 2.2 file directly: <code>rebuild/index.html</code> is patched in place — no seed, no copy. Measure against <code>qa/index-raw.html</code>.</li>
   <li>List ship bands from <code>rebuild/index.html</code> (<code>&lt;section id&gt;</code> + footer).</li>
-  <li>Census dump vs ship: <code>raw_23_census.py .</code> — SVG/icon fills in <code>index-raw.html</code> the author dropped.</li>
+  <li>Census dump vs ship: <code>raw_23_census.py .</code> — SVG/icon fills in <code>qa/index-raw.html</code> the author dropped.</li>
   <li>Map clips: <code>paper_23_disk_gold.py .</code> — fail closed if a numbered 1.2 <code>NN-slug.png</code> is missing at any breakpoint.</li>
   <li>Shoot <code>file://</code> rebuild once at 1600 / 768 / 390 (<code>paper_23_rebuild_shots.py . --all</code>, includes footer).</li>
   <li>Pull the 1.2 clips: <code>paper_23_clip_compare.py .</code> copies <code>capture/home-{desktop,768,390}/source-sections/01-hero.png</code> (same number at every width) into <code>qa/paper-measure/compare/NN-slug-{width}-source.png</code> and writes a side-by-side vs the rebuild shot. <strong>Read those PNGs.</strong> Do not use 1.1 <code>source-site/screenshots/</code> here.</li>
@@ -334,8 +334,7 @@ python3 $SKILLS/web2html/scripts/author_21_gate.py .</code></pre>
   <li>No invented 1024 or max-width 1320 unless Paper has that artboard.</li>
   <li><strong>VALIDATE LOOK</strong> (2.23.0). <code>paper_23_validate.py . --shoot-open</code> re-shoots every open band, then <strong>MUST</strong> <code>wave.py prepare/start/wait/apply</code>. Adapter from the probe: <code>orca</code> opens Orca terminals of the same agent, <code>subagent</code> dispatches this harness's subagents, <code>serial</code> means the controller does each printed spec. Apply printed patches, then <code>--record</code> from the findings. Round 3 still off → <code>--residual</code>. Do not Read the sides yourself on the orca/subagent rungs (Pitfall #216 #221).</li>
 </ol>
-<pre><code>python3 $SKILLS/web2html/scripts/seed_index.py .
-python3 $SKILLS/web2html/scripts/raw_23_census.py .
+<pre><code>python3 $SKILLS/web2html/scripts/raw_23_census.py .
 python3 $SKILLS/web2html/scripts/paper_23_disk_gold.py .
 python3 $SKILLS/web2html/scripts/paper_23_rebuild_shots.py . --all
 python3 $SKILLS/web2html/scripts/paper_23_clip_compare.py .
@@ -349,26 +348,26 @@ python3 $SKILLS/web2html/scripts/wave.py apply   . --phase 2.3 --run-id r1
 python3 $SKILLS/web2html/scripts/paper_23_validate.py . --status
 python3 $SKILLS/web2html/scripts/section_22_gate.py .</code></pre>
 <p><strong>Artifact / mark done.</strong> <code>qa/paper-measure/raw-census.json</code>, <code>qa/paper-measure/disk-gold.json</code>, <code>qa/paper-measure/clip-compare.json</code>, pulled files under <code>qa/paper-measure/compare/NN-slug-*.png</code>, <code>qa/paper-measure/_index.json</code> (<code>measured: true</code>, <code>rawCompared: true</code>, <code>diskCompared: true</code>, <code>clipCompared: true</code> per section), <code>qa/paper-measure/&lt;id&gt;.validate.json</code> per band (last round <code>match</code> at every width or a capped residual, non-empty <code>seen</code>, ship unchanged since that round was shot) <strong>and</strong> <code>qa/section-align-22.json</code> (<code>ok: true</code> at 1600 / 768 / 390).</p>
-<p><strong>Forbidden.</strong> Skipping 2.3. Missing <code>index-raw.html</code>. Signing aligned without reading the dump (Pitfall #201). Inventing Lucide icons when index-raw has the glyph. Loading <code>/pixel-perfect</code> as the 2.3 driver or running its refine loop (Pitfall #195). Eyeball aligned without dump numbers (Pitfall #185). Spawning one Paper-bound worker per section (Pitfall #202). Workers writing <code>rebuild/</code>. Full-page <code>get_jsx</code> each pass. Skipping <code>wave.py</code> at VALIDATE LOOK, recording a round without a wave finding, a fourth round, a residual before round 2, or re-running waves on bands that only went stale — <code>--shoot-open</code> restamps them (Pitfall #216 #221 #232). Jumping to 2.4 while a section is open.</p>
+<p><strong>Forbidden.</strong> Skipping 2.3. Missing <code>qa/index-raw.html</code>. Signing aligned without reading the dump (Pitfall #201). Inventing Lucide icons when <code>qa/index-raw.html</code> has the glyph. Loading <code>/pixel-perfect</code> as the 2.3 driver or running its refine loop (Pitfall #195). Eyeball aligned without dump numbers (Pitfall #185). Spawning one Paper-bound worker per section (Pitfall #202). Workers writing <code>rebuild/</code>. Full-page <code>get_jsx</code> each pass. Skipping <code>wave.py</code> at VALIDATE LOOK, recording a round without a wave finding, a fourth round, a residual before round 2, or re-running waves on bands that only went stale — <code>--shoot-open</code> restamps them (Pitfall #216 #221 #232). Jumping to 2.4 while a section is open.</p>
 
 <!-- ========== 2.4 ========== -->
 <h2 id="s24">2.4 · Sign-off → 3.0 polish</h2>
 <p class="stop">HARD STOP · emits the SESSION 3 prompt. Polish has not started.</p>
-<p><strong>Concept.</strong> QA overlay pesticide outlines ON by default in TAGS mode. Overlay default is TAGS, not off and not a hidden query. Open Chrome on the authored ship. Human receipt. Continue starts Session 3 polish at 3.1. <code>index-polish.html</code> does not exist until then.</p>
+<p><strong>Concept.</strong> QA overlay pesticide outlines ON by default in TAGS mode. Overlay default is TAGS, not off and not a hidden query. Open Chrome on the authored ship. Human receipt. Continue starts Session 3 polish at 3.1 — polish edits <code>rebuild/index.html</code> itself, no second file.</p>
 <p><strong>Depends on.</strong> Green 2.3. Overlay files on disk.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/inject-qa-overlay.py .
 python3 $SKILLS/website-to-html/scripts/open-build-review.py . --stage 2.4
 node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID</code></pre>
 <p>Pass the <strong>project root</strong> or <code>rebuild/index.html</code>. Overlay CSS/JS always land in <code>rebuild/css</code> and <code>rebuild/js</code> — never a sibling <code>css/</code> / <code>js/</code> next to the project (Pitfall #197).</p>
 <p>Chrome opens <code>file://…/rebuild/index.html?qa-outlines=tags</code>. Overlay default is TAGS, not off and not a hidden query. Write <code>qa/build-checkpoint.md</code> only after approval. Last action: blocking <strong>Continue to 3.0 polish (3.1–3.4)</strong> (native choice/CTA tool if this harness has one; resume token is the word Continue). Controller still applies every open Paper thread, resolves only after both Paper and ship match.</p>
-<p><strong>Handoff.</strong> Marking 2.4 done releases the controller lease and prints the session 3 prompt, also written to <code>qa/handoff-3.0.md</code>. Copy it into a <strong>new operator-tier session</strong>; it starts with <code>resume . --at 3.1 --owner session-3</code>. It does not create <code>index-polish.html</code>.</p>
+<p><strong>Handoff.</strong> Marking 2.4 done releases the controller lease and prints the session 3 prompt, also written to <code>qa/handoff-3.0.md</code>. Copy it into a <strong>new operator-tier session</strong>; it starts with <code>resume . --at 3.1 --owner session-3</code>. It does not create a second HTML file — 3.x edits <code>rebuild/index.html</code> in place.</p>
 <p><strong>Mark done.</strong> Overlay present + <code>qa/build-checkpoint-opened.json</code> (stage <code>2.4</code>) + <code>qa/build-checkpoint.md</code>.</p>
 <p><strong>Forbidden.</strong> Opening 2.4 while 2.3 is red. Starting 3.x without the human receipt. Overlay default off. Continuing into 3.0 in the same session without emitting the prompt.</p>
 
 <!-- ========== 3.1 ========== -->
 <h2 id="s31">3.1 · QA pass 1 (a11y + contrast + anti-slop)</h2>
-<p><strong>Concept.</strong> First polish pass on a <strong>copy</strong> of the 2.4-approved ship. <code>rebuild/index.html</code> stays the lock. Write <code>rebuild/index-polish.html</code> only. 2.3 already signed layout, type, icons, and geometry. Do <strong>not</strong> restore Paper paint. Apply accessibility, contrast/readability on existing tokens, and anti-AI-slop only. Do not change font-size, Design Library class names, gap, radius, or section order.</p>
-<p><strong>Depends on.</strong> 2.4 approved. Read <code>references/polish-visual-restore.md</code> first. <code>qa/fidelity-freeze-24.json</code> is snapshotted at 2.4 done. <code>index-polish.html</code> is seeded when 3.1 goes active — that copy is not polished until 3.1–3.3 finish.</p>
+<p><strong>Concept.</strong> First polish pass on the 2.4-approved ship itself. <code>rebuild/index.html</code> is edited in place — no copy, no second file. 2.3 already signed layout, type, icons, and geometry. Do <strong>not</strong> restore Paper paint. Apply accessibility, contrast/readability on existing tokens, and anti-AI-slop only. Do not change font-size, Design Library class names, gap, radius, or section order.</p>
+<p><strong>Depends on.</strong> 2.4 approved. Read <code>references/polish-visual-restore.md</code> first. <code>qa/fidelity-freeze-24.json</code> is snapshotted at 2.4 done — the structural guard that replaces the old two-file compare. The ship is not polished until 3.1–3.3 finish.</p>
 <p><strong>Skills.</strong> <code>impeccable</code> (<code>audit</code> + <code>polish</code> only), then <code>design-taste-frontend</code>. No craft/bolder/typeset/layout. If the build does not match Paper, return to 2.3 — do not taste a drifted page into looking different.</p>
 <p><strong>Artifacts / mark done.</strong> <code>qa/polish-passes/c3-3.1-impeccable.json</code> and <code>qa/polish-passes/c3-3.2-design-taste-frontend.json</code>.</p>
 <p><strong>Forbidden.</strong> Font-size / <code>--text-*</code> edits. Replacing <code>btn-primary</code> (or any library name). Visual restore of icons/gaps. Invented skip-link / marketing meta. Pixel-perfect.</p>
@@ -382,32 +381,33 @@ node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID<
 python3 $SKILLS/website-to-html/scripts/author-nav-drawer.py .
 python3 $SKILLS/website-to-html/scripts/author-faq.py .
 python3 $SKILLS/website-to-html/scripts/author-nav-dropdown.py .
-python3 $SKILLS/website-to-html/scripts/inject-gsap-reveal.py rebuild/index-polish.html
+python3 $SKILLS/website-to-html/scripts/inject-gsap-reveal.py rebuild/index.html
 python3 $SKILLS/website-to-html/scripts/verify-gsap-reveal.py .</code></pre>
-<p>Reveals start when a parent group's top crosses 25% of the viewport from the bottom (<code>start: "top 75%"</code>), then stagger that group's first children + siblings 80ms (heads → text; grids → articles/divs). Hover CSS lands on existing <code>library.json</code> class names in <code>rebuild/css/hover.css</code> from <code>qa/button-hover.json</code>. If a hamburger is painted, <code>author-nav-drawer.py</code> stacks the same desktop links into <code>#nav-panel</code>. If FAQ rows are painted, <code>author-faq.py</code> wires the accordion and fills empty answers from the scrape. If a nav dropdown is painted or the scrape has a matching submenu, <code>author-nav-dropdown.py</code> wires hover/click. Do not invent UA-blue link hover. Do not skip the drawer, FAQ, or dropdowns for Capture Tool. Do not rename classes. Do not mutate <code>index.html</code>. 3.1 must not write <code>hover.css</code>.</p>
+<p>Reveals start when a parent group's top crosses 25% of the viewport from the bottom (<code>start: "top 75%"</code>), then stagger that group's first children + siblings 80ms (heads → text; grids → articles/divs). Hover CSS lands on existing <code>library.json</code> class names in <code>rebuild/css/hover.css</code> from <code>qa/button-hover.json</code>. If a hamburger is painted, <code>author-nav-drawer.py</code> stacks the same desktop links into <code>#nav-panel</code>. If FAQ rows are painted, <code>author-faq.py</code> wires the accordion and fills empty answers from the scrape. If a nav dropdown is painted or the scrape has a matching submenu, <code>author-nav-dropdown.py</code> wires hover/click. Do not invent UA-blue link hover. Do not skip the drawer, FAQ, or dropdowns for Capture Tool. Do not rename classes. Do not change signed 2.3 geometry — polish stays in place on <code>index.html</code>. 3.1 must not write <code>hover.css</code>.</p>
 <p><strong>Artifacts / mark done.</strong> <code>qa/polish-passes/c3-3.3-emil-design-eng.json</code>, <code>qa/button-hover-css.json</code>, <code>qa/nav-drawer.json</code>, <code>qa/faq.json</code>, <code>qa/nav-dropdown.json</code>, plus the three companion receipts <code>qa/web-design-guidelines.md</code>, <code>qa/find-animation-opportunities.md</code>, <code>qa/apple-design.md</code> (Pitfall #215).</p>
 <p><strong>Then:</strong></p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/verify-polish-passes.py .</code></pre>
-<p><code>mark --step 3.2 --status active</code> also injects GSAP on <code>index-polish.html</code> and writes <code>qa/gsap-reveal-qa.json</code>. Do not run <code>inject-gsap-reveal.py</code> by hand at 3.4 — the checkpoint refreshes that inject (Pitfall #236).</p>
+<p><code>mark --step 3.2 --status active</code> also injects GSAP on <code>rebuild/index.html</code> and writes <code>qa/gsap-reveal-qa.json</code>. Do not run <code>inject-gsap-reveal.py</code> by hand at 3.4 — the checkpoint refreshes that inject (Pitfall #236).</p>
 <p>That gate wants C/3.1–3.3 receipts, the three companion receipts, and <code>qa/polish-report.html</code> before 3.4.</p>
 
 <!-- ========== 3.3 ========== -->
 <h2 id="s33">3.3 · Semantics + SEO sweep</h2>
 <p><strong>Concept.</strong> Last automated pass before 3.4. Polish may have added a11y labels. Re-run SEO / a11y <strong>without retagging</strong> signed 2.3 markup. SEO head is scrape-only. No invented skip-link or marketing meta. Do not touch hover. Do not run type-align mutation or <code>apply-library-classes.py</code>.</p>
 <p><strong>Depends on.</strong> 3.2.</p>
-<pre><code>python3 $SKILLS/website-to-html/scripts/semantics_pass.py rebuild/index-polish.html -o rebuild/index-polish.html --freeze-structure
-python3 $SKILLS/website-to-html/scripts/verify-semantics.py rebuild/index-polish.html
+<pre><code>python3 $SKILLS/website-to-html/scripts/semantics_pass.py rebuild/index.html -o rebuild/index.html --freeze-structure
+python3 $SKILLS/website-to-html/scripts/verify-semantics.py rebuild/index.html
 python3 $SKILLS/website-to-html/scripts/fidelity_freeze.py verify .</code></pre>
 <p><strong>Mark done.</strong> <code>qa/semantics-pass-qa.json</code>.</p>
-<p><strong>Forbidden.</strong> Skipping this because 3.4 exists. Invented skip-link. Stopping 3.4 with only <code>index.html</code> and no <code>index-polish.html</code> or polish report. Writing the 2.4 lock. Replacing or re-running hover states already authored earlier in the run.</p>
+<p><strong>Forbidden.</strong> Skipping this because 3.4 exists. Invented skip-link. Stopping 3.4 with no <code>index.html</code> or no polish report. Retouching signed 2.3 structure. Replacing or re-running hover states already authored earlier in the run.</p>
 
 <!-- ========== 3.4 ========== -->
 <h2 id="s34">3.4 · Human checkpoint</h2>
 <p class="stop">HARD STOP. Homepage run can end here. Optional Phase 4 is next.</p>
-<p><strong>Concept.</strong> Human compares the 2.4 lock (<code>rebuild/index.html</code>) with the QA file (<code>rebuild/index-polish.html?qa-outlines=off</code>) next to the 3.1–3.3 polish report. <code>?qa-outlines=tags</code> turns outlines back on. Overlay chip <strong>Polish 3.1–3.3</strong> on the polish file. On a URL run, then choose: finish the homepage run, or continue to optional Phase 4. A Webflow or HTML folder run does not choose — it continues through 4.4. <strong>Marking 3.4 done</strong> promotes the polish file to <code>index.html</code>, moves <code>index-raw.html</code>, <code>index-semantic.html</code>, and the 2.4 lock into <code>rebuild/archive/</code>, and strips the QA overlay from that ship file (Pitfall #223 #234).</p>
-<p><strong>Depends on.</strong> Green 3.3 for an unsolicited close. Both HTML files present. No active reviewer leases. <code>verify-polish-passes.py</code> green unless the human asked this session to move on.</p>
+<p><strong>Concept.</strong> Single-page review: <code>rebuild/index.html</code> with outlines off (<code>?qa-outlines=tags</code> turns them back on), beside the 3.1–3.3 polish report — no two-file compare. Overlay chip <strong>Polish 3.1–3.3</strong> on the ship. Fidelity vs the 2.4 lock is guarded by the <code>qa/fidelity-freeze-24.json</code> structural snapshot. On a URL run, then choose: finish the homepage run, or continue to optional Phase 4. A Webflow or HTML folder run does not choose — it continues through 4.4. <strong>Marking 3.4 done</strong> runs <code>finalize_ship.py</code>, which strips the QA overlay from <code>rebuild/index.html</code> in place — the ship stays the one homepage file (Pitfall #223 #234).</p>
+<p><strong>Depends on.</strong> Green 3.3 for an unsolicited close. The ship and the polish report present. No active reviewer leases. <code>verify-polish-passes.py</code> green unless the human asked this session to move on.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/open-human-review.py .
 python3 $SKILLS/website-to-html/scripts/open-human-review.py . --requested   # human asked to move on
+python3 $SKILLS/website-to-html/scripts/finalize_ship.py .   # runs on mark 3.4 done — strips the QA overlay from rebuild/index.html in place
 python3 $SKILLS/website-to-html/scripts/pipeline-progress.py mark . --step 3.4 --status done --requested</code></pre>
 <p>On a URL run the last action is a two-option question: <strong>Done — finish homepage run</strong> writes <code>qa/phase-4-skipped.json</code> and tidies; <strong>Continue to optional Phase 4</strong> writes <code>qa/phase-4-opted.json</code> and does not tidy. Pass <code>--requested</code> on that mark because the human just asked. Red polish / semantics / fidelity / type warns and does not stop. Do not remediate those checks. Do not pass <code>--requested</code> from a subagent or from a mark the human did not ask for — those still refuse (Pitfall #235). On a Webflow / HTML folder run there is no question: <code>mark 3.4 done</code> writes the opt-in and the run continues through 4.4.</p>
 <p><strong>Forbidden.</strong> Marking 3.4 done without a Phase 4 receipt. Tidying mid-flow. Passing <code>--requested</code> to skip a predecessor, a missing ship file, or an intake skip.</p>
@@ -435,7 +435,7 @@ python3 $SKILLS/website-to-html/scripts/pipeline-progress.py mark . --step 3.4 -
 <p><strong>Forbidden.</strong> Marking 4.4 done without a Phase 5 receipt. Tidying when Phase 5 is opted in.</p>
 
 <h2 id="s51">5.1 · Scaffold Astro + shared chrome (optional)</h2>
-<p><strong>Concept.</strong> Astro first. Create <code>astro/</code> from the 3.4 rebuild CSS, fonts, images, and client scripts. Pull Header and Footer <strong>once</strong> from <code>rebuild/index-polish.html</code>, plus every Paper-backed button or comment-nominated block that can stay shared. Convert the polish homepage to <code>src/pages/index.astro</code> on that chrome. Every later page reuses it. No React. No Tailwind CDN. Do not start a server.</p>
+<p><strong>Concept.</strong> Astro first. Create <code>astro/</code> from the 3.4 rebuild CSS, fonts, images, and client scripts. Pull Header and Footer <strong>once</strong> from <code>rebuild/index.html</code>, plus every Paper-backed button or comment-nominated block that can stay shared. Convert the polished homepage to <code>src/pages/index.astro</code> on that chrome. Every later page reuses it. No React. No Tailwind CDN. Do not start a server.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/scaffold-astro.py .
 python3 $SKILLS/website-to-html/scripts/extract-astro-components.py .
 python3 $SKILLS/website-to-html/scripts/convert-astro-home.py .</code></pre>

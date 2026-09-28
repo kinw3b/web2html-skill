@@ -52,7 +52,7 @@ class Section22GateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            (root / "rebuild" / "index-raw.html").unlink()
+            (root / "qa" / "index-raw.html").unlink()
             errors = " ".join(gate.gate_errors(root))
             self.assertIn("index-raw.html", errors)
 
@@ -129,13 +129,13 @@ class Section22GateTest(unittest.TestCase):
             errors = " ".join(gate.gate_errors(root))
             self.assertIn("missing 2.3 wave", errors)
 
-    def test_missing_semantic_fails(self) -> None:
+    def test_variant_ship_html_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gate.install_passing_artifacts(root)
-            (root / "rebuild" / "index-semantic.html").unlink()
+            (root / "rebuild" / "index-semantic.html").write_text("<html></html>", encoding="utf-8")
             errors = " ".join(gate.gate_errors(root))
-            self.assertIn("index-semantic.html", errors)
+            self.assertIn("second homepage file", errors)
 
 
 if __name__ == "__main__":

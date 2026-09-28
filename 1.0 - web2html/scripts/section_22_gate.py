@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """HARD GATE — 2.3 walked each section against disk gold at 1600 / 768 / 390.
 
-Gold is the 1.2 source-section clips plus rebuild/index-raw.html — not a live
+Gold is the 1.2 source-section clips plus qa/index-raw.html — not a live
 Paper MCP fan-out. Do not invent a 1320 or 1024 breakpoint.
 
 2.21.0: every band also needs a VALIDATE receipt (qa/paper-measure/<id>.validate.json,
@@ -41,7 +41,7 @@ RECEIPT = Path("qa/section-align-22.json")
 NOTES = Path("qa/section-align-22.md")
 QA = Path("qa/section-22-qa.json")
 SHIP = Path("rebuild/index.html")
-RAW = Path("rebuild/index-raw.html")
+RAW = Path("qa/index-raw.html")
 MEASURE_INDEX = Path("qa/paper-measure/_index.json")
 MEASURE_FROM = "web2html/section-23-paper-loop"
 RAW_CENSUS = Path("qa/paper-measure/raw-census.json")
@@ -151,27 +151,21 @@ def gate_errors(root: Path) -> list[str]:
         pass
     errors: list[str] = []
     if not (root / SHIP).is_file():
-        semantic = root / "rebuild" / "index-semantic.html"
-        if semantic.is_file():
-            errors.append(
-                "missing rebuild/index.html — 2.3 seeds it from "
-                "index-semantic.html (seed_index.py). Do not author index.html at 2.2."
-            )
-        else:
-            errors.append(
-                "missing rebuild/index.html — finish 2.2 (index-semantic.html) "
-                "then seed_index.py before the 2.3 loop"
-            )
-    if not (root / "rebuild" / "index-semantic.html").is_file():
         errors.append(
-            "missing rebuild/index-semantic.html — 2.2 first pass must stay on disk. "
-            "Do not delete it after seeding index.html."
+            "missing rebuild/index.html — 2.2 authors it and 2.3 patches it "
+            "in place (single-file ship, 2.34.0)."
         )
     if raw_required(root) and not (root / RAW).is_file():
         errors.append(
-            "missing rebuild/index-raw.html — 2.3 compares the authored page "
+            "missing qa/index-raw.html — 2.3 compares the authored page "
             "to Paper and the 2.2 get_jsx dump. Do not skip 2.3."
         )
+    for stale in ("index-semantic.html", "index-polish.html", "index-raw.html"):
+        if (root / "rebuild" / stale).is_file():
+            errors.append(
+                f"rebuild/{stale} is a second homepage file — since 2.34.0 "
+                "rebuild/index.html is the only one (Pitfall #237)."
+            )
     widths = run_widths(root)
     width_keys = run_width_keys(root)
     label = widths_label(root)
@@ -239,7 +233,7 @@ def _measure_errors(root: Path, sections: list) -> list[str]:
     measure = _read_json(root / MEASURE_INDEX)
     if measure is None:
         errors.append(
-            f"missing {MEASURE_INDEX} — measure from index-raw + 1.2 source clips "
+            f"missing {MEASURE_INDEX} — measure from qa/index-raw.html + 1.2 source clips "
             "(references/section-23-paper-loop.md), then write the index"
         )
         return errors
@@ -274,13 +268,13 @@ def _measure_errors(root: Path, sections: list) -> list[str]:
         if not receipt or not (root / str(receipt)).is_file():
             errors.append(
                 f"{sid} missing measure receipt {receipt!r} — "
-                "write qa/paper-measure/<id>.json from index-raw + source clips"
+                "write qa/paper-measure/<id>.json from qa/index-raw.html + source clips"
             )
             continue
         payload = _read_json(root / str(receipt)) or {}
         if payload.get("rawCompared") is not True:
             errors.append(
-                f"{sid} did not census rebuild/index-raw.html — 2.3 ports "
+                f"{sid} did not census qa/index-raw.html — 2.3 ports "
                 "dump SVG/icon fills the author dropped (Pitfall #201)"
             )
         if payload.get("diskCompared") is not True:
@@ -614,9 +608,6 @@ def install_passing_artifacts(root: Path) -> None:
         )
     if not (root / SHIP).is_file():
         (root / SHIP).write_text("<html><body><main><section id=\"hero\"></section></main></body></html>\n")
-    semantic = root / "rebuild" / "index-semantic.html"
-    if not semantic.is_file():
-        semantic.write_text((root / SHIP).read_text(encoding="utf-8"), encoding="utf-8")
     if not (root / RAW).is_file():
         (root / RAW).write_text(
             '<html data-export="get_jsx-inline-styles"><body>'

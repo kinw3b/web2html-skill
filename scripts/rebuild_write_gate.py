@@ -5,13 +5,15 @@ Agents keep skipping capture / Paper / 1.4 and shipping a page. This module
 is what `start`, `mark`, and the 2.x preflight call so that file cannot stay
 in `rebuild/` before 2.1. 2.1 may write rebuild/design-system.html (token
 contract, not the ship). The first allowed authored write is 2.2
-rebuild/index-semantic.html. 2.3 seeds rebuild/index.html from that file.
-Pitfall #148.
+rebuild/index.html — the one homepage HTML, patched in place by 2.3 and
+polished in place by 3.x. Variant siblings (index-semantic / index-polish /
+a rebuild/index-raw dump) are unauthorized ship HTML (2.34.0 single-file
+ship). Pitfall #148.
 
   python3 rebuild_write_gate.py /path/to/project
   python3 rebuild_write_gate.py /path/to/project --allow design-system   # 2.1
   python3 rebuild_write_gate.py /path/to/project --allow index           # 2.2 Author
-  python3 rebuild_write_gate.py /path/to/project --allow polish          # 3.x QA
+  python3 rebuild_write_gate.py /path/to/project --allow polish          # 3.x QA (same file, in place)
   python3 rebuild_write_gate.py /path/to/project --allow pages           # 5.2 raw dumps only (pages live in astro/)
   python3 rebuild_write_gate.py /path/to/project --quarantine
 
@@ -33,9 +35,7 @@ QA = Path("qa/rebuild-write-gate.json")
 PROGRESS = Path("qa/pipeline-progress.json")
 REVIEW = Path("qa/paper-human-review.md")
 INDEX = Path("rebuild/index.html")
-INDEX_SEMANTIC = Path("rebuild/index-semantic.html")
 DESIGN_SYSTEM = Path("rebuild/design-system.html")
-INDEX_POLISH = Path("rebuild/index-polish.html")
 ALLOW_NONE = "none"
 ALLOW_DESIGN_SYSTEM = "design-system"
 ALLOW_INDEX = "index"
@@ -51,18 +51,22 @@ BEFORE_PAGES = (
 )
 SHIP_NAMES = (
     "index.html",
-    "index-semantic.html",
     "design-system.html",
-    "index-raw.html",
-    "index-polish.html",
     "polish-report.html",
+)
+# 2.34.0: variant siblings are never allowed in rebuild/ again. A resumed
+# pre-2.34 run must let finalize_ship.py archive them (Pitfall #223 #237).
+LEGACY_VARIANT_NAMES = (
+    "index-semantic.html",
+    "index-polish.html",
+    "index-raw.html",
 )
 HOMEPAGE_KEEP = frozenset(SHIP_NAMES)
 
 
 def interior_keep_names(root: Path) -> frozenset[str]:
     """rebuild/{slug}-raw.html from the Phase 4 page receipt. Interiors are .astro, never rebuild/{slug}.html."""
-    names = set(HOMEPAGE_KEEP)
+    names: set[str] = set(HOMEPAGE_KEEP)
     pages = _read_json(root / "qa/phase-4-pages.json") if root else None
     rows = []
     if isinstance(pages, dict):
@@ -82,24 +86,8 @@ def interior_keep_names(root: Path) -> frozenset[str]:
 KEEP_WITH_ALLOW = {
     ALLOW_NONE: frozenset(),
     ALLOW_DESIGN_SYSTEM: frozenset({"design-system.html"}),
-    ALLOW_INDEX: frozenset(
-        {
-            "index.html",
-            "index-semantic.html",
-            "design-system.html",
-            "index-raw.html",
-        }
-    ),
-    ALLOW_POLISH: frozenset(
-        {
-            "index.html",
-            "index-semantic.html",
-            "design-system.html",
-            "index-raw.html",
-            "index-polish.html",
-            "polish-report.html",
-        }
-    ),
+    ALLOW_INDEX: frozenset({"index.html", "design-system.html"}),
+    ALLOW_POLISH: frozenset({"index.html", "design-system.html", "polish-report.html"}),
     ALLOW_PAGES: HOMEPAGE_KEEP,
 }
 FREEHAND_MARKERS = (
@@ -157,7 +145,7 @@ def ship_markup_errors(html: str) -> list[str]:
     if RAW_PAPER_EXPORT_RE.search(html):
         errors.append(
             "raw Paper get_jsx export metadata remains in the authored page; "
-            "2.2 authors index-semantic.html, it does not ship a dump"
+            "2.2 authors rebuild/index.html, it does not ship a dump"
         )
     parser = _ParagraphNestingParser()
     try:
@@ -264,7 +252,7 @@ def gate_errors(root: Path, allow: str = ALLOW_NONE) -> list[str]:
             target = (
                 "rebuild/design-system.html"
                 if allow == ALLOW_DESIGN_SYSTEM
-                else "rebuild/index-semantic.html"
+                else "rebuild/index.html"
             )
             errors.append(
                 f"cannot write {target} until 1.1–1.4 are done "
@@ -275,9 +263,9 @@ def gate_errors(root: Path, allow: str = ALLOW_NONE) -> list[str]:
         missing = missing_required(steps, BEFORE_POLISH)
         if missing:
             errors.append(
-                "cannot write rebuild/index-polish.html until 2.4 is done "
-                f"({', '.join(missing)} still open). 3.x copies the 2.4 lock "
-                "(Pitfall #203)."
+                "cannot polish rebuild/index.html until 2.4 is done "
+                f"({', '.join(missing)} still open). 3.x edits the locked ship "
+                "in place (2.34.0 single-file ship)."
             )
     if allow == ALLOW_PAGES:
         missing = missing_required(steps, BEFORE_PAGES)
@@ -292,34 +280,30 @@ def gate_errors(root: Path, allow: str = ALLOW_NONE) -> list[str]:
     leaked = unauthorized_ship_pages(root, allow)
     if leaked:
         rel = ", ".join(path.relative_to(root).as_posix() for path in leaked)
-        errors.append(
-            f"unauthorized ship HTML ({rel}). Delete or --quarantine it. "
-            "Do not polish a freehand page (Pitfall #148)."
+        legacy = [p.name for p in leaked if p.name in LEGACY_VARIANT_NAMES]
+        hint = (
+            " Legacy pre-2.34 variants: run finalize_ship.py once to archive "
+            "them (Pitfall #237). "
+            if legacy
+            else " "
         )
-    if allow == ALLOW_INDEX:
-        for rel, label in (
-            (INDEX_SEMANTIC, "rebuild/index-semantic.html"),
-            (INDEX, "rebuild/index.html"),
-        ):
-            path = root / rel
-            if not path.is_file():
-                continue
+        errors.append(
+            f"unauthorized ship HTML ({rel}).{hint}Delete or --quarantine it. "
+            "Do not polish a freehand page (Pitfall #148). rebuild/ holds one "
+            "homepage HTML: index.html."
+        )
+    if allow in (ALLOW_INDEX, ALLOW_POLISH):
+        path = root / INDEX
+        if path.is_file():
             try:
                 html = path.read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
-                errors.append(f"cannot read {label}: {exc}")
+                errors.append(f"cannot read rebuild/index.html: {exc}")
             else:
                 errors.extend(freehand_reasons(html, root))
-    polish = root / INDEX_POLISH
-    if allow == ALLOW_POLISH and polish.is_file():
-        try:
-            html = polish.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:
-            errors.append(f"cannot read rebuild/index-polish.html: {exc}")
-        else:
-            errors.extend(freehand_reasons(html, root))
-    # index-raw.html is the Paper get_jsx reference. It may carry dump
-    # metadata. Never run ship_markup_errors on it.
+    # qa/index-raw.html is the Paper get_jsx reference (2.34.0: it lives in
+    # qa/, never in rebuild/). It may carry dump metadata. Never run
+    # ship_markup_errors on it.
     return errors
 
 

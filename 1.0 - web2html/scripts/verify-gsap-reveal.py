@@ -3,8 +3,8 @@
 
   python3 verify-gsap-reveal.py .
 
-FAIL (exit 2) unless rebuild/index-polish.html (or index.html if the
-polish file is not seeded yet) has:
+FAIL (exit 2) unless rebuild/index.html (the single ship file, polished
+in place since 2.34.0) has:
   - vendored js/vendor/gsap.min.js + ScrollTrigger.min.js
   - js/gsap-reveal.js
   - data-reveal count > 0
@@ -33,13 +33,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("root", type=Path)
     args = ap.parse_args(argv)
     root = args.root.resolve()
-    polish = root / "rebuild" / "index-polish.html"
-    index = polish if polish.is_file() else root / "rebuild" / "index.html"
-    ship_label = (
-        "rebuild/index-polish.html"
-        if polish.is_file()
-        else "rebuild/index.html"
-    )
+    polish = root / "rebuild" / "index.html"
+    index = polish
+    ship_label = "rebuild/index.html"
     errors = 0
     data_reveal = 0
     class_reveal = 0

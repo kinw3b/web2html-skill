@@ -20,11 +20,10 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 | `rebuild_write_gate.py` | 2.1+ | No ship HTML before 1.4. `--allow design-system` at 2.1; `--allow index` at 2.2+; `--allow polish` at 3.x; `--allow pages` at 5.x |
 | `design_system_21_gate.py` | 2.1 | Emitted `rebuild/design-system.html` + `tokens.css` from `library.json` |
 | `emit_fonts.py` | 2.1 | Latin `@font-face` → `rebuild/css/fonts.css` + `rebuild/fonts/*.woff2` |
-| `dump_index_raw.py` + `jsx_to_static_html.py` | 2.2 | Paper get_jsx JSON → file:// `index-raw.html` with tokens.css + fonts.css; expand `<div />` |
-| `author_21_gate.py` | 2.2 | Authored `rebuild/index-semantic.html`, not a get_jsx dump, no source/external hrefs. Raw dump is HTML not JSON |
-| `seed_index.py` | 2.2 / 2.3 | Copy `rebuild/index-semantic.html` → `rebuild/index.html` (never overwrite) |
+| `dump_index_raw.py` + `jsx_to_static_html.py` | 2.2 | Paper get_jsx JSON → file:// `qa/index-raw.html` with tokens.css + fonts.css (evidence, not a homepage); expand `<div />` |
+| `author_21_gate.py` | 2.2 | Authored `rebuild/index.html` (the one homepage file), not a get_jsx dump, no source/external hrefs. Raw dump (`qa/index-raw.html`) is HTML not JSON |
 | `section_22_gate.py` | 2.3 | Every homepage section at 1600 / 768 / 390 |
-| `raw_23_census.py` | 2.3 | index-raw SVG/icon fills vs authored `index.html` |
+| `raw_23_census.py` | 2.3 | `qa/index-raw.html` SVG/icon fills vs authored `rebuild/index.html` |
 | `paper_23_disk_gold.py` | 2.3 | Map ship bands → 1.2 `source-sections/NN-*.png` |
 | `paper_23_rebuild_shots.py` | 2.3 | `file://` rebuild PNGs at 1600 / 768 / 390 (includes footer) |
 | `paper_23_clip_compare.py` | 2.3 | Pull numbered 1.2 clips into `qa/paper-measure/compare/` + side-by-sides |
@@ -33,17 +32,16 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 | `open-build-review.py` | 2.4 | `--stage 2.4` TAGS on. `qa/build-checkpoint-opened.json` |
 | `verify-rebuild-trees.py` | 2.x | One `rebuild/`. Sibling `-semantic` / `-hover` fail |
 | `verify-fonts.py` | 2.2 | Latin `@font-face`, fallbacks. Not a 1.1 job |
-| `semantics_pass.py` + `verify-semantics.py` | 3.3 | Landmarks + scrape-only SEO on `index-polish.html` (`--freeze-structure`) |
+| `semantics_pass.py` + `verify-semantics.py` | 3.3 | Landmarks + scrape-only SEO on `rebuild/index.html` (`--freeze-structure`) |
 | `fidelity_freeze.py` | 2.4 / 3.x | Snapshot 2.4 `index.html` hash + type + library classes; verify polish did not restyle |
-| `seed_index_polish.py` | 3.1 | Copy `rebuild/index.html` → `rebuild/index-polish.html` when 3.x goes active (never overwrite; not at 2.4 done) |
-| `inject-gsap-reveal.py` / `verify-gsap-reveal.py` | 3.2 | Mandatory sequential GSAP in-view on `index-polish.html` (`top 75%`, parent groups → children). Never skip from 1.4 |
+| `inject-gsap-reveal.py` / `verify-gsap-reveal.py` | 3.2 | Mandatory sequential GSAP in-view on `rebuild/index.html` (`top 75%`, parent groups → children). Never skip from 1.4 |
 | `apply-hover-css.py` | 3.2 | Write + link `rebuild/css/hover.css` from 1.3 `qa/button-hover.json`. Receipt `qa/button-hover-css.json`. Never skip because Capture Tool did not run |
 | `author-nav-drawer.py` | 3.2 | If polish paints a hamburger, author `#nav-panel` from desktop links + wire `nav-drawer.css` / `nav-drawer.js`. Receipt `qa/nav-drawer.json`. Never skip because Capture Tool did not run |
 | `author-faq.py` | 3.2 | If polish paints FAQ rows, wire accordion + fill empty answers from scrape. Receipt `qa/faq.json`. Never skip empty Paper bodies |
 | `author-nav-dropdown.py` | 3.2 | If polish paints a dropdown or scrape has a matching submenu, wire hover/click panel. Receipt `qa/nav-dropdown.json`. Never skip for Capture Tool |
 | `record-polish-pass.py` / `render-polish-report.py` / `verify-polish-passes.py` | 3.1–3.4 | Polish receipts. Receipt names `c3-3.1-impeccable` / `c3-3.2-design-taste-frontend` / `c3-3.3-emil-design-eng` are **C/3 sub-pass ids** (impeccable → taste → emil), not board steps: impeccable + taste land during board **3.1**, emil during board **3.2**. The 3.2 companions (`web-design-guidelines` / `find-animation-opportunities` / `apple-design`) take no C/3 receipt; each writes `qa/<skill>.md`, rendered as its own card and required by `verify-polish-passes.py` (Pitfall #215) |
-| `open-human-review.py` | 3.4 | Opens 2.4 `index.html` + `index-polish.html?qa-outlines=off` + polish report. `?qa-outlines=tags` turns outlines on |
-| `promote_ship.py` | 3.4 done | Promotes `index-polish.html` → `index.html`, archives the other homepage HTML under `rebuild/archive/`, and strips the QA overlay from the ship (no boot script, no qa-overlay link or script, no outline attributes). Writes `rebuild/.vercelignore` (`archive`) |
+| `open-human-review.py` | 3.4 | Opens `rebuild/index.html?qa-outlines=off` (the ship, polished in place) + the polish report. `?qa-outlines=tags` turns outlines on |
+| `finalize_ship.py` | 3.4 done | Strips the QA overlay from `rebuild/index.html` in place (no boot script, no qa-overlay link or script, no outline attributes) and writes the `qa/ship-promote.json` receipt. Legacy bridge: a pre-2.34 run that still carries `index-polish.html` / `index-semantic.html` / `rebuild/index-raw.html` gets promoted + archived to `rebuild/archive/` with `rebuild/.vercelignore` (`archive`) |
 | `scrape-sitemap.py` | 4.1 | Extra same-origin URLs → `qa/phase-4-sitemap.json` |
 | `open-phase-4-review.py` | 4.4 | Writes `qa/phase-4-review.md` and opens Paper |
 | `scaffold-astro.py` | 5.1 | Writes `astro/` from the 3.4 rebuild + `qa/phase-5-scaffold.json` |

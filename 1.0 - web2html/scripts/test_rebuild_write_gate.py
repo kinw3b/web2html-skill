@@ -128,12 +128,12 @@ class RebuildWriteGateTest(unittest.TestCase):
             self.assertIn("raw Paper get_jsx export metadata", errors)
             self.assertIn("invalid HTML nesting", errors)
 
-    def test_semantic_dump_is_not_a_ship_page(self) -> None:
+    def test_dump_content_never_ships_on_index(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _done_through(root, "2.1")
             (root / "rebuild").mkdir()
-            (root / "rebuild" / "index-semantic.html").write_text(
+            (root / "rebuild" / "index.html").write_text(
                 '<html><body data-pc="pc-01-0">'
                 '<section data-export="get_jsx-inline-styles"><p><div>Soup</div></p></section>'
                 '</body></html>'
@@ -142,18 +142,23 @@ class RebuildWriteGateTest(unittest.TestCase):
             self.assertIn("raw Paper get_jsx export metadata", errors)
             self.assertIn("invalid HTML nesting", errors)
 
-    def test_index_raw_dump_is_allowed_with_index(self) -> None:
+    def test_dump_in_qa_is_not_ship_scanned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _done_through(root, "2.1")
             (root / "rebuild").mkdir()
+            (root / "qa").mkdir(exist_ok=True)
             (root / "rebuild" / "index.html").write_text(
                 "<html><body><main><section><h1>Home</h1></section></main></body></html>"
             )
-            (root / "rebuild" / "index-raw.html").write_text(
+            (root / "qa" / "index-raw.html").write_text(
                 '<html data-export="get_jsx-inline-styles"><body><div>dump</div></body></html>'
             )
             self.assertEqual(gate.gate_errors(root, allow=gate.ALLOW_INDEX), [])
+            # a dump inside rebuild/ is a leak
+            (root / "rebuild" / "index-raw.html").write_text("<html></html>")
+            errors = " ".join(gate.gate_errors(root, allow=gate.ALLOW_INDEX))
+            self.assertIn("unauthorized ship HTML (rebuild/index-raw.html)", errors)
 
     def test_polish_is_unauthorized_before_24(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -164,15 +169,12 @@ class RebuildWriteGateTest(unittest.TestCase):
             errors = " ".join(gate.gate_errors(root, allow=gate.ALLOW_POLISH))
             self.assertIn("2.4", errors)
 
-    def test_polish_ok_after_24(self) -> None:
+    def test_polish_in_place_ok_after_24(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _done_through(root, "2.4")
             (root / "rebuild").mkdir()
             (root / "rebuild" / "index.html").write_text("<html><body><main><section><h1>Home</h1></section></main></body></html>")
-            (root / "rebuild" / "index-polish.html").write_text(
-                "<html><body><main><section><h1>Home</h1></section></main></body></html>"
-            )
             (root / "rebuild" / "polish-report.html").write_text("<html></html>")
             self.assertEqual(gate.gate_errors(root, allow=gate.ALLOW_POLISH), [])
 
@@ -285,10 +287,8 @@ class PipelineBypassLockTest(unittest.TestCase):
             (root / "rebuild").mkdir()
             for name in (
                 "index.html",
-                "index-semantic.html",
                 "design-system.html",
-                "index-raw.html",
-                "index-polish.html",
+                "polish-report.html",
                 "about-raw.html",
             ):
                 (root / "rebuild" / name).write_text("<html></html>")
