@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rewriteFramerAssetReferences } from "../scripts/localize-html-images.mjs";
+import { rewriteFramerAssetReferences, originalImageUrl } from "../scripts/localize-html-images.mjs";
 
 test("rewrites data:framer/asset-reference to a local paper-asset", () => {
   const dir = mkdtempSync(join(tmpdir(), "framer-ref-"));
@@ -18,6 +18,13 @@ test("rewrites data:framer/asset-reference to a local paper-asset", () => {
   assert.equal(mapped.length, 1);
   assert.match(out, /paper-asset:\/\//);
   assert.doesNotMatch(out, /data:framer\/asset-reference/);
+});
+
+test("strips scale-down-to so the original URL is what gets fetched", () => {
+  assert.equal(
+    originalImageUrl("https://framerusercontent.com/images/hero.png?scale-down-to=512"),
+    "https://framerusercontent.com/images/hero.png",
+  );
 });
 
 test("leaves an unresolved asset-reference and records missing", () => {

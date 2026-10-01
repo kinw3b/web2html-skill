@@ -789,6 +789,15 @@ def apply_component_replacements(html: str, catalog: list[dict]) -> str:
     if not catalog or not html:
         return html
     updated = html
+    # Shared sections first (Pitfall #244): a whole band becomes one tag, so the
+    # buttons inside it ride along in the section component.
+    for row in catalog:
+        if row.get("kind") != "section":
+            continue
+        band = (row.get("html") or "").strip()
+        at = updated.find(band) if band else -1
+        if at >= 0:
+            updated = updated[:at] + _sentinel(str(row["name"]), None) + updated[at + len(band):]
     controls = list(_iter_controls(updated))
     comment_hits = []
     for start, raw_name in html_comment_names(updated):

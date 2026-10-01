@@ -45,6 +45,10 @@ Not the ship. No new palette, fonts, or copy. Folder
    desktop + 2.1 tokens. Aesthetic-risk OFF. No dump metadata on this file.
    This is the 2.2 first pass and the only homepage HTML. 2.3 patches this
    file in place. 2.4 freezes it (`qa/fidelity-freeze-24.json`).
+   **Photos are byte-copies of `source-site/assets/`.** Run
+   `bind_source_images.py .` before mark done. Do not download
+   `?scale-down-to=`, a srcset thumb, or `app.paper.design/file-assets`.
+   A rename is fine only when the bytes match. Pitfall #243.
 
 Paper 1600 / 768 / 390 + the 2.1 page are the visual brief. `file://`
 homepage only. No new palette, fonts, or copy. No skip-link. **No source

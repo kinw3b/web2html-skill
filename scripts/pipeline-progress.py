@@ -737,6 +737,13 @@ def _library_color_font_names(root: Path) -> set[str]:
     return {name.lower() for name in names}
 
 
+def source_images_ready(root: Path) -> bool:
+    """2.2 / 5.1 / 5.2: referenced rasters are byte-copies of source originals."""
+    from original_images import ready as images_ready
+
+    return images_ready(root)
+
+
 def authored_page_ready(root: Path) -> bool:
     """2.2 Author: first-pass page exists and is not a get_jsx soup dump."""
     from rebuild_write_gate import RAW_PAPER_EXPORT_RE, ship_markup_errors
@@ -1183,7 +1190,7 @@ def artifact_done(root: Path, step: str) -> bool:
             import source_fidelity
 
             return source_fidelity.phase_2_off(root)
-        return authored_page_ready(root) and design_system_bound(root)
+        return authored_page_ready(root) and design_system_bound(root) and source_images_ready(root)
     if step == "2.3":
         if run_config.adopt_mode(root):
             import source_fidelity
@@ -1277,9 +1284,10 @@ def artifact_done(root: Path, step: str) -> bool:
             _any_exists(root, "qa/phase-5-scaffold.json")
             and _any_exists(root, "qa/phase-5-components.json")
             and _any_exists(root, "qa/phase-5-home.json")
+            and source_images_ready(root)
         )
     if step == "5.2":
-        return _any_exists(root, "qa/phase-5-pages.json")
+        return _any_exists(root, "qa/phase-5-pages.json") and source_images_ready(root)
     if step == "5.3":
         return _any_exists(root, "qa/phase-5-clip-compare.json")
     if step == "5.4":
@@ -4005,7 +4013,9 @@ def cmd_mark(
                 else (
                     " 2.2 authors rebuild/index.html — the one homepage file — from Paper "
                     "using the 2.1 tokens. Link tokens.css. No new --color/--font names. "
-                    "2.3 patches that same file in place."
+                    "2.3 patches that same file in place. "
+                    "Photos are byte-copies of source-site/assets/ — run bind_source_images.py "
+                    "before mark done (Pitfall #243)."
                 )
             )
         if step == "2.3":
@@ -4040,10 +4050,11 @@ def cmd_mark(
             detail = (
                 " 5.1 writes qa/phase-5-scaffold.json (scaffold-astro.py), "
                 "qa/phase-5-components.json (extract-astro-components.py), and "
-                "qa/phase-5-home.json (convert-astro-home.py)."
+                "qa/phase-5-home.json (convert-astro-home.py). "
+                "bind_source_images.py must be green — ship rasters stay source originals (Pitfall #243)."
             )
         if step == "5.2":
-            detail = " 5.2 writes qa/phase-5-pages.json (record-phase-5-pages.py) after src/pages/{slug}.astro bodies are authored."
+            detail = " 5.2 writes qa/phase-5-pages.json (record-phase-5-pages.py) after src/pages/{slug}.astro bodies are authored. bind_source_images.py must still be green (Pitfall #243)."
         if step == "5.3":
             detail = " 5.3 writes qa/phase-5-clip-compare.json from desktop disk gold vs astro/dist shots."
         if step == "5.4":

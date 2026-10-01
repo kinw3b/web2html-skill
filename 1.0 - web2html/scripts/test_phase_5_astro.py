@@ -28,6 +28,31 @@ record_pages = _load("record_phase_5_pages", "record-phase-5-pages.py")
 wire_astro = _load("wire_astro", "wire-astro-routes.py")
 build_dist = _load("build_astro_dist", "build-astro-dist.py")
 open_review = _load("open_phase_5_review", "open-phase-5-review.py")
+shared_sections = _load("shared_sections", "shared_sections.py")
+
+CTA_COPY = (
+    "<h2>Ready to grow your business with us today</h2>"
+    "<p>Join thousands of teams who trust our platform to plan, track and ship their best work every week.</p>"
+    '<img src="images/cta-photo.jpg" alt="" />'
+)
+FAQ_COPY = (
+    "<h2>Frequently asked questions about our service</h2>"
+    "<p>How long does setup take for a new team account?</p><p>Most teams finish onboarding in under a day with our guided checklist.</p>"
+    "<p>Can I cancel my plan at any time without a fee?</p><p>Yes, every plan is month to month and you can cancel from settings.</p>"
+)
+TEAM_COPY = (
+    "<h2>Meet the people behind the studio</h2>"
+    "<p>Ana Ruiz founder and creative director with fifteen years in brand design.</p>"
+    "<p>Leo Park lead engineer who keeps every launch fast and accessible for everyone.</p>"
+)
+
+
+def _capture(root: Path, slug: str, sections: dict[str, str]) -> None:
+    cap = root / "capture" / f"{slug}-desktop"
+    cap.mkdir(parents=True, exist_ok=True)
+    (cap / "00-header.html").write_text("<header>nav</header>")
+    for idx, (name, body) in enumerate(sections.items(), start=1):
+        (cap / f"{idx:02d}-{name}.html").write_text(f"<header layer-name=\"{name}\">{body}</header>")
 
 HOME = """<!doctype html>
 <html lang="en">
@@ -85,6 +110,27 @@ ABOUT_LIVE = (
     '<meta property="og:image" content="https://example.com/og-about.png">'
     "</head><body></body></html>"
 )
+
+REUSE_HOME = HOME.replace(
+    "<!-- component: Card -->",
+    f'<section id="cta">{CTA_COPY}<a class="btn btn-primary" href="about.html">About</a></section>\n    <!-- component: Card -->',
+)
+
+
+def _page(slug: str, imports: list[str], body: str) -> str:
+    lines = "".join(f"import {name} from '../components/{name}.astro';\n" for name in imports)
+    return (
+        "---\n"
+        "import BaseLayout from '../layouts/BaseLayout.astro';\n"
+        "import Header from '../components/Header.astro';\n"
+        "import Footer from '../components/Footer.astro';\n"
+        f"{lines}"
+        f"const title = `{slug}`;\nconst description = ``;\nconst lang = `en`;\n"
+        "---\n"
+        "<BaseLayout title={title} description={description} lang={lang}>\n"
+        f"  <Header />\n  <main>\n    {body}\n  </main>\n  <Footer />\n"
+        "</BaseLayout>\n"
+    )
 
 
 class Phase5AstroTests(unittest.TestCase):
@@ -253,6 +299,7 @@ class Phase5AstroTests(unittest.TestCase):
 
             # 5.2 — a worker authored only the <main> body on the shared chrome
             self._author_about(root)
+            self.assertEqual(shared_sections.main([str(root)]), 0)  # re-plan after the dump
             self.assertEqual(record_pages.main([str(root)]), 0)
             pages = json.loads((root / "qa" / "phase-5-pages.json").read_text())
             self.assertTrue(pages["ok"])
@@ -337,6 +384,133 @@ class Phase5AstroTests(unittest.TestCase):
             receipt = json.loads((root / "qa" / "phase-5-pages.json").read_text())
             self.assertTrue(any("source/external hrefs" in err for err in receipt["errors"]))
 
+    def _reuse_project(self, tmp: str) -> Path:
+        """Home ships a CTA band; about + pricing + contact repeat it; FAQ/Team repeat only inside."""
+        root = self._project(tmp)
+        (root / "rebuild" / "index.html").write_text(REUSE_HOME)
+        (root / "qa" / "phase-4-pages.json").write_text(json.dumps({"pages": [
+            {"slug": "about"}, {"slug": "pricing"}, {"slug": "contact"},
+        ]}) + "\n")
+        _capture(root, "about", {"hero-section": "<h1>About our studio and story</h1><p>We started small in a garage.</p>",
+                                 "team-section": TEAM_COPY, "cta-section": CTA_COPY})
+        _capture(root, "pricing", {"faq-section": FAQ_COPY, "cta-section": CTA_COPY})
+        _capture(root, "contact", {"faq-section": FAQ_COPY, "team": TEAM_COPY,
+                                   "cta-section": CTA_COPY.replace("today", "now")})
+        for slug in ("about", "pricing", "contact"):
+            (root / "rebuild" / f"{slug}-raw.html").write_text("<html><body><div></div></body></html>")
+        return root
+
+    def test_shared_sections_plan_groups_by_copy_not_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._reuse_project(tmp)
+            plan = shared_sections.plan(root)
+            groups = {g["name"]: g for g in plan["groups"]}
+            self.assertEqual(set(groups), {"CtaSection", "FaqSection", "TeamSection"})
+            cta = groups["CtaSection"]
+            self.assertEqual(cta["origin"], "home")
+            self.assertFalse(cta["buildFirst"])
+            self.assertEqual(cta["pages"], ["index", "about", "contact", "pricing"])
+            self.assertEqual(cta["anchor"]["sectionId"], "cta")
+            matches = {m["page"]: m["match"] for m in cta["members"]}
+            self.assertEqual(matches["contact"], "variant")  # one word differs
+            for name in ("FaqSection", "TeamSection"):
+                self.assertEqual(groups[name]["origin"], "interior")
+                self.assertTrue(groups[name]["buildFirst"])
+            # "team" on contact joins TeamSection by copy, despite a different name
+            self.assertEqual(groups["TeamSection"]["interiorPages"], ["about", "contact"])
+            self.assertNotIn("HeroSection", groups)  # one-off band stays inline
+            self.assertEqual(plan["byPage"]["contact"], ["CtaSection", "FaqSection", "TeamSection"])
+
+    def test_raw_dump_footer_band_is_not_a_shared_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._project(tmp)
+            footer = "<p>" + " ".join(f"link{i} company legal" for i in range(12)) + "</p>"
+            home = HOME.replace("<footer>", f"<footer>{footer}")
+            (root / "rebuild" / "index.html").write_text(home)
+            (root / "qa" / "phase-4-pages.json").write_text(json.dumps({"pages": [{"slug": "a"}, {"slug": "b"}]}))
+            for slug in ("a", "b"):
+                (root / "rebuild" / f"{slug}-raw.html").write_text(
+                    f"<html><body><div><div><h1>{slug} unique page hero copy here today</h1></div><div>{footer}</div></div></body></html>"
+                )
+            self.assertEqual(shared_sections.plan(root)["groups"], [])
+
+    def test_shared_home_section_becomes_component_on_home(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._reuse_project(tmp)
+            self.assertEqual(scaffold_astro.main([str(root)]), 0)
+            self.assertEqual(extract_astro.main([str(root)]), 0)
+            receipt = json.loads((root / "qa" / "phase-5-components.json").read_text())
+            self.assertEqual(receipt["shared"]["fromHome"], ["CtaSection"])
+            self.assertEqual(sorted(receipt["shared"]["buildFirst"]), ["FaqSection", "TeamSection"])
+            cta = (root / "astro" / "src" / "components" / "CtaSection.astro").read_text()
+            self.assertIn("Ready to grow your business", cta)
+            self.assertIn("/about/", cta)  # hrefs rewritten like the rest of the chrome
+            self.assertFalse((root / "astro" / "src" / "components" / "FaqSection.astro").exists())
+            self.assertEqual(convert_home.main([str(root)]), 0)
+            home = (root / "astro" / "src" / "pages" / "index.astro").read_text()
+            self.assertIn("import CtaSection from '../components/CtaSection.astro';", home)
+            self.assertIn("<CtaSection />", home)
+            self.assertNotIn("Ready to grow your business", home)
+            self.assertIn("<Card", home)  # comment component next to it still converts
+
+    def test_record_enforces_shared_sections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._reuse_project(tmp)
+            self.assertEqual(scaffold_astro.main([str(root)]), 0)
+            self.assertEqual(extract_astro.main([str(root)]), 0)
+            pages = root / "astro" / "src" / "pages"
+            # Worker re-authors every shared band inline — the old behaviour.
+            for slug in ("about", "pricing", "contact"):
+                (pages / f"{slug}.astro").write_text(
+                    _page(slug, [], f'<section id="cta">{CTA_COPY}</section><section>{FAQ_COPY}</section>')
+                )
+            self.assertEqual(record_pages.main([str(root)]), 2)
+            errors = " ".join(json.loads((root / "qa" / "phase-5-pages.json").read_text())["errors"])
+            self.assertIn("build-first shared section FaqSection is missing", errors)
+            self.assertIn("about.astro re-authors shared section CtaSection", errors)
+            self.assertIn("contact.astro re-authors shared section TeamSection", errors)
+
+            # Controller builds the interior-only bands first; pages import everything.
+            comps = root / "astro" / "src" / "components"
+            (comps / "FaqSection.astro").write_text(f"<section>{FAQ_COPY}</section>\n")
+            (comps / "TeamSection.astro").write_text(f"<section>{TEAM_COPY}</section>\n")
+            (pages / "about.astro").write_text(_page("about", ["TeamSection", "CtaSection"],
+                                                     "<section><h1>About</h1></section><TeamSection /><CtaSection />"))
+            (pages / "pricing.astro").write_text(_page("pricing", ["FaqSection", "CtaSection"], "<FaqSection /><CtaSection />"))
+            # Imports the component AND pastes the copy — still a re-author.
+            (pages / "contact.astro").write_text(_page(
+                "contact", ["FaqSection", "TeamSection", "CtaSection"],
+                f"<FaqSection /><TeamSection /><CtaSection /><section>{FAQ_COPY}</section>",
+            ))
+            self.assertEqual(record_pages.main([str(root)]), 2)
+            errors = json.loads((root / "qa" / "phase-5-pages.json").read_text())["errors"]
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn("contact.astro renders <FaqSection /> AND pastes its copy inline", errors[0])
+            (pages / "contact.astro").write_text(_page(
+                "contact", ["FaqSection", "TeamSection", "CtaSection"], "<FaqSection /><TeamSection /><CtaSection />",
+            ))
+            self.assertEqual(record_pages.main([str(root)]), 0)
+            receipt = json.loads((root / "qa" / "phase-5-pages.json").read_text())
+            self.assertEqual(sorted(receipt["shared"]), ["CtaSection", "FaqSection", "TeamSection"])
+
+    def test_record_refuses_a_stale_reuse_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._project(tmp)
+            self.assertEqual(scaffold_astro.main([str(root)]), 0)
+            self.assertEqual(extract_astro.main([str(root)]), 0)  # plans before about has any source
+            self.assertEqual(json.loads((root / "qa" / "phase-5-reuse.json").read_text())["pending"], ["about"])
+            self._author_about(root)  # the dump lands after the plan
+            (root / "rebuild" / "about-raw.html").write_text(
+                f"<html><body><div><div>{CTA_COPY}</div></div></body></html>"
+            )
+            self.assertEqual(record_pages.main([str(root)]), 2)
+            errors = " ".join(json.loads((root / "qa" / "phase-5-pages.json").read_text())["errors"])
+            self.assertIn("predates the section source for about", errors)
+            (root / "qa" / "phase-5-reuse.json").unlink()
+            self.assertEqual(record_pages.main([str(root)]), 2)
+            errors = " ".join(json.loads((root / "qa" / "phase-5-pages.json").read_text())["errors"])
+            self.assertIn("missing qa/phase-5-reuse.json", errors)
+
     def test_ship_wiring_extracts_in_order(self):
         wiring = html_to_astro.ship_wiring(
             '<html><head>'
@@ -378,6 +552,28 @@ class Phase5AstroTests(unittest.TestCase):
             receipt = json.loads((root / "qa" / "phase-5-scaffold.json").read_text())
             self.assertTrue(receipt["ok"], receipt["errors"])
             self.assertEqual(receipt["wiring"]["inlineCss"], "site.css")
+
+    def test_scaffold_config_has_no_trailing_slash_and_seeds_live_collections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._project(tmp)
+            self.assertEqual(scaffold_astro.main([str(root)]), 0)
+            astro = root / "astro"
+            config = (astro / "astro.config.mjs").read_text()
+            self.assertNotIn("trailingSlash", config)
+            self.assertNotIn("build:", config)  # default directory format: dist/{slug}/index.html
+            pkg = json.loads((astro / "package.json").read_text())
+            self.assertRegex(pkg["dependencies"]["astro"], r"^\^7\.")
+            live = (astro / "src" / "live.config.ts").read_text()
+            self.assertIn("defineLiveCollection", live)
+            self.assertIn("CMS_API_URL", live)
+            self.assertIn("loadEntry", (astro / "src" / "loaders" / "cms.ts").read_text())
+            self.assertIn(".env", (astro / ".gitignore").read_text().split())
+            # a wired CMS loader survives a re-scaffold
+            (astro / "src" / "live.config.ts").write_text("// wired\n")
+            self.assertEqual(scaffold_astro.main([str(root)]), 0)
+            self.assertEqual((astro / "src" / "live.config.ts").read_text(), "// wired\n")
+            receipt = json.loads((root / "qa" / "phase-5-scaffold.json").read_text())
+            self.assertIn("src/live.config.ts", receipt["liveCollections"])
 
     def test_scaffold_fails_on_dangling_asset_reference(self):
         with tempfile.TemporaryDirectory() as tmp:

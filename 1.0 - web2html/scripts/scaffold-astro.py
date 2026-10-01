@@ -41,18 +41,95 @@ PACKAGE_JSON = """{
     "build": "astro build",
     "preview": "astro preview"
   },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
-    "astro": "^5.13.0"
+    "astro": "^7.3.5"
   }
 }
 """
 
+# No `trailingSlash`: Astro's default ('ignore') matches /about and /about/
+# alike, so hosts and a future CMS are never forced into one URL shape.
+# build.format stays the default 'directory' (about/index.html), which
+# astro_build.relativize_dist depends on for file:// previews.
 ASTRO_CONFIG = """import { defineConfig } from 'astro/config';
 
 export default defineConfig({
   output: 'static',
-  trailingSlash: 'always',
 });
+"""
+
+# Live content collections (src/live.config.ts) — the seam for a future CMS.
+# Static builds never call getLiveCollection(), so this costs nothing until a
+# page opts in with `export const prerender = false` + an adapter. Written
+# only when missing so a wired CMS loader survives a re-scaffold.
+LIVE_CONFIG = """// Live content collections: fetched at request time, no rebuild per edit.
+// Query from an on-demand page (`export const prerender = false`, adapter
+// installed) with getLiveCollection('pages') / getLiveEntry('pages', id).
+// Static pages keep their markup; nothing here runs during `astro build`.
+import { defineLiveCollection } from 'astro:content';
+import { cmsLoader } from './loaders/cms';
+
+const pages = defineLiveCollection({
+  loader: cmsLoader({ endpoint: import.meta.env.CMS_API_URL, resource: 'pages' }),
+});
+
+export const collections = { pages };
+"""
+
+CMS_LOADER = """import type { LiveLoader } from 'astro/loaders';
+
+// Generic REST live loader. Swap for the CMS's own loader package when one
+// is chosen; the collection API (getLiveCollection / getLiveEntry) stays.
+export interface CmsEntry {
+  id: string;
+  [key: string]: unknown;
+}
+
+type EntryFilter = { id: string };
+type CollectionFilter = Record<string, string>;
+
+export function cmsLoader(opts: { endpoint?: string; resource: string }): LiveLoader<CmsEntry, EntryFilter, CollectionFilter> {
+  const base = opts.endpoint?.replace(/\\/+$/, '');
+  const missing = () => new Error(`CMS_API_URL is not set; live collection "${opts.resource}" has no source`);
+  const url = (path: string, params?: CollectionFilter) => {
+    const u = new URL(`${base}/${opts.resource}${path}`);
+    for (const [key, value] of Object.entries(params ?? {})) u.searchParams.set(key, value);
+    return u;
+  };
+  return {
+    name: `cms-${opts.resource}`,
+    loadCollection: async ({ filter }) => {
+      if (!base) return { error: missing() };
+      try {
+        const res = await fetch(url('', filter));
+        if (!res.ok) return { error: new Error(`${res.status} ${res.statusText}`) };
+        const rows = (await res.json()) as CmsEntry[];
+        return { entries: rows.map((data) => ({ id: String(data.id), data })) };
+      } catch (cause) {
+        return { error: new Error(`Failed to load ${opts.resource}`, { cause }) };
+      }
+    },
+    loadEntry: async ({ filter }) => {
+      if (!base) return { error: missing() };
+      try {
+        const res = await fetch(url(`/${encodeURIComponent(filter.id)}`));
+        if (res.status === 404) return undefined;
+        if (!res.ok) return { error: new Error(`${res.status} ${res.statusText}`) };
+        const data = (await res.json()) as CmsEntry;
+        return { id: String(data.id), data };
+      } catch (cause) {
+        return { error: new Error(`Failed to load ${opts.resource}/${filter.id}`, { cause }) };
+      }
+    },
+  };
+}
+"""
+
+ENV_EXAMPLE = """# Live content collections (src/live.config.ts). Leave empty for a static build.
+CMS_API_URL=
 """
 
 TSCONFIG = """{
@@ -65,6 +142,7 @@ TSCONFIG = """{
 GITIGNORE = """node_modules/
 dist/
 .astro/
+.env
 """
 
 # Wiring is DERIVED from the ship head (ship_wiring) — never a fixed list.
@@ -200,6 +278,17 @@ def scaffold(root: Path) -> dict:
         (".gitignore", GITIGNORE),
     ):
         (astro / name).write_text(body, encoding="utf-8")
+    live_files: list[str] = []
+    for rel, body in (
+        ("src/live.config.ts", LIVE_CONFIG),
+        ("src/loaders/cms.ts", CMS_LOADER),
+        (".env.example", ENV_EXAMPLE),
+    ):
+        target = astro / rel
+        if not target.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(body, encoding="utf-8")
+        live_files.append(rel)
     if not adopted and not (styles / "hover.css").is_file():
         (styles / "hover.css").write_text("/* hover — copied when rebuild/css/hover.css exists */\n", encoding="utf-8")
     if not adopted and not (scripts / "main.js").is_file():
@@ -324,6 +413,7 @@ def scaffold(root: Path) -> dict:
         "ok": (has_css or adopted) and not errors,
         "astro": "astro",
         "copied": copied,
+        "liveCollections": live_files,
         "wiring": {
             "stylesheets": [row["href"] for row in wiring["styles"] if row["kind"] == "link"],
             "scripts": [row["src"] for row in wiring["scripts"] if row["kind"] == "src"],

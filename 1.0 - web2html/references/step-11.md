@@ -13,6 +13,9 @@ python3 $SKILLS/web2html/scripts/pipeline-progress.py mark "$PROJECT" --step 1.1
 
 That is curl of the one URL, then `scrape_light.py`: images + **Latin
 `U+0000-00FF` fonts only**, in parallel. Time box: **under 30 seconds**.
+Image URLs are the **unscaled original** — strip `?scale-down-to=` and other
+resize params, and do not let the first srcset candidate occupy that
+basename (Pitfall #243).
 1.2 `localize-html-images.mjs` reuses `source-site/assets/` and downloads any
 remaining live images — do not re-download the scrape. Self-host into
 `rebuild/fonts/` + `css/fonts.css` at **2.1** (`verify-fonts.py`), not here.

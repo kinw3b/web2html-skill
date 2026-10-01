@@ -13,10 +13,11 @@
 // background-image boxes (footer logo) become an inline SVG or <img>.
 //
 // Resolution order per http(s) URL:
-//   1. rebuild/images/<basename> or source-site/assets/<basename>
-//      (1.1 light scrape — images + Latin fonts only)
-//   2. capture/assets/<basename> (previous download)
-//   3. download into capture/assets/ and copy into rebuild/images/
+//   1. strip resize params (`scale-down-to`, `w`, `q`, …) — that path is the original
+//   2. exact basename in source-site/assets, rebuild/images, or capture/assets
+//   3. if the request was a downscale, download the original and keep the larger file
+//   4. extension swap only when download is off and the exact file is missing
+// A srcset thumb must not occupy the original's basename (Pitfall #243).
 //
 // Usage (library):
 //   import { localizeHtml } from "./localize-html-images.mjs";
@@ -27,12 +28,29 @@
 //                                 [--project <root>] [--no-download]
 
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, copyFileSync, statSync, unlinkSync } from "node:fs";
 import { basename, extname, join, resolve } from "node:path";
 
 const IMAGE_HOST = /framerusercontent\.com|images\.unsplash\.com|cdn\.|cloudinary|imgix/i;
 const IMAGE_EXT = /\.(png|jpe?g|webp|avif|gif|svg)(\?|$)/i;
 const URL_RE = /https?:\/\/[^"')\s]+/g;
+const RESIZE_KEYS = new Set([
+  "scale-down-to", "w", "width", "h", "height", "q", "quality",
+  "fit", "dpr", "fm", "auto", "cs", "ixlib", "crop",
+]);
+
+export function originalImageUrl(url) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return url; }
+  for (const key of [...parsed.searchParams.keys()]) {
+    if (RESIZE_KEYS.has(key.toLowerCase())) parsed.searchParams.delete(key);
+  }
+  return parsed.toString();
+}
+
+function exactName(url) {
+  try { return basename(new URL(url).pathname); } catch { return ""; }
+}
 
 export function isImageUrl(url) {
   try {
@@ -46,6 +64,51 @@ export function isImageUrl(url) {
 export function paperAssetSrc(absPath) {
   const abs = resolve(absPath);
   return abs.startsWith("/") ? `paper-asset://${abs}` : `paper-asset:///${abs}`;
+}
+
+function exactHit(url, dirs) {
+  const name = exactName(url);
+  if (!name) return null;
+  return dirs.map((d) => join(d, name)).find((p) => existsSync(p)) || null;
+}
+
+async function materializeOriginal(requested, dirs, cacheDir, rebuildDir, sourceAssets, allowDownload) {
+  const resolved = originalImageUrl(requested);
+  const name = exactName(resolved) || `img-${createHash("sha1").update(requested).digest("hex").slice(0, 8)}`;
+  const exact = exactHit(resolved, dirs);
+  const downscale = resolved !== requested;
+  if (exact && !downscale) return exact;
+  if (!allowDownload) {
+    if (exact) return exact;
+    const fallback = candidates(requested, dirs).find((p) => existsSync(p));
+    return fallback || null;
+  }
+  const dest = join(cacheDir, name);
+  const tmp = `${dest}.orig-download`;
+  try {
+    await download(resolved, tmp);
+  } catch (err) {
+    if (existsSync(tmp)) unlinkSync(tmp);
+    if (exact) return exact;
+    throw err;
+  }
+  const got = statSync(tmp).size;
+  const prev = exact ? statSync(exact).size : 0;
+  if (!exact || got >= prev) {
+    mkdirSync(cacheDir, { recursive: true });
+    copyFileSync(tmp, dest);
+    if (sourceAssets) {
+      mkdirSync(sourceAssets, { recursive: true });
+      const sourceCopy = join(sourceAssets, name);
+      if (!existsSync(sourceCopy) || statSync(sourceCopy).size < got) copyFileSync(dest, sourceCopy);
+    }
+    const rebuildCopy = join(rebuildDir, name);
+    if (!existsSync(rebuildCopy) || statSync(rebuildCopy).size < got) copyFileSync(dest, rebuildCopy);
+    unlinkSync(tmp);
+    return dest;
+  }
+  unlinkSync(tmp);
+  return exact;
 }
 
 function candidates(url, dirs) {
@@ -234,28 +297,29 @@ export async function localizeHtml(html, opts = {}) {
 
   for (const url of urls) {
     if (seen.has(url)) continue;
-    const hit = candidates(url, searchDirs).find((p) => existsSync(p));
-    let local = hit || null;
-    if (!local && allowDownload) {
-      let name;
-      try { name = basename(new URL(url).pathname); } catch { name = `img-${mapped.length}`; }
-      const dest = join(cacheDir, name);
-      try {
-        await download(url, dest);
-        local = dest;
-        const rebuildCopy = join(rebuildDir, name);
-        if (!existsSync(rebuildCopy)) copyFileSync(dest, rebuildCopy);
-      } catch (err) {
-        missing.push({ url, error: err.message.split("\n")[0] });
-        continue;
-      }
+    let local = null;
+    try {
+      local = await materializeOriginal(
+        url,
+        searchDirs,
+        cacheDir,
+        rebuildDir,
+        join(projectRoot, "source-site/assets"),
+        allowDownload,
+      );
+    } catch (err) {
+      missing.push({ url, error: err.message.split("\n")[0] });
+      continue;
     }
     if (!local) {
       missing.push({ url, error: "not on disk and download disabled" });
       continue;
     }
-    seen.set(url, paperAssetSrc(local));
-    mapped.push({ url, local, paperSrc: seen.get(url) });
+    const src = paperAssetSrc(local);
+    seen.set(url, src);
+    const resolved = originalImageUrl(url);
+    if (resolved !== url) seen.set(resolved, src);
+    mapped.push({ url, local, paperSrc: src, original: resolved !== url });
   }
 
   let out = html;

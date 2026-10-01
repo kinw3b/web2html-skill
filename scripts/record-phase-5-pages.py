@@ -21,6 +21,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import shared_sections
 from astro_build import dist_page_rel
 from author_21_gate import off_page_hrefs
 from rebuild_write_gate import RAW_PAPER_EXPORT_RE, ship_markup_errors
@@ -57,6 +58,28 @@ def page_errors(slug: str, text: str) -> list[str]:
     return errors
 
 
+def reuse_errors(root: Path, slug: str, text: str, plan: dict | None) -> list[str]:
+    """Pitfall #244 — a band the sitemap repeats is imported, never re-authored."""
+    if not plan:
+        return []
+    errors: list[str] = []
+    for group in plan.get("groups") or []:
+        if slug not in (group.get("interiorPages") or []):
+            continue
+        name = group["name"]
+        if re.search(rf"^import {name} from ", text, re.M) is None or f"<{name}" not in text:
+            errors.append(
+                f"{slug}.astro re-authors shared section {name} — import and render "
+                f"<{name} /> ({group['file']}); a variant takes props or a slot, not a copy"
+            )
+    pasted = shared_sections.inline_copies(text, plan, slug)
+    for name in pasted:
+        if f"<{name}" not in text:
+            continue  # already reported above
+        errors.append(f"{slug}.astro renders <{name} /> AND pastes its copy inline — keep only the component")
+    return errors
+
+
 def record(root: Path) -> dict:
     root = root.resolve()
     src = root / "qa" / "phase-4-pages.json"
@@ -68,6 +91,30 @@ def record(root: Path) -> dict:
     rows = payload.get("pages") if isinstance(payload, dict) else []
     pages = []
     errors: list[str] = []
+    plan = shared_sections.load(root)
+    if plan is None:
+        errors.append("missing qa/phase-5-reuse.json — run shared_sections.py before authoring pages (Pitfall #244)")
+    else:
+        late = shared_sections.stale_pending(root, plan)
+        if late:
+            errors.append(
+                "qa/phase-5-reuse.json predates the section source for "
+                + ", ".join(late[:4])
+                + " — re-run shared_sections.py, then reconcile pages (Pitfall #244)"
+            )
+        for group in plan.get("groups") or []:
+            if (root / "astro" / group["file"]).is_file():
+                continue
+            if group.get("buildFirst"):
+                errors.append(
+                    f"build-first shared section {group['name']} is missing astro/{group['file']} "
+                    f"— author it once before the pages that use it ({', '.join(group['interiorPages'][:4])})"
+                )
+            else:
+                errors.append(
+                    f"shared section {group['name']} repeats a homepage band but astro/{group['file']} "
+                    "is missing — re-run extract-astro-components.py + convert-astro-home.py"
+                )
     for row in rows or []:
         if not isinstance(row, dict):
             continue
@@ -98,6 +145,7 @@ def record(root: Path) -> dict:
             continue
         text = page.read_text(encoding="utf-8", errors="replace")
         errors.extend(page_errors(slug, text))
+        errors.extend(reuse_errors(root, slug, text, plan))
         try:
             import run_config
 
@@ -127,6 +175,7 @@ def record(root: Path) -> dict:
         "serial": True,
         "maxWorkers": 2,
         "pages": pages,
+        "shared": [g["name"] for g in (plan or {}).get("groups") or []],
         "errors": errors,
         "updated": _now_iso(),
     }

@@ -23,6 +23,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
+from original_images import collect_original_urls
+
 IMAGE_EXT = re.compile(r"\.(?:png|jpe?g|webp|avif|gif|svg)(?:$|[?#])", re.I)
 FONT_EXT = re.compile(r"\.(?:woff2?|ttf|otf)(?:$|[?#])", re.I)
 FACE_RE = re.compile(r"@font-face\s*\{([^}]+)\}", re.I | re.S)
@@ -107,18 +109,8 @@ def latin_font_urls(faces: list[dict]) -> list[dict]:
 
 
 def image_urls(html: str, page_url: str) -> list[str]:
-    found: list[str] = []
-    seen: set[str] = set()
-    for raw in ABS_URL_RE.findall(html):
-        clean = absolutize(raw.rstrip(".,;)"), page_url)
-        path = urllib.parse.urlparse(clean).path
-        if not IMAGE_EXT.search(path):
-            continue
-        if clean in seen:
-            continue
-        seen.add(clean)
-        found.append(clean)
-    return found
+    """Unscaled originals only. A srcset thumb must not occupy the basename."""
+    return collect_original_urls(html, page_url)
 
 
 def title_of(html: str) -> str:
@@ -142,26 +134,33 @@ def collect_plan(html: str, page_url: str) -> dict:
     }
 
 
-def download_one(url: str, dest: Path) -> dict:
-    if dest.exists() and dest.stat().st_size > 0:
+def download_one(url: str, dest: Path, upgrade: bool = False) -> dict:
+    if dest.exists() and dest.stat().st_size > 0 and not upgrade:
         return {"url": url, "path": str(dest), "bytes": dest.stat().st_size, "ok": True, "cached": True}
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "image/*,*/*"})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
             data = response.read()
+        if upgrade and dest.exists() and dest.stat().st_size >= len(data) > 0:
+            return {"url": url, "path": str(dest), "bytes": dest.stat().st_size, "ok": True, "cached": True}
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
         return {"url": url, "path": str(dest), "bytes": len(data), "ok": True, "cached": False}
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as err:
+        if dest.exists() and dest.stat().st_size > 0:
+            return {"url": url, "path": str(dest), "bytes": dest.stat().st_size, "ok": True, "cached": True}
         return {"url": url, "path": str(dest), "bytes": 0, "ok": False, "error": str(err).split("\n")[0]}
 
 
-def parallel_download(jobs: list[tuple[str, Path]], workers: int = WORKERS) -> list[dict]:
+def parallel_download(jobs: list[tuple[str, Path, bool]], workers: int = WORKERS) -> list[dict]:
     if not jobs:
         return []
     results: list[dict] = []
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        future_map = {pool.submit(download_one, url, dest): (url, dest) for url, dest in jobs}
+        future_map = {
+            pool.submit(download_one, url, dest, upgrade): (url, dest)
+            for url, dest, upgrade in jobs
+        }
         for future in as_completed(future_map):
             results.append(future.result())
     return results
@@ -309,21 +308,22 @@ def run(
     write_pages_json(out, page_url, plan["title"])
     write_tokens_md(out, plan)
 
-    jobs: list[tuple[str, Path]] = []
+    jobs: list[tuple[str, Path, bool]] = []
     for url in plan["images"]:
         name = basename_of(url)
         if name:
-            jobs.append((url, assets / name))
+            jobs.append((url, assets / name, True))
     for face in plan["fonts"]:
         name = basename_of(face["url"])
         if name:
-            jobs.append((face["url"], assets / name))
+            jobs.append((face["url"], assets / name, False))
 
-    # De-dupe dest collisions (same basename, different URL) — first wins.
-    unique: dict[Path, str] = {}
-    for url, dest in jobs:
-        unique.setdefault(dest, url)
-    jobs = [(url, dest) for dest, url in unique.items()]
+    unique: dict[Path, tuple[str, bool]] = {}
+    for url, dest, upgrade in jobs:
+        prev = unique.get(dest)
+        if prev is None or (upgrade and not prev[1]):
+            unique[dest] = (url, upgrade)
+    jobs = [(url, dest, upgrade) for dest, (url, upgrade) in unique.items()]
 
     downloads: list[dict] = []
     if not dry_run:

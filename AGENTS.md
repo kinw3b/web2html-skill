@@ -10,7 +10,7 @@ and its native bridge are NOT installed — they are a separate download
 ./scripts/install-skills.sh` opts in. `pipeline-progress.py capture-doctor`
 reports a bridge that would show OFFLINE (Pitfall #217).
 
-**Orchestrator version (web2html):** **2.38.0**
+**Orchestrator version (web2html):** **2.39.0**
 
 **This file is the repo index.** The agent-facing run rules live in
 `1.0 - web2html/SKILL.md` (summon, intake, hard rules, per-step table) and the

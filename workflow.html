@@ -187,7 +187,7 @@ python3 $SKILLS/web2html/scripts/pipeline-progress.py resume . --owner session-2
 <p><strong>What you do.</strong></p>
 <ol>
   <li>Run the light scrape. It writes a stub <code>qa/fidelity-contract.md</code> (homepage-only, <code>web-responsive</code>, <strong>1600 / 768 / 390</strong>). Do not rewrite it. Do not interview to fill it.</li>
-  <li>The script curls the one URL, then parallel-downloads images + <strong>Latin <code>U+0000-00FF</code> fonts only</strong>. Extra sitemap routes do not expand Paper. Non-Latin <code>@font-face</code> subsets stay on the CDN (Pitfall #185).</li>
+  <li>The script curls the one URL, then parallel-downloads images + <strong>Latin <code>U+0000-00FF</code> fonts only</strong>. Image files are the unscaled original — not the first srcset <code>?scale-down-to=</code> thumb (Pitfall #243). Extra sitemap routes do not expand Paper. Non-Latin <code>@font-face</code> subsets stay on the CDN (Pitfall #185).</li>
   <li>1.2 <code>localize-html-images.mjs</code> reuses <code>source-site/assets/</code> and downloads any remaining live images. Do not re-download the scrape. Do not copy into <code>rebuild/</code> at 1.1.</li>
   <li>Self-host those Latin files into <code>rebuild/fonts/*.woff2</code> + <code>css/fonts.css</code> at <strong>2.1</strong> (<code>verify-fonts.py</code>). Confirm license. Fallbacks always.</li>
 </ol>
@@ -307,11 +307,12 @@ node $SKILLS/url-to-paper/scripts/list-paper-comments.mjs --file $PAPER_FILE_ID<
 <ol>
   <li>Comment gate until exit 0 if new threads opened.</li>
   <li>Paper <code>get_jsx</code> of <code>home-desktop</code> → save JSON → <code>dump_index_raw.py</code> → <code>qa/index-raw.html</code>. Real HTML, <code>tokens.css</code> linked, no self-closing <code>&lt;div /&gt;</code>. Do not overlay this file.</li>
-  <li>Load 4.8 frontend-design. Author <code>rebuild/index.html</code> — the one homepage file — from Paper desktop (+ 768 / 390) using <code>var(--token)</code> from 2.1. Do not copy live-site URLs.</li>
-  <li>Receipt <code>qa/frontend-design-21.md</code>.</li>
+  <li>Load 4.8 frontend-design. Author <code>rebuild/index.html</code> — the one homepage file — from Paper desktop (+ 768 / 390) using <code>var(--token)</code> from 2.1. Do not copy live-site URLs. Photos are byte-copies of <code>source-site/assets/</code>.</li>
+  <li>Receipt <code>qa/frontend-design-21.md</code>. Then <code>bind_source_images.py .</code> — mark done refuses a compressed or swapped raster (Pitfall #243).</li>
 </ol>
 <pre><code>python3 $SKILLS/web2html/scripts/dump_index_raw.py . --from qa/index-raw.jsx.json
-python3 $SKILLS/web2html/scripts/author_21_gate.py .</code></pre>
+python3 $SKILLS/web2html/scripts/author_21_gate.py .
+python3 $SKILLS/web2html/scripts/bind_source_images.py .</code></pre>
 <p><strong>Artifacts.</strong> <code>qa/index-raw.html</code> (HTML get_jsx dump — evidence, not a homepage), <code>rebuild/index.html</code> (authored first pass), <code>qa/frontend-design-21.md</code>.</p>
 <p><strong>Mark done.</strong> Both files exist. Raw dump is HTML (not JSON). The homepage links <code>tokens.css</code>. <code>index.html</code> is an authored page, not a get_jsx dump — and it is never re-seeded later; 2.3 and 3.x patch it in place.</p>
 <p><strong>Forbidden.</strong> Writing the MCP JSON blob as <code>qa/index-raw.html</code>. Self-closing <code>&lt;div /&gt;</code>. Shipping the dump as the homepage. Skipping <code>qa/index-raw.html</code>. React / Tailwind CDN. Skip-link. Opening this draft in a browser.</p>
@@ -437,17 +438,20 @@ python3 $SKILLS/website-to-html/scripts/pipeline-progress.py mark . --step 3.4 -
 <p><strong>Forbidden.</strong> Marking 4.4 done without a Phase 5 receipt. Tidying when Phase 5 is opted in.</p>
 
 <h2 id="s51">5.1 · Scaffold Astro + shared chrome (optional)</h2>
-<p><strong>Concept.</strong> Astro first. Create <code>astro/</code> from the 3.4 rebuild CSS, fonts, images, and client scripts (copied recursively — <code>js/vendor/</code> rides along). BaseLayout's stylesheet/script wiring is <strong>derived from the ship's own head</strong>: every <code>&lt;link&gt;</code>/<code>&lt;script src&gt;</code> <code>rebuild/index.html</code> carries, in order, <code>is:inline</code>; inline <code>&lt;style&gt;</code> blocks each become their own sheet (<code>public/styles/site.css</code>, then <code>site-2.css</code>) linked at that position; inline <code>&lt;script&gt;</code> bodies go to <code>public/scripts/ship-inline-N.js</code> (never pasted into the <code>.astro</code> template — <code>{</code> is an Astro expression) and a head script stays in <code>&lt;head&gt;</code>. The scaffold receipt <strong>fails when a referenced asset is missing under <code>public/</code></strong> (Pitfall #240). Pull Header and Footer <strong>once</strong> from <code>rebuild/index.html</code>, plus every Paper-backed button or comment-nominated block that can stay shared. Convert the polished homepage to <code>src/pages/index.astro</code> on that chrome. Every later page reuses it. No React. No Tailwind CDN. Do not start a server.</p>
+<p><strong>Concept.</strong> Astro first. Create <code>astro/</code> from the 3.4 rebuild CSS, fonts, images, and client scripts (copied recursively — <code>js/vendor/</code> rides along). BaseLayout's stylesheet/script wiring is <strong>derived from the ship's own head</strong>: every <code>&lt;link&gt;</code>/<code>&lt;script src&gt;</code> <code>rebuild/index.html</code> carries, in order, <code>is:inline</code>; inline <code>&lt;style&gt;</code> blocks each become their own sheet (<code>public/styles/site.css</code>, then <code>site-2.css</code>) linked at that position; inline <code>&lt;script&gt;</code> bodies go to <code>public/scripts/ship-inline-N.js</code> (never pasted into the <code>.astro</code> template — <code>{</code> is an Astro expression) and a head script stays in <code>&lt;head&gt;</code>. The scaffold receipt <strong>fails when a referenced asset is missing under <code>public/</code></strong> (Pitfall #240). Pull Header and Footer <strong>once</strong> from <code>rebuild/index.html</code>, plus every Paper-backed button or comment-nominated block that can stay shared. <strong>Reuse plan first:</strong> <code>shared_sections.py</code> reads every section on disk across the sitemap and groups bands that repeat across pages by copy and images, not by name, into <code>qa/phase-5-reuse.json</code>. Homepage bands that repeat become <code>{Name}Section.astro</code> here (Pitfall #244). Convert the polished homepage to <code>src/pages/index.astro</code> on that chrome. Every later page reuses it. No React. No Tailwind CDN. Do not start a server.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/scaffold-astro.py .
 python3 $SKILLS/website-to-html/scripts/extract-astro-components.py .
-python3 $SKILLS/website-to-html/scripts/convert-astro-home.py .</code></pre>
+python3 $SKILLS/website-to-html/scripts/convert-astro-home.py .
+python3 $SKILLS/website-to-html/scripts/bind_source_images.py .</code></pre>
 <p><strong>Mark done.</strong> <code>qa/phase-5-scaffold.json</code> + <code>qa/phase-5-components.json</code> + <code>qa/phase-5-home.json</code>.</p>
 <p>Recipe: <code>references/phase-5-astro.md</code>.</p>
 
 <h2 id="s52">5.2 · Author pages (optional)</h2>
-<p><strong>Concept.</strong> Serial Paper dumps, then at most two workers author <strong>only the <code>&lt;main&gt;</code> body</strong> of <code>astro/src/pages/{slug}.astro</code> from the Design System + the Paper desktop brief, importing BaseLayout + Header + Footer + the 5.1 components they use. No inline header / footer. No new token names. Hrefs stay <code>#</code>. <code>rebuild/</code> only takes the raw dumps.</p>
+<p><strong>Concept.</strong> Serial Paper dumps, then re-run the reuse plan. <strong>Build first:</strong> the controller writes each <code>buildFirst</code> band (one that repeats only on interior pages) as a component once, before any worker starts. Then at most two workers author <strong>only the <code>&lt;main&gt;</code> body</strong> of <code>astro/src/pages/{slug}.astro</code> from the Design System + the Paper desktop brief, importing BaseLayout + Header + Footer + the 5.1 components they use, plus every shared section listed for that page in <code>byPage</code>. A variant takes props, never a pasted copy. No inline header / footer. No new token names. Hrefs stay <code>#</code>. <code>rebuild/</code> only takes the raw dumps.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/rebuild_write_gate.py . --allow pages
 node $SKILLS/website-to-html/scripts/dump-interior-raw.mjs --project .
+python3 $SKILLS/website-to-html/scripts/shared_sections.py .
+python3 $SKILLS/website-to-html/scripts/bind_source_images.py .
 python3 $SKILLS/website-to-html/scripts/record-phase-5-pages.py .</code></pre>
 <p><strong>Mark done.</strong> <code>qa/phase-5-pages.json</code>.</p>
 

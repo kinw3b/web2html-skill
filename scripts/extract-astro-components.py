@@ -15,6 +15,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import shared_sections
 from html_to_astro import (
     control_component_file,
     extract_regions,
@@ -70,6 +71,42 @@ def extract(root: Path) -> dict:
             "html": regions["footer"],
             "sources": ["html:footer"],
         })
+    # Sitemap-wide reuse plan (Pitfall #244): bands repeated across pages
+    # become ONE component. Home-origin bands are lifted here from the signed
+    # homepage; interior-only bands are marked buildFirst for the controller.
+    reuse = shared_sections.plan(root)
+    shared_sections.write(root, reuse)
+    shared_rows = []
+    if regions["main"]:
+        bands = shared_sections.children(regions["main"])
+        by_id = {}
+        for idx, band in enumerate(bands, start=1):
+            tag = shared_sections.OPEN_TAG_RE.match(band)
+            sid = shared_sections.ID_RE.search(tag.group(0)) if tag else None
+            by_id[sid.group(1) if sid else f"section-{idx:02d}"] = band
+        for group in reuse["groups"]:
+            if group["origin"] != "home":
+                continue
+            band = by_id.get(group["anchor"].get("sectionId") or group["anchor"]["section"])
+            if not band:
+                errors.append(f"shared section {group['name']} not found in the homepage <main>")
+                continue
+            (components / f"{group['name']}.astro").write_text(fragment_file(band), encoding="utf-8")
+            written.append(group["file"])
+            row = {
+                "name": group["name"],
+                "kind": "section",
+                "mode": "fragment",
+                "file": group["file"],
+                "import": group["import"],
+                "html": band,
+                "sources": ["shared-sections"],
+                "uses": len(group["members"]),
+                "pages": group["pages"],
+                "reason": "repeated-section",
+            }
+            catalog.append(row)
+            shared_rows.append(row)
     found = inventory_components(root)
     for item in found["inventory"]:
         name = item["name"]
@@ -104,6 +141,12 @@ def extract(root: Path) -> dict:
         "replacements": [
             row for row in catalog if row["name"] not in {"Header", "Footer"}
         ],
+        "shared": {
+            "plan": str(shared_sections.OUT),
+            "fromHome": [row["name"] for row in shared_rows],
+            "buildFirst": reuse["buildFirst"],
+            "pending": reuse["pending"],
+        },
         "errors": errors,
         "updated": _now_iso(),
     }
@@ -130,7 +173,15 @@ def main(argv: list[str] | None = None) -> int:
         "ok": True,
         "components": receipt["components"],
         "extracted": [row["name"] for row in receipt["inventory"]],
+        "shared": receipt["shared"],
     }, indent=2))
+    if receipt["shared"]["buildFirst"]:
+        print(
+            "BUILD FIRST (before any 5.2 page worker): "
+            + ", ".join(receipt["shared"]["buildFirst"])
+            + " — see qa/phase-5-reuse.json",
+            file=sys.stderr,
+        )
     return 0
 
 
