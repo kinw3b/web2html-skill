@@ -23,11 +23,24 @@ python3 "$SKILLS/web2html/scripts/extract-astro-components.py" .    # qa/phase-5
 python3 "$SKILLS/web2html/scripts/convert-astro-home.py" .          # qa/phase-5-home.json
 ```
 
-- `scaffold-astro.py` copies `rebuild/css` (tokens, fonts, site, hover),
-  `rebuild/js`, images, fonts into `astro/public/` and writes `package.json`,
-  `astro.config.mjs` (static, trailing slash), `src/layouts/BaseLayout.astro`.
-  BaseLayout takes `title / description / lang / canonical / ogImage` props —
-  5.5 SEO is props, never markup. QA overlay CSS/JS never copies in.
+- `scaffold-astro.py` copies `rebuild/css` and `rebuild/js` (**recursively —
+  `js/vendor/` rides along**), images, and fonts into `astro/public/`, then
+  derives BaseLayout's stylesheet + script wiring from the **ship's own
+  head** (`rebuild/index.html`): every `<link>` / `<script src>` the signed
+  page carries, in order, emitted `is:inline` so Astro bundles nothing.
+  Each inline `<style>` is its own sheet (`public/styles/site.css`, then
+  `site-2.css`; `site-inline.css` when `rebuild/css/site.css` already
+  exists) linked at that block's position — concatenating them would let a
+  later `<link>` win over rules that belonged after it. Inline `<script>`
+  bodies are written to `public/scripts/ship-inline-N.js` and linked, never
+  pasted into `BaseLayout.astro` (`{` there is an Astro expression and the
+  build fails). A script that lived in `<head>` stays in `<head>`. Author
+  runs also link any copied sheet/script the ship forgot; adopt
+  runs record those as `unreferenced` instead. The receipt **fails when
+  BaseLayout references an asset that does not exist under `public/`**
+  (Pitfall #240). BaseLayout takes `title / description / lang / canonical /
+  ogImage` props — 5.5 SEO is props, never markup. QA overlay CSS/JS never
+  copies in.
 - `extract-astro-components.py` lifts `<header>` → `Header.astro` and
   `<footer>` → `Footer.astro` from `rebuild/index.html`, then every
   Paper-backed control (Design Library names, Capture Tool
@@ -106,6 +119,13 @@ then shoot the built page on `file://` exactly like 2.3:
 
 ```sh
 python3 "$SKILLS/web2html/scripts/build-astro-dist.py" .       # astro build + file:// relativize → qa/phase-5-build.json
+```
+
+`qa/phase-5-build.json` also resolves every local stylesheet/script
+reference in each built page against disk and fails on a dangling one — a
+404'd sheet can never ride a green `astro build` again (Pitfall #240).
+
+```sh
 python3 "$SKILLS/web2html/scripts/paper_23_rebuild_shots.py" . \
   --page {slug} --ship astro/dist/{slug}/index.html --widths 1600 --all
 python3 "$SKILLS/web2html/scripts/phase_5_compare.py" . --mode desktop      # 5.3 → qa/phase-5-clip-compare.json
@@ -162,7 +182,9 @@ astro/
   src/components/{Name}.astro     # Paper buttons + comment-nominated blocks
   src/pages/index.astro           # 5.1 from rebuild/index.html
   src/pages/{slug}.astro          # 5.2 authored bodies
-  public/styles/                  # tokens.css, fonts.css, site.css, hover.css
-  public/images/  public/fonts/  public/scripts/
+  public/styles/                  # every sheet the ship links + site.css
+                                  # (materialized from the inline <style>)
+  public/images/  public/fonts/
+  public/scripts/                 # rebuild/js copied recursively (vendor/ too)
   dist/                           # 5.3+ built ship, file:// friendly
 ```

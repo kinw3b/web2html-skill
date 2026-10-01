@@ -42,7 +42,7 @@ test("serializer skip still holds for the HUD tag and id", () => {
   assert.equal(isSerializerSkip("section", "content-01"), false);
   assert.equal(isSerializerSkip("img", "hero"), false);
 
-  // The lifted serializer still skips x-paper-* by tag or id. Snapshot 0.3.8–0.3.12
+  // The lifted serializer still skips x-paper-* by tag or id. Snapshot 0.3.8–0.4.4
   // reads the id through elementId(e); older ports read e.id. Accept either.
   assert.match(
     serializerSrc,

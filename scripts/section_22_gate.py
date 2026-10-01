@@ -51,6 +51,9 @@ DISK_GOLD_FROM = "web2html/section-23-disk-gold"
 CLIP_COMPARE = Path("qa/paper-measure/clip-compare.json")
 CLIP_COMPARE_FROM = "web2html/section-23-clip-compare"
 REBUILD_SKIP = Path("qa/paper-measure/rebuild-shots-skip.json")
+SIDE_BY_SIDE = Path("qa/side-by-side/report.json")
+SIDE_BY_SIDE_FROM = "web2html/section-23-side-by-side"
+SIDE_BY_SIDE_SKIP = Path("qa/side-by-side/skip.json")
 VALIDATE_FROM = "web2html/section-23-validate"
 VALIDATE_MAX_ROUNDS = 3
 VALIDATE_MIN_RESIDUAL_ROUNDS = 2
@@ -291,6 +294,7 @@ def _measure_errors(root: Path, sections: list) -> list[str]:
     errors.extend(_disk_gold_errors(root, sections))
     errors.extend(_rebuild_shot_errors(root, sections))
     errors.extend(_clip_compare_errors(root, sections))
+    errors.extend(_side_by_side_errors(root, sections))
     errors.extend(_validate_errors(root, sections))
     errors.extend(_wave_errors(root, sections))
     return errors
@@ -464,7 +468,36 @@ def _validate_errors(root: Path, sections: list) -> list[str]:
             rel = shot_rows.get(key)
             if not rel or not (root / str(rel)).is_file():
                 errors.append(f"{sid} VALIDATE last round has no shot at {key} — --shoot again")
+    errors.extend(_residual_cap_errors(root, sections))
     return errors
+
+
+# A residual is the exception, not the verdict: when most bands close as
+# residual the page is not signed-quality (Pitfall #216 — kp-avanta closed
+# 10/10 bands residual at round 2 and the gate went green anyway).
+RESIDUAL_CAP_RATIO = 0.5
+
+
+def _residual_cap_errors(root: Path, sections: list) -> list[str]:
+    closed: list[str] = []
+    total = 0
+    for index, row in enumerate(sections):
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("id") or row.get("slug") or f"section-{index}")
+        payload = _read_json(validate_receipt_path(root, sid))
+        if payload is None:
+            continue  # missing receipt is already its own error
+        total += 1
+        if str(payload.get("status") or "") == "residual":
+            closed.append(sid)
+    if total and len(closed) > 1 and len(closed) > total * RESIDUAL_CAP_RATIO:
+        return [
+            f"{len(closed)} of {total} bands closed as residual ({', '.join(closed)}) — "
+            "a residual is the exception, not the verdict: keep patching the worst "
+            "bands (or escalate to the build tier) until at most half are residual"
+        ]
+    return []
 
 
 def _disk_gold_errors(root: Path, sections: list) -> list[str]:
@@ -568,6 +601,57 @@ def _clip_compare_errors(root: Path, sections: list) -> list[str]:
                 errors.append(
                     f"{sid} did not pull the 1.2 {key} source-section clip "
                     "(NN-slug.png)"
+                )
+    return errors
+
+
+def _side_by_side_errors(root: Path, sections: list) -> list[str]:
+    """Viewport pairs exist, cover every band, and are newer than the ship."""
+    skip = _read_json(root / SIDE_BY_SIDE_SKIP)
+    if skip and skip.get("skipped") is True:
+        return []
+    report_path = root / SIDE_BY_SIDE
+    report = _read_json(report_path)
+    if report is None:
+        return [
+            f"missing {SIDE_BY_SIDE} — run paper_23_side_by_side.py so 2.3 reads "
+            f"viewport pairs (source left, rebuild right) at {widths_label(root)}"
+        ]
+    errors: list[str] = []
+    if report.get("generatedFrom") != SIDE_BY_SIDE_FROM:
+        errors.append(
+            f"{SIDE_BY_SIDE} generatedFrom={report.get('generatedFrom')!r} — "
+            f"must be {SIDE_BY_SIDE_FROM}"
+        )
+    ship = root / SHIP
+    if ship.is_file():
+        stamped = report.get("shipFingerprint")
+        stale = False
+        if stamped is None:  # legacy report without a fingerprint: mtime rule
+            stale = report_path.stat().st_mtime < ship.stat().st_mtime
+        elif stamped != ship_fingerprint(root):
+            stale = True
+        if stale:
+            errors.append(
+                f"{SIDE_BY_SIDE} is stale — the ship changed after the pairs were "
+                "shot — re-run paper_23_side_by_side.py (stale pairs never sign)"
+            )
+    rows = report.get("stops")
+    by_id: dict[str, set] = {}
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict) and row.get("id"):
+                by_id.setdefault(str(row["id"]), set()).add(str(row.get("width")))
+    for index, row in enumerate(sections):
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("id") or row.get("slug") or f"section-{index}")
+        have = by_id.get(sid) or set()
+        for key in run_width_keys(root):
+            if key not in have:
+                errors.append(
+                    f"{sid} missing viewport pair at {key} — re-run "
+                    "paper_23_side_by_side.py"
                 )
     return errors
 
@@ -753,6 +837,7 @@ def install_passing_artifacts(root: Path) -> None:
         encoding="utf-8",
     )
     install_passing_validate(root, "hero", nn="01")
+    install_passing_side_by_side(root)
     install_passing_wave(root, ["hero"])
 
 
@@ -800,6 +885,56 @@ def install_passing_validate(root: Path, section_id: str, *, nn: str | None = No
     }
     dest = validate_receipt_path(root, section_id)
     dest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return dest
+
+
+def install_passing_side_by_side(root: Path) -> Path:
+    """Plant a fresh viewport-pairs receipt + side PNGs for the hero band."""
+    root = root.resolve()
+    stops: list[dict] = []
+    for width in WIDTHS:
+        width_dir = root / SIDE_BY_SIDE.parent / str(width)
+        width_dir.mkdir(parents=True, exist_ok=True)
+        side = width_dir / f"01-hero-{width}-side.png"
+        side.write_bytes(TINY_PNG)
+        stops.append(
+            {
+                "id": "hero",
+                "nn": "01",
+                "slug": "hero",
+                "width": width,
+                "sourceMode": "disk",
+                "sourceY": 0,
+                "sourcePane": f"qa/side-by-side/{width}/01-hero-{width}-source.png",
+                "rebuildPane": f"qa/side-by-side/{width}/01-hero-{width}-rebuild.png",
+                "side": f"qa/side-by-side/{width}/01-hero-{width}-side.png",
+                "diffPct": 0.0,
+            }
+        )
+    dest = root / SIDE_BY_SIDE
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(
+        json.dumps(
+            {
+                "generatedFrom": SIDE_BY_SIDE_FROM,
+                "ok": True,
+                "mode": "disk",
+                "page": "home",
+                "widths": list(WIDTHS),
+                "viewportHeight": 1000,
+                "rebuild": "rebuild/index.html",
+                "sourceUrl": None,
+                "stops": stops,
+                "sides": len(WIDTHS),
+                "missing": [],
+                "shipFingerprint": ship_fingerprint(root),
+                "updated": _now_iso(),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return dest
 
 

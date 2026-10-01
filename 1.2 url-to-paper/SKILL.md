@@ -1271,11 +1271,16 @@ Then the **user** presses Cmd+V in Paper. Do not try to send the keystroke —
 
 ## Provenance
 
-`scripts/serializer.js` is Paper Snapshot **v0.3.12** (`lidfahaahiogmnlccifabccgplofocck`),
+`scripts/serializer.js` is Paper Snapshot **v0.4.4** (`lidfahaahiogmnlccifabccgplofocck`),
 ported from Paper-Bridge `content/paper-snapshot.js` @ `fda64f2` (0.3.8 base)
-plus the 0.3.12 upstream deltas: throttled frame yield, positioned-element
+plus the 0.3.12 upstream deltas (throttled frame yield, positioned-element
 baseline resets, canvas/video PNG rasterization, in-page reduced-motion
-emulation, and `::before`/`::after` `content: url()` images. 1.2 keeps its
+emulation, `::before`/`::after` `content: url()` images) and the 0.4.4 deltas
+(valid-nesting scope: block tags inside `<p>` and nested `<a>`/`<button>`
+emit as `<span>` with `paper-snapshot-original-tag`; percentage `<img>`
+sizes pinned to px when the parent shrink-wraps them; `appearance: none`
+checkbox/radio with pseudo children emit as `<div>`; a thrown walk returns
+`{ status: "error" }`). 1.2 keeps its
 SVG `<use>` fragment ids, shadow-root lookup, HTML host promotion,
 `checkVisibility` fallbacks, and layer-name / sidecar / dryRun adaptations
 on top. See `references/paper-snapshot-architecture.md`.

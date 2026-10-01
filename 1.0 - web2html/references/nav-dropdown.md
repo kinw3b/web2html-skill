@@ -36,6 +36,23 @@ Edits `rebuild/index.html` in place. Does not undo paint the
 
 Do **not** invent a nav label Paper never painted.
 
+## Interaction contract (Pitfall #241)
+
+`templates/nav-dropdown.js` (copied to `rebuild/js/nav-dropdown.js`) and any
+agent-authored nav JS (`nav-menu.js` et al.) must obey:
+
+- **Desktop (hover-capable, >768px):** `mouseenter` on trigger or panel
+  opens; a click on the trigger only **opens** — never toggles closed. A
+  pointer click always arrives after hover already opened the panel, so a
+  toggle slams it shut on every click. Escape, leaving the host, and
+  outside clicks close.
+- **Touch (`(hover: none), (pointer: coarse)`):** click toggles; the hover
+  handlers stay off (tap fires emulated `mouseenter` and would fight the
+  toggle).
+- **≤768px:** the burger drawer owns navigation; the dropdown panel is
+  `display: none !important` and the click handler returns without
+  intercepting.
+
 ## Forbidden
 
 - Skipping because Capture Tool did not run / `--allow-dropdown` / “do

@@ -1,10 +1,12 @@
 # Paper Snapshot — how the serializer works
 
 Teardown of the Paper Snapshot Chrome extension (`lidfahaahiogmnlccifabccgplofocck`,
-v0.3.12), which is where `scripts/serializer.js` comes from. Paper-Bridge
-`content/paper-snapshot.js` @ `fda64f2` (v0.3.8) is the base implementation
-reference; the 0.3.10→0.3.12 deltas were re-extracted from the installed
-extension (see the diff notes below). Read this before changing the serializer.
+v0.4.4, store listing updated 2026-09-27), which is where `scripts/serializer.js`
+comes from. Paper-Bridge `content/paper-snapshot.js` @ `fda64f2` (v0.3.8) is the
+base implementation reference; the 0.3.10→0.3.12 deltas were re-extracted from
+the installed extension, and the 0.3.12→0.4.4 deltas from the store crx
+(sha256 `45fc07bb…58605261`). See the diff notes below. Read this before
+changing the serializer.
 
 ## What it is
 
@@ -16,10 +18,10 @@ no `fetch`. The extension makes **zero network calls** — it is entirely local.
 
 | File | Role |
 |---|---|
-| `manifest.json` | MV3. Permissions: `scripting`, `activeTab`, `clipboardWrite`, `offscreen`. No declared content scripts. |
-| `background.js` | Everything. Picker overlay + serializer, injected on demand. |
-| `offscreen.js` | 59 lines. Writes `text/html` to the clipboard. |
-| `popup.js` | 192 KB of React. UI shell only — nothing load-bearing. |
+| `manifest.json` | MV3. Permissions: `scripting`, `activeTab`, `clipboardWrite`, `offscreen`, `contextMenus`; `optional_host_permissions: <all_urls>` (0.4.4, for embedded frames). No declared content scripts. |
+| `background.js` | Everything. Picker overlay + serializer (`async function Fe(n)` in 0.4.4), injected on demand. |
+| `offscreen.js` | Writes `text/html` to the clipboard; replies `{ status, error }`. |
+| `popup.js` | ~196 KB of React. UI shell only (shown for `file://` tabs) — nothing load-bearing. |
 
 Original flow: toolbar click / Cmd+Shift+P → inject picker → hover-highlight →
 click → serialize → wrap in `<x-paper-html>` → offscreen doc → clipboard → user
@@ -103,6 +105,45 @@ This is where the real work is, and why the code is lifted rather than rewritten
   (`settlePainted`) still runs first, so in-flow Framer appear leftovers have
   live opacity 1 by serialization time and are unaffected.
 
+## New in 0.4.4 (vs 0.3.12)
+
+Serializer (`Fe`) — ported into `scripts/serializer.js`:
+
+- **Valid nesting** — the walk carries a scope
+  `{ inParagraph, inAnchor, inButton }`. Inside a `<p>`, block-level tags
+  (`div`, `h1`–`h6`, `ul`, `li`, `section`, `table`, …) emit as `<span>`;
+  an `<a>` inside an `<a>` and a `<button>` inside a `<button>` emit as
+  `<span>`; each keeps `paper-snapshot-original-tag`. A `<button>` resets
+  the paragraph scope. `display: contents` / invisible nodes pass the scope
+  through. `::before`/`::after` wrappers are `<span>` inside a paragraph,
+  `<div>` elsewhere. (DOM built by script can hold these invalid nestings;
+  re-parsed HTML would otherwise tear the layer tree apart in Paper.)
+- **Percentage `<img>` sizes** — when an image's diffed `width`/`height` is a
+  percentage, the serializer temporarily forces it to `0px` and checks
+  whether the nearest box-generating flat-tree parent resizes. If it does
+  (shrink-to-fit parent), the used px size is emitted instead of the `%`.
+- **Styled checkboxes/radios** — an `<input type=checkbox|radio>` with
+  `appearance: none` and pseudo-element children emits as a `<div>` so the
+  `::before`/`::after` tick survives.
+- **Error result** — an exception during the walk now returns
+  `{ status: "error", error: "Capture failed: …" }` instead of throwing.
+- **Partial captures** — 0.4.4 no longer attaches
+  `warning: "Some elements were unable to be captured."` when hidden nodes
+  were skipped. 1.2 keeps that warning (callers log it); this is a
+  deliberate 1.2 adaptation.
+
+Extension shell (not ported — no 1.2 equivalent). The permission change is
+verified against the 0.3.12 manifest recorded above; the picker behavior below
+was not in this doc's 0.3.12 teardown, so parts of it may predate 0.4.4: picker
+injects into all frames and hops into iframes via `postMessage`
+(`TRANSFER_PAPER_REGISTER_CHILD_DOCUMENT` / `…_HIGHLIGHTED` / `…_COMPLETED`);
+an "Allow access to embedded frames" action context menu requests the
+optional `<all_urls>` host permission; ↑/↓ fine-tune the target, Enter
+captures, Cmd/Ctrl+Enter captures the whole page (`document.body`), Esc
+cancels; a "Click the page to start" splash when the tab lacks focus. The
+clipboard payload is unchanged: `<x-paper-html>…</x-paper-html>` as
+`text/html` via the offscreen document.
+
 ## Consequences for this skill
 
 **`opacity: 0` overlays are dropped** (absolute/fixed). In-flow appear
@@ -120,9 +161,9 @@ but webfont files do not.
 
 ## Extraction
 
-`scripts/serializer.js` is Paper Snapshot 0.3.12 plus 1.2 layer-name / sidecar
+`scripts/serializer.js` is Paper Snapshot 0.4.4 plus 1.2 layer-name / sidecar
 behavior. The 0.3.8 base came from Paper-Bridge `content/paper-snapshot.js`;
-the 0.3.10→0.3.12 deltas were diffed out of the installed extension's minified
+the 0.3.10→0.3.12 and 0.3.12→0.4.4 deltas were diffed out of the extension's minified
 `background.js` (identifier names churn per release — diff string literals and
 structure, not raw text). Keep 1.2 adaptations in `fe()`. Do not call the file
 “lifted verbatim.”
@@ -132,5 +173,6 @@ To re-extract from a newer version:
 ```bash
 EXT="$HOME/Library/Application Support/BraveSoftware/Brave-Browser/Default/Extensions/lidfahaahiogmnlccifabccgplofocck"
 npx prettier@3 --parser babel "$EXT/<version>/background.js" > background.pretty.js
-# find the `async function fe(n)` boundaries — they will have moved
+# find the serializer boundaries (`async function fe(n)` in 0.3.12,
+# `async function Fe(n)` in 0.4.4) — they will have moved
 ```

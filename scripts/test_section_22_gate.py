@@ -100,6 +100,27 @@ class Section22GateTest(unittest.TestCase):
             errors = " ".join(gate.gate_errors(root))
             self.assertIn("cap is 3", errors)
 
+    def test_blanket_residuals_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gate.install_passing_artifacts(root)
+            receipt = json.loads((root / gate.RECEIPT).read_text())
+            sids = [str(row.get("id") or row.get("slug")) for row in receipt["sections"]]
+            sids += [f"band-{n}" for n in range(2, 6)]
+            for sid in sids:
+                path = gate.validate_receipt_path(root, sid)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                payload = json.loads(gate.validate_receipt_path(root, "hero").read_text())
+                first = payload["rounds"][0]
+                payload["rounds"] = [dict(first, round=1), dict(first, round=2)]
+                payload["status"] = "residual"
+                payload["residual"] = "still off in spacing after one patch"
+                path.write_text(json.dumps(payload))
+            receipt["sections"] = [{"id": sid} for sid in sids]
+            (root / gate.RECEIPT).write_text(json.dumps(receipt))
+            errors = " ".join(gate.gate_errors(root))
+            self.assertIn("closed as residual", errors)
+
     def test_missing_wave_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

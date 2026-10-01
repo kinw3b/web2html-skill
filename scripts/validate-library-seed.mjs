@@ -239,7 +239,9 @@ export async function validateLibrarySeed({
           sourceWhite: whiteRatio(shot.file),
           paperWhite: whiteRatio(shotPath),
           paperChildCount: paper.childCount,
+          sourceW: sourceSize?.width,
           sourceH: sourceSize?.height,
+          paperW: paperSize?.width,
           paperH: paperSize?.height,
         });
 

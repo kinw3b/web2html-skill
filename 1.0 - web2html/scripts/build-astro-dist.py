@@ -18,7 +18,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from astro_build import build, dist_page_rel, relativize_dist, write_build_log
+from astro_build import build, dist_page_rel, relativize_dist, unresolved_assets, write_build_log
 from html_to_astro import now_pages
 
 
@@ -34,12 +34,20 @@ def run(root: Path, *, skip_build: bool = False) -> dict:
         result = build(root)
     pages = []
     missing: list[str] = []
+    errors = list(result["errors"])
     for row in now_pages(root):
         rel = dist_page_rel(row["slug"])
         path = root / rel
         ok = path.is_file()
+        unresolved: list[str] = []
         if not ok:
             missing.append(rel)
+        else:
+            # a built page that references a missing sheet/script renders
+            # unstyled on file:// while `astro build` stays green (#240)
+            unresolved = unresolved_assets(path)
+            if unresolved:
+                errors.append(f"{rel} references missing assets: {unresolved[:6]}")
         pages.append(
             {
                 "slug": row["slug"],
@@ -47,10 +55,10 @@ def run(root: Path, *, skip_build: bool = False) -> dict:
                 "astro": row.get("astro"),
                 "dist": rel,
                 "fileUrl": path.as_uri() if ok else None,
+                "unresolved": unresolved if ok else None,
             }
         )
-    errors = list(result["errors"])
-    if missing and not errors:
+    if missing and not any("missing built pages" in err for err in errors):
         errors.append(f"missing built pages: {missing[:6]}")
     receipt = {
         "generatedFrom": "web2html/phase-5-build",

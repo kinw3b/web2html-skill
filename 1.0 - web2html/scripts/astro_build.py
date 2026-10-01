@@ -87,6 +87,34 @@ def relativize_dist(dist: Path) -> list[str]:
     return changed
 
 
+ASSET_TAG_RE = re.compile(r"<link\b[^>]*>|<script\b[^>]*>", re.I)
+ASSET_URL_RE = re.compile(r"""(?:href|src)\s*=\s*(['"])([^'"]+)\1""", re.I)
+EXTERNAL_URL_RE = re.compile(r"^(?:https?:)?//|^data:|^#|^mailto:|^tel:", re.I)
+
+
+def unresolved_assets(page: Path) -> list[str]:
+    """Local stylesheet/script references in a BUILT page that miss on disk.
+
+    `astro build` never fetches a CSS file, so a 404'd sheet rides a green
+    build and ships the site unstyled (Pitfall #240). Run AFTER relativize.
+    """
+    text = page.read_text(encoding="utf-8", errors="replace")
+    missing: list[str] = []
+    for tag in ASSET_TAG_RE.findall(text):
+        if tag.lower().startswith("<link") and not re.search(r"rel\s*=\s*['\"]?stylesheet", tag, re.I):
+            continue
+        match = ASSET_URL_RE.search(tag)
+        if not match:
+            continue
+        value = match.group(2).strip()
+        if not value or EXTERNAL_URL_RE.match(value):
+            continue
+        target = (page.parent / value.split("?", 1)[0].split("#", 1)[0]).resolve()
+        if not target.is_file() and value not in missing:
+            missing.append(value)
+    return missing
+
+
 def build(root: Path, *, timeout: int = 180) -> dict:
     """npm install + astro build, then relativize dist. Never starts a server."""
     root = root.resolve()

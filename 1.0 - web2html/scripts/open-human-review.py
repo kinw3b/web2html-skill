@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""3.4 human checkpoint — refresh the C/3.1–3.3 report and open Chrome.
+"""3.4 human checkpoint — refresh the C/3.1–3.3 report and open the default browser.
 
   python3 open-human-review.py .
 
 Regenerates qa/polish-report.html and rebuild/polish-report.html from
 receipts, links the report from the ship, verifies the polish contract, then
-opens Google Chrome on the single homepage file and the report:
+opens the machine's default browser on the single homepage file and the report:
 
   rebuild/index.html?qa-review=final&qa-outlines=off   (the ship, polished in place; ?qa-outlines=tags turns outlines on)
   rebuild/polish-report.html
@@ -62,15 +62,15 @@ def file_uri(path: Path) -> str:
     return path.resolve().as_uri()
 
 
-def open_chrome(ship: Path, report: Path) -> int:
-    """Open the two 3.4 documents: Orca browser tabs when reachable, else Chrome (one call, all URIs)."""
+def open_review(ship: Path, report: Path) -> int:
+    """Open the two 3.4 documents in the machine's default browser, not an Orca tab."""
     uris = [
         file_uri(ship) + "?qa-review=final&qa-outlines=off",
         file_uri(report),
     ]
     import open_doc
 
-    results = open_doc.open_docs(uris, ["open", "-a", "Google Chrome", *uris])
+    results = open_doc.open_docs(uris)
     if all(r.get("opened") for r in results):
         print(f"opened in {open_doc.describe(results[0])}")
         return 0
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = root / "rebuild" / "polish-report.html"
     if not args.no_open:
-        rc = open_chrome(ship, report)
+        rc = open_review(ship, report)
         if rc != 0:
             return rc
         print(f"opened: {file_uri(ship)}?qa-review=final&qa-outlines=off  (ship, outlines off — ?qa-outlines=tags turns them on)")

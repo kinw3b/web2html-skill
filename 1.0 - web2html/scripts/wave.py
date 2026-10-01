@@ -12,6 +12,10 @@ records receipts. 2.3 VALIDATE LOOK MUST run this after --shoot-open
        (controller --shoots first, applies + --records after)
   3.2  one task per companion skill: guidelines / animation / apple-design receipt
   5.2  one task per interior page: author <main> of astro/src/pages/{slug}.astro
+  compare  (/compare skill, any phase) one task per band in the last
+       qa/side-by-side/report.json: Read that band's viewport pairs → verdict +
+       scoped patch proposal (controller shoots first; after the wave it patches
+       serially and re-shoots ONLY patched bands, ≤2 rounds per band)
 
 Adapters (harness_probe.py picks; absence lowers the rung, never blocks):
   orca      supervised Orca workers, SAME agent as this orchestrator (Pitfall #220)
@@ -41,8 +45,8 @@ from typing import Callable
 import agent_loop
 
 GENERATED_FROM = "web2html/wave/v1"
-PHASES = ("2.3", "3.2", "5.2")
-DEFAULT_WORKERS = {"2.3": 4, "3.2": 3, "5.2": 2}
+PHASES = ("2.3", "3.2", "5.2", "compare")
+DEFAULT_WORKERS = {"2.3": 4, "3.2": 3, "5.2": 2, "compare": 4}
 COMPANIONS = (
     ("web-design-guidelines", "qa/web-design-guidelines.md"),
     ("find-animation-opportunities", "qa/find-animation-opportunities.md"),
@@ -155,6 +159,16 @@ def inputs_for(root: Path, phase: str) -> list[str]:
         if "qa/phase-4-pages.json" not in inputs:
             raise FileNotFoundError("5.2 wave needs qa/phase-4-pages.json from 4.2")
         return inputs
+    if phase == "compare":
+        inputs = _existing(root, "rebuild/index.html", "rebuild/css", "qa/side-by-side/report.json")
+        if "rebuild/index.html" not in inputs:
+            raise FileNotFoundError("compare wave needs rebuild/index.html")
+        if "qa/side-by-side/report.json" not in inputs:
+            raise FileNotFoundError(
+                "compare wave needs qa/side-by-side/report.json — shoot the pairs first: "
+                "paper_23_side_by_side.py . [--id …]"
+            )
+        return inputs
     raise ValueError(f"unknown wave phase {phase!r}; use {PHASES}")
 
 
@@ -194,6 +208,58 @@ def _pages(root: Path) -> list[str]:
     return slugs
 
 
+def _compare_bands(root: Path) -> list[dict]:
+    """Bands in the last side-by-side report, in shoot order, deduped.
+    The report is the receipt of a FRESH shoot — the /compare skill shoots
+    before prepare, and a patch to rebuild/ stales every finding via the
+    snapshot SHA, so a wave can never review pre-patch pairs in a loop."""
+    try:
+        report = json.loads((root / "qa" / "side-by-side" / "report.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise FileNotFoundError(
+            f"qa/side-by-side/report.json unreadable ({exc}) — shoot the pairs first: "
+            "paper_23_side_by_side.py . [--id …]"
+        ) from exc
+    stops = report.get("stops")
+    if not isinstance(stops, list) or not stops:
+        raise FileNotFoundError(
+            "qa/side-by-side/report.json lists no stops — re-shoot: paper_23_side_by_side.py . [--id …]"
+        )
+    seen: set[str] = set()
+    bands: list[dict] = []
+    for row in stops:
+        if not isinstance(row, dict):
+            continue
+        band = str(row.get("id") or "").strip()
+        if band and band not in seen:
+            seen.add(band)
+            bands.append({"id": band, "nn": str(row.get("nn") or "")})
+    if not bands:
+        raise FileNotFoundError("qa/side-by-side/report.json stops carry no band ids — re-shoot")
+    return bands
+
+
+def _compare_pairs(root: Path, band: str) -> list[str]:
+    """Exact viewport-pair paths for one band from the report (no globbing)."""
+    report = json.loads((root / "qa" / "side-by-side" / "report.json").read_text(encoding="utf-8"))
+    pairs: list[str] = []
+    for row in report.get("stops") or []:
+        if isinstance(row, dict) and str(row.get("id") or "") == band and row.get("side"):
+            pairs.append(str(row["side"]))
+    return pairs
+
+
+def _compare_widths(root: Path) -> tuple[str, ...]:
+    try:
+        report = json.loads((root / "qa" / "side-by-side" / "report.json").read_text(encoding="utf-8"))
+        widths = [str(w) for w in report.get("widths") or []]
+        if widths:
+            return tuple(widths)
+    except (OSError, ValueError):
+        pass
+    return tuple(str(w) for w in _run_widths(root))
+
+
 def plan_tasks(root: Path, phase: str) -> list[dict]:
     root = root.resolve()
     if phase == "2.3":
@@ -207,6 +273,9 @@ def plan_tasks(root: Path, phase: str) -> list[dict]:
     if phase == "5.2":
         return [{"id": f"page-{_safe(slug)}", "kind": "astro-body", "slug": slug,
                  "writes": [f"astro/src/pages/{slug}.astro"]} for slug in _pages(root)]
+    if phase == "compare":
+        return [{"id": f"band-{_safe(str(row['id']))}", "kind": "compare-band", "band": str(row["id"])}
+                for row in _compare_bands(root)]
     raise ValueError(f"unknown wave phase {phase!r}")
 
 
@@ -226,6 +295,18 @@ def _side_pngs(root: Path, band: str) -> list[str]:
     for width in _run_widths(root):
         hits = sorted(compare.glob(f"*-{band}-{width}-side.png")) if compare.is_dir() else []
         found.append(str(hits[0].relative_to(root)) if hits else f"qa/paper-measure/compare/NN-{band}-{width}-side.png")
+    return found
+
+
+def _viewport_pngs(root: Path, band: str) -> list[str]:
+    """Viewport pairs from paper_23_side_by_side.py — wrap count, pane-edge bleed,
+    band spacing, sticky chrome. Gated for freshness; they must also be READ."""
+    pairs = root / "qa" / "side-by-side"
+    found: list[str] = []
+    for width in _run_widths(root):
+        folder = pairs / str(width)
+        hits = sorted(folder.glob(f"*-{band}-{width}-side.png")) if folder.is_dir() else []
+        found.append(str(hits[0].relative_to(root)) if hits else f"qa/side-by-side/{width}/NN-{band}-{width}-side.png")
     return found
 
 
@@ -251,8 +332,10 @@ def spec_text(root: Path, phase: str, task: dict, sha: str, run_id: str) -> str:
     if phase == "2.3":
         band = task["band"]
         sides = _side_pngs(root, band)
+        viewports = _viewport_pngs(root, band)
         sides_block = "\n  ".join(sides)
-        read_budget = len(sides)
+        viewports_block = "\n  ".join(viewports)
+        read_budget = len(sides) + len(viewports)
         verdict_keys = ",".join(f'"{w}":"match|miss"' for w in _run_widths(root))
         return f"""web2html 2.3 VALIDATE — band #{band}  (wave {run_id}, snapshot {sha[:12]})
 Project  {root}
@@ -260,6 +343,9 @@ Project  {root}
 TARGET  Read the side-by-sides for THIS band only (1.2 clip left, rebuild right):
   {sides_block}
   The left half IS the 1.2 clip — do not open the source-sections PNGs again.
+  Then read the viewport pairs (captured-source fullpage crop left, rebuild
+  full viewport right — they catch what the clips cannot):
+  {viewports_block}
   Only when a miss needs an exact number, grep qa/index-raw.html for this
   band's copy; never Read that file whole (it is a large Paper dump).
 
@@ -267,9 +353,11 @@ VERDICT  `miss` only for a watch-list difference a reviewer would flag at a glan
   layout (split vs stack, column count, band order), a missing / extra element,
   icon, overlay or image, wrong radius class (pill vs 10px), a heading that wraps
   on a different line count, type size or weight visibly off, a gap or padding
-  off by more than ~8px. Everything else is `match`: sub-8px drift, anti-aliasing,
-  font hinting, image crop within a few px, colour within one shade, and live
-  content the clip froze differently. When unsure, `match` and say why in `seen`.
+  off by more than ~8px, sticky chrome overlapping the band, a card clipped or
+  bleeding at the viewport edge. Everything else is `match`: sub-8px drift,
+  anti-aliasing, font hinting, image crop within a few px, colour within one
+  shade, and live content the clip froze differently. When unsure, `match` and
+  say why in `seen`.
 
 BUDGET  At most {read_budget} image Reads and one finding file. No second pass, no
   re-reading a side you already looked at, no other files.
@@ -290,6 +378,52 @@ CONSTRAINTS  Read-only. Do not edit rebuild/, qa/paper-measure/*.validate.json, 
   (Pitfall #195 #202 #216).
 
 OWNERSHIP  You own only {finding}. The controller applies the patch and records the round.
+
+ACCEPTANCE  {check}   → exit 0
+{stop}
+{done}
+"""
+    if phase == "compare":
+        band = task["band"]
+        pairs = _compare_pairs(root, band)
+        widths = _compare_widths(root)
+        pairs_block = "\n  ".join(pairs) or "  (no pairs in the report for this band — stop, outcome failed)"
+        read_budget = max(len(pairs), 1)
+        verdict_keys = ",".join(f'"{w}":"match|miss"' for w in widths)
+        return f"""web2html /compare VALIDATE — band #{band}  (wave {run_id}, snapshot {sha[:12]})
+Project  {root}
+
+TARGET  Read the viewport pairs for THIS band only (captured source left, rebuild
+  right, same scroll stop, native scale):
+  {pairs_block}
+  diffPct in the report is a hint — never a verdict.
+
+VERDICT  `miss` only for a difference a reviewer would flag at a glance: heading
+  wrap count, column count, a missing / extra element, icon, overlay or image,
+  a card clipped or bleeding at the pane edge, wrong radius class, type size or
+  weight visibly off, a gap or padding off by more than ~8px, sticky chrome
+  overlapping the band, band order. Everything else is `match`: sub-8px drift,
+  anti-aliasing, font hinting, image crop within a few px, colour within one
+  shade. When unsure, `match` and say why in `seen`.
+
+BUDGET  At most {read_budget} image Reads and one finding file. No second pass, no
+  re-reading a pair you already looked at, no other files, no live-URL fetch.
+
+CHANGE  Write ONE file and nothing else: {finding}
+  {{"generatedFrom":"web2html/agent-findings/v1","phase":"compare","agent":"{agent}",
+   "inputSha256":"{sha}","band":"{band}",
+   "verdict":{{{verdict_keys}}},
+   "seen":"at least 12 words: what each width showed, concretely",
+   "misses":[{{"width":768,"what":"cards stack 1-col, source paints 2-col","fix":"#{band} .grid: repeat(2, 1fr) at 768"}}],
+   "patch":"the exact CSS/HTML change scoped to #{band}, or empty when every width matches",
+   "findings":[{{"key":"768","severity":"medium","source":"{pairs[0] if pairs else 'side.png'}","evidence":"what you saw","suggestion":"the fix"}}]}}
+  `findings` may be an empty list when every width matches.
+
+CONSTRAINTS  Read-only. Do not edit rebuild/, qa/, or any other file. No Paper MCP.
+  No re-shoot, no Playwright, no pixel-perfect refine loop. Never invent a
+  breakpoint — only the widths in the pair paths above.
+
+OWNERSHIP  You own only {finding}. The controller applies the patch and re-shoots.
 
 ACCEPTANCE  {check}   → exit 0
 {stop}
@@ -505,6 +639,19 @@ def validate_task(root: Path, wave: dict, task: dict) -> list[str]:
             errors.append("verdict must name match|miss at " + ", ".join(keys))
         if len(str(finding.get("seen") or "").split()) < 12:
             errors.append("seen must be at least 12 words")
+    if wave["phase"] == "compare":
+        verdict = finding.get("verdict") or {}
+        keys = _compare_widths(root)
+        if not all(str(verdict.get(k)) in {"match", "miss"} for k in keys):
+            errors.append("verdict must name match|miss at " + ", ".join(keys))
+        if len(str(finding.get("seen") or "").split()) < 12:
+            errors.append("seen must be at least 12 words")
+        patch = str(finding.get("patch") or "").strip()
+        misses = finding.get("misses") or []
+        if misses and not patch:
+            errors.append("a finding with misses must carry a scoped patch proposal")
+        if patch and str(finding.get("band") or "") and f"#{finding['band']}" not in patch:
+            errors.append("patch must stay scoped to #<band> (selector mentions no #band)")
     if wave["phase"] == "3.2":
         report = root / str(finding.get("report") or task.get("report") or "")
         if not report.is_file() or not report.read_text(encoding="utf-8", errors="replace").strip():
@@ -639,6 +786,17 @@ def apply(root: Path, run_id: str, phase: str) -> dict:
                 "patch": patch,
                 "record": _record_command(root, task["band"], finding),
                 "note": "apply `patch` to #%s (rebuild/index.html or rebuild/css), then run `record`. After every action: one --shoot-open (it refreshes bands this wave's patches staled), then a new wave only if a band is still open" % task["band"],
+            })
+        elif phase == "compare":
+            patch = str(finding.get("patch") or "").strip()
+            out["actions"].append({
+                "band": task["band"],
+                "verdict": finding.get("verdict"),
+                "patch": patch,
+                "note": "apply `patch` to #%s under the current phase's write rules, then re-shoot ONLY patched bands "
+                        "(paper_23_side_by_side.py . --id %s) and prepare ONE confirm wave (new --run-id). "
+                        "Hard cap 2 rounds per band: a difference that survives the confirm wave is a residual — "
+                        "report it, do not wave again" % (task["band"], task["band"]),
             })
         elif phase == "3.2":
             report = root / str(finding.get("report") or task["report"])

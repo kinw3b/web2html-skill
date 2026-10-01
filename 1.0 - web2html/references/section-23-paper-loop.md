@@ -59,18 +59,24 @@ Controller (this session — only rebuild/ writer):
   4. SHOOT    paper_23_rebuild_shots.py . --all
   5. PULL     paper_23_clip_compare.py .  (copies NN-slug.png at 1600/768/390
               next to rebuild shots; writes side-by-sides)
+  5.5 PAIRS   paper_23_side_by_side.py .  (viewport pairs at the run widths:
+              1.2 fullpage crop left, rebuild viewport right, native scale,
+              qa/side-by-side/<width>/NN-slug-side.png + report.json)
   6. COMPARE  Read those pulled PNGs. Serial here (controller), or at most
               TWO disk-only measure workers writing qa/paper-measure/<id>.*
   7. APPLY    merge each section patch serially onto rebuild/index.html
               (port missing dump SVG/icons — do not invent Lucide stand-ins)
-  8. RESHOOT  only sections whose CSS changed (max 1 re-shoot each)
+  8. RESHOOT  only sections whose CSS changed (max 1 re-shoot each), then
+              re-run PAIRS for those bands (--id) so the pairs stay fresh
   9. INDEX    qa/paper-measure/_index.json + qa/section-align-22.json
  10. VALIDATE paper_23_validate.py . --shoot-open
               then MUST wave.py prepare/start/wait/apply (LOOK)
               then apply printed patches + --record from the findings
               ≤ 3 rounds per band; --residual allowed from round 2
- 11. GATE     section_22_gate.py .  (needs every <id>.validate.json
-              AND an applied qa/agent-runs/<run>/2.3/wave.json)
+ 11. GATE     section_22_gate.py .  (needs every <id>.validate.json,
+              an applied qa/agent-runs/<run>/2.3/wave.json, AND a FRESH
+              qa/side-by-side/report.json — ship fingerprint unchanged
+              since the pairs were shot; re-run PAIRS after the last patch)
 
 Do not skip this loop. Missing qa/index-raw.html,
 qa/paper-measure/raw-census.json, qa/paper-measure/disk-gold.json, or
@@ -84,6 +90,9 @@ Each compare, for section S at 1600 / 768 / 390:
            + qa/paper-measure/compare/NN-<id>-{1600,768,390}-side.png
              (1.2 numbered clip left, rebuild right). If no side file,
              Read the pulled -source.png and -rebuild.png pair.
+           + qa/side-by-side/<width>/NN-<id>-<width>-side.png (viewport
+             pair: fullpage crop left, rebuild viewport right) for wrap
+             count, overflow / bleed at the pane edge, band spacing
            + sidecar bbox when you need a number
   WRITE    qa/paper-measure/<id>.json  (before proposing CSS)
            must set rawCompared: true, diskCompared: true,
@@ -102,6 +111,8 @@ Hard caps:
   remediation is 2.1 and after 2.4, not here.
 - **Measure spawn: at most 2 live children** writing `qa/paper-measure/<id>.*`.
   Never one Paper-bound worker per section. Never 8.
+- **PAIRS is controller-only.** One Playwright launch per run of
+  `paper_23_side_by_side.py`; workers Read its PNGs, never run it.
 - **VALIDATE LOOK is `wave.py`.** Required. Adapter from the probe
   (`orca` → up to 4 Orca terminals, `subagent` → this harness's subagent
   tool, `serial` → controller does each printed spec). Never skip it
@@ -121,6 +132,7 @@ Not polish. Not a restyle.
 | Hit | Look for |
 |---|---|
 | **Layout** | split vs stack, column count, band order |
+| **Viewport overflow** | in the viewport pairs: heading wrap count, cards clipped or bleeding at the pane edge, band spacing, sticky chrome over the band top |
 | **Typography** | `fontSize`, **line-height in px**, weight, tracking, wrap |
 | **Geometry / shift** | width, height, gap, padding, inset; a band that jumped |
 | **Missing icons** | list / perk vectors Paper paints and 2.2 dropped. **Gold is index-raw:** empty `div` + `background-image: url(….svg)` or inline `<svg>`. Port that markup/asset. Do not invent Lucide/Heroicons. |
@@ -160,6 +172,7 @@ Disk gold: qa/paper-measure/disk-gold.json
 Clip compare: qa/paper-measure/clip-compare.json
 Pulled 1.2 clips: qa/paper-measure/compare/NN-<id>-{1600,768,390}-source.png
 Side-by-sides: qa/paper-measure/compare/NN-<id>-{1600,768,390}-side.png
+Viewport pairs: qa/side-by-side/{1600,768,390}/NN-<id>-<width>-side.png
 Rebuild shots: qa/paper-measure/rebuild/<id>-{1600,768,390}.png
 Recipe: web2html/references/section-23-paper-loop.md
 
@@ -173,8 +186,8 @@ Recipe: web2html/references/section-23-paper-loop.md
 2. WRITE qa/paper-measure/<id>.json BEFORE proposing any CSS.
    Include rawCompared: true, diskCompared: true, clipCompared: true,
    gold: "disk", and raw: { svg, bgSvg, ported[] }.
-3. Self-validate against the side-by-sides + index-raw. If the watch
-   list is clean, patch = none, assist = none, measured = true, stop.
+3. Self-validate against the side-by-sides + viewport pairs + index-raw.
+   If the watch list is clean, patch = none, assist = none, measured = true, stop.
 4. On a miss: propose CSS/HTML for THIS section only in
    qa/paper-measure/<id>.patch.md. Selectors must be scoped to <id>
    (#hero, section.features, …). No global token restyle. Do not edit

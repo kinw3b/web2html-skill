@@ -221,6 +221,7 @@ class ValidateWalkTest(unittest.TestCase):
                 root, "hero", seen="Re-shot after the patch; all three widths match the clip",
                 verdict=validate.parse_verdict("1600=match,768=match,390=match"), misses=[], patched=False,
             )
+            gate.install_passing_side_by_side(root)  # pairs re-run after the last patch
             self.assertEqual(gate.gate_errors(root), [])
             css = root / "rebuild" / "css"
             css.mkdir(exist_ok=True)
@@ -272,6 +273,7 @@ class ValidateWalkTest(unittest.TestCase):
             self.assertEqual(out["restamped"], ["hero"])
             self.assertEqual(validate.band_state(root, "hero"), "match")
             self.assertEqual(len(validate.load(root, "hero")["rounds"]), 1)
+            gate.install_passing_side_by_side(root)  # pairs re-run after the css patch
             self.assertEqual(gate.gate_errors(root), [])
 
     def test_changed_pixels_reopen_once_then_close_as_residual(self) -> None:
@@ -303,6 +305,7 @@ class ValidateWalkTest(unittest.TestCase):
             payload = validate.load(root, "hero")
             self.assertEqual(payload["status"], "residual")
             self.assertIn("2.4", payload["residual"])
+            gate.install_passing_side_by_side(root)  # pairs re-run after the last patch
             self.assertEqual(gate.gate_errors(root), [])
 
     def test_overlay_and_3x_sheets_do_not_change_the_fingerprint(self) -> None:

@@ -137,18 +137,31 @@ export function colorSeedVerdict(sourcePalette, paperPalette) {
   return null;
 }
 
+/** get_screenshot caps the long edge at 2000px and keeps aspect. A full tall
+ *  section then comes back shorter than the source clip without being cropped. */
+export function screenshotCappedTo2000({ sourceW, sourceH, paperW, paperH } = {}) {
+  if (paperH !== 2000 || !sourceW || !sourceH || !paperW) return false;
+  if (!(paperW < sourceW * 0.85)) return false;
+  const sourceAspect = sourceW / sourceH;
+  const paperAspect = paperW / paperH;
+  if (!Number.isFinite(sourceAspect) || sourceAspect <= 0) return false;
+  return Math.abs(paperAspect - sourceAspect) / sourceAspect < 0.03;
+}
+
 export function layoutSeedVerdict({
   sourceWhite,
   paperWhite,
   paperChildCount,
   sourceH,
   paperH,
+  sourceW,
+  paperW,
 } = {}) {
   const hole = shotVerdict({ sourceWhite, paperWhite, paperChildCount });
   if (hole) {
     return { kind: "layout-shift", symptom: hole.symptom };
   }
-  if (sourceH && paperH) {
+  if (sourceH && paperH && !screenshotCappedTo2000({ sourceW, sourceH, paperW, paperH })) {
     const ratio = paperH / sourceH;
     if (ratio < 0.5 || ratio > 2.5) {
       return {

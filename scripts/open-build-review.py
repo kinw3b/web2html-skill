@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Open the authored ship page in Chrome with QA TAGS outlines.
+"""Open the authored ship page in the machine's default browser with QA TAGS outlines.
 
   python3 open-build-review.py /path/to/project --stage 2.4
   python3 open-build-review.py /path/to/templates/prior-run
 
 2.4 is the human checkpoint after the 2.3 section-vs-Paper loop. Inject the
-QA overlay first. Pesticide TAGS mode is ON by default. A successful Chrome
-launch writes qa/build-checkpoint-opened.json. Human approval lands in
+QA overlay first. Pesticide TAGS mode is ON by default. A successful open
+writes qa/build-checkpoint-opened.json. Human approval lands in
 qa/build-checkpoint.md before 3.0.
 
-Opens file://…/rebuild/index.html?qa-outlines=tags (query, not hash — Chrome
-drops file:// fragments). Alt+O cycles off / on / tags / mono.
+Opens file://…/rebuild/index.html?qa-outlines=tags in the OS default browser
+(`open` / `xdg-open` — Chrome, Brave, or whatever is set), not an Orca tab
+(Pitfall #242). Query, not hash — some browsers drop file:// fragments.
+Alt+O cycles off / on / tags / mono.
 """
 from __future__ import annotations
 
@@ -83,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_open:
         import open_doc
 
-        result = open_doc.open_doc(uri, ["open", "-a", "Google Chrome", uri])
+        result = open_doc.open_doc(uri)
         if not result.get("opened"):
             print(f"FAIL: could not open the 2.4 review ({result.get('error')}). Open {uri} yourself.", file=sys.stderr)
             return 1

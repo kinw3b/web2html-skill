@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.no_open:
             import open_doc
 
-            result = open_doc.open_doc(uri, ["open", "-a", "Google Chrome", uri])
+            result = open_doc.open_doc(uri)
             print(f"{open_doc.describe(result)}: {uri}")
     receipt = root / "qa" / "phase-5-review-opened.json"
     receipt.write_text(

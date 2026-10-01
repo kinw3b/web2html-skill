@@ -4,6 +4,9 @@
   var triggers = document.querySelectorAll("[data-nav-dropdown-trigger]");
   if (!triggers.length) return;
 
+  var narrow = window.matchMedia("(max-width: 768px)");
+  var touch = window.matchMedia("(hover: none), (pointer: coarse)");
+
   function panelOf(trigger) {
     var owned = trigger.getAttribute("aria-controls");
     if (owned) {
@@ -42,27 +45,31 @@
     trigger.setAttribute("aria-expanded", "false");
 
     trigger.addEventListener("click", function (event) {
-      if (window.matchMedia("(max-width: 768px)").matches) return;
+      if (narrow.matches) return; // compact widths: the burger drawer owns navigation
       event.preventDefault();
       var open = trigger.getAttribute("aria-expanded") === "true";
       closeAll(trigger);
-      setOpen(trigger, !open);
+      // Contract (Pitfall #241): touch toggles; desktop clicks only OPEN.
+      // A pointer click always arrives after mouseenter already opened the
+      // panel, so toggling on aria-expanded slams it shut on every click.
+      // Escape / host mouseleave / outside click are what close on desktop.
+      setOpen(trigger, touch.matches ? !open : true);
     });
     trigger.addEventListener("mouseenter", function () {
-      if (window.matchMedia("(max-width: 768px)").matches) return;
+      if (narrow.matches || touch.matches) return;
       closeAll(trigger);
       setOpen(trigger, true);
     });
     if (panel) {
       panel.addEventListener("mouseenter", function () {
-        if (window.matchMedia("(max-width: 768px)").matches) return;
+        if (narrow.matches || touch.matches) return;
         setOpen(trigger, true);
       });
     }
     var host = trigger.closest("[data-nav-dropdown], li, nav, header") || trigger.parentElement;
     if (host) {
       host.addEventListener("mouseleave", function () {
-        if (!window.matchMedia("(max-width: 768px)").matches) setOpen(trigger, false);
+        if (!narrow.matches && !touch.matches) setOpen(trigger, false);
       });
     }
   });

@@ -41,6 +41,8 @@ need_file "$(pkg web2html)/scripts/paper_23_disk_gold.py"
 need_file "$(pkg web2html)/scripts/paper_23_clip_compare.py"
 need_file "$(pkg web2html)/scripts/paper_23_rebuild_shots.py"
 need_file "$(pkg web2html)/scripts/paper_23_validate.py"
+need_file "$(pkg web2html)/scripts/paper_23_side_by_side.py"
+need_file "$(pkg compare)/SKILL.md"
 need_file "$(pkg web2html)/references/section-23-paper-loop.md"
 need_file "$(pkg web2html)/scripts/promote-bg-fills-to-img.py"
 need_file "$(pkg web2html)/scripts/bg_fills.py"
@@ -233,11 +235,13 @@ if grep -q 'frame-to-html' "$(pkg design-tokens)/SKILL.md" 2>/dev/null; then
 fi
 
 # No machine-specific paths may ship. A skill that hardcodes one breaks the
-# moment the checkout moves or someone else installs it.
+# moment the checkout moves or someone else installs it. goflow is machine-local
+# by design (private skill, never in the numbered public packages).
 leaks=$(grep -rIn   --exclude-dir=.git --exclude=.git --exclude-dir=node_modules \
   --exclude-dir=.venv --exclude-dir=.context --exclude-dir=.impeccable \
   --exclude-dir=.conductor --exclude-dir=archive \
   --exclude-dir=.claude --exclude-dir=.terminalgraph --exclude-dir=.hermes \
+  --exclude-dir=goflow \
   --exclude="check-skill-artifacts.sh" \
   -e '/Users/' -e 'conductor/repos' -e '\.agents/skills/' \
   "$SKILLS_ROOT" 2>/dev/null || true)

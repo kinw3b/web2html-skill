@@ -257,5 +257,123 @@ class WaveTests(unittest.TestCase):
         self.assertIn("<main>", doc["tasks"][0]["spec"])
 
 
+class CompareWaveTests(unittest.TestCase):
+    """/compare rides wave.py: one read-only task per band in the side-by-side report."""
+
+    REPORT = {
+        "generatedFrom": "web2html/section-23-side-by-side",
+        "ok": True,
+        "widths": [1600, 390],
+        "stops": [
+            {"id": "hero", "nn": "01", "width": 1600, "side": "qa/side-by-side/1600/01-hero-1600-side.png", "diffPct": 22.6},
+            {"id": "hero", "nn": "01", "width": 390, "side": "qa/side-by-side/390/01-hero-390-side.png", "diffPct": 34.7},
+            {"id": "pricing", "nn": "06", "width": 1600, "side": "qa/side-by-side/1600/06-pricing-1600-side.png", "diffPct": 1.2},
+            {"id": "pricing", "nn": "06", "width": 390, "side": "qa/side-by-side/390/06-pricing-390-side.png", "diffPct": 2.4},
+        ],
+    }
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        (self.root / "rebuild").mkdir(parents=True)
+        (self.root / "rebuild" / "index.html").write_text("<main><section id='hero'></section><section id='pricing'></section></main>")
+        pairs = self.root / "qa" / "side-by-side"
+        pairs.mkdir(parents=True)
+        (pairs / "report.json").write_text(json.dumps(self.REPORT))
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_prepare_plans_one_task_per_report_band_with_pair_paths_in_the_spec(self):
+        doc = wave.prepare(self.root, "c1", "compare")
+        self.assertEqual([t["id"] for t in doc["tasks"]], ["band-hero", "band-pricing"])
+        self.assertEqual(doc["maxWorkers"], 4)
+        spec = doc["tasks"][0]["spec"]
+        for needle in ("qa/side-by-side/1600/01-hero-1600-side.png",
+                       "qa/side-by-side/390/01-hero-390-side.png",
+                       "Read-only", '"1600":"match|miss"', '"390":"match|miss"',
+                       "--agent band-hero", "diffPct"):
+            self.assertIn(needle, spec)
+        # The pricing spec must not list hero's pairs.
+        self.assertNotIn("01-hero", doc["tasks"][1]["spec"])
+
+    def test_prepare_refuses_without_a_shot_report(self):
+        (self.root / "qa" / "side-by-side" / "report.json").unlink()
+        with self.assertRaises(FileNotFoundError) as ctx:
+            wave.prepare(self.root, "c1", "compare")
+        self.assertIn("paper_23_side_by_side.py", str(ctx.exception))
+
+    def test_orca_start_launches_read_only_band_workers(self):
+        saved = wave._probe
+        wave._probe = lambda root: ORCA_PROBE
+        try:
+            doc = wave.prepare(self.root, "c1", "compare")
+            run = fake_orca({
+                "run-create": [(0, {"result": {"run": {"id": "run_c"}}})],
+                "worker-start": [(0, {"result": {"dispatch": {"id": "d_hero"}}}), (0, {"result": {"dispatch": {"id": "d_pricing"}}})],
+            })
+            doc = wave.start(self.root, "c1", "compare", "auto", run)
+            self.assertEqual(doc["adapter"], "orca")
+            self.assertEqual([t["status"] for t in doc["tasks"]], ["running", "running"])
+            starts = [c for c in run.calls if c[2] == "worker-start"]
+            self.assertEqual(starts[0][starts[0].index("--agent") + 1], "claude")
+        finally:
+            wave._probe = saved
+
+    def test_finding_validation_needs_a_scoped_patch_and_confirm_apply_caps_rounds(self):
+        doc = wave.prepare(self.root, "c1", "compare")
+        hero = doc["tasks"][0]
+        path = self.root / hero["findings"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # misses without a patch → invalid; an unscoped patch → invalid.
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "miss", "390": "match"},
+            seen="hero headline wraps to three lines at 390 while the source crop wraps to two",
+            misses=[{"width": 1600, "what": "columns stacked", "fix": "2-col grid"}], patch="")))
+        errors = wave.check_one(self.root, "c1", "compare", "band-hero")
+        self.assertTrue(any("scoped patch" in e for e in errors))
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "miss", "390": "match"},
+            seen="hero headline wraps to three lines at 390 while the source crop wraps to two",
+            misses=[{"width": 1600, "what": "columns stacked", "fix": "2-col grid"}],
+            patch="body .grid { grid-template-columns: repeat(2, 1fr); }")))
+        errors = wave.check_one(self.root, "c1", "compare", "band-hero")
+        self.assertTrue(any("scoped to #<band>" in e for e in errors))
+        # A properly scoped finding passes; apply prints patch + re-shoot + the 2-round cap.
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "miss", "390": "match"},
+            seen="hero headline wraps to three lines at 390 while the source crop wraps to two",
+            misses=[{"width": 1600, "what": "columns stacked", "fix": "#hero .grid: repeat(2, 1fr)"}],
+            patch="#hero .grid { grid-template-columns: repeat(2, 1fr); }",
+            findings=[{"key": "1600", "severity": "medium", "source": self.REPORT["stops"][0]["side"],
+                       "evidence": "stacked", "suggestion": "2-col"}])))
+        (self.root / doc["tasks"][1]["findings"]).write_text(json.dumps(finding_for(
+            doc, doc["tasks"][1], band="pricing", verdict={"1600": "match", "390": "match"},
+            seen="pricing cards, gaps, and radii match the source crop at both widths", misses=[], patch="")))
+        self.assertTrue(wave.ready(self.root, "c1", "compare")[0])
+        out = wave.apply(self.root, "c1", "compare")
+        self.assertEqual([a["band"] for a in out["actions"]], ["hero", "pricing"])
+        self.assertIn("#hero .grid", out["actions"][0]["patch"])
+        self.assertIn("--id hero", out["actions"][0]["note"])
+        self.assertIn("2 rounds", out["actions"][0]["note"])
+        self.assertEqual(out["actions"][1]["patch"], "")
+        self.assertEqual(agent_loop.active_reviewer_leases(self.root), [])
+
+    def test_a_patch_to_the_ship_stales_compare_findings(self):
+        doc = wave.prepare(self.root, "c1", "compare")
+        hero = doc["tasks"][0]
+        path = self.root / hero["findings"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "match", "390": "match"},
+            seen="hero headline, CTA pair, and photo frame match the crop at both widths", misses=[], patch="")))
+        self.assertEqual(wave.check_one(self.root, "c1", "compare", "band-hero"), [])
+        (self.root / "rebuild" / "index.html").write_text("<main><section id='hero'>patched</section></main>")
+        errors = wave.check_one(self.root, "c1", "compare", "band-hero")
+        self.assertTrue(any("stale" in e for e in errors))
+        argv = ["check", str(self.root), "--phase", "compare", "--run-id", "c1", "--agent", "band-hero"]
+        self.assertEqual(wave.main(argv), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

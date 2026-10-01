@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """Open a pipeline document — live board, build review, polish report, built routes.
 
-Order: Orca's embedded browser when this session runs inside a reachable Orca
-(`orca tab create --url … --json`, file:// included), else the caller's own
-fallback command (Chrome on macOS today, `open` / `xdg-open` otherwise).
-Nothing here gates a step: a failed open only prints the URI (Pitfall #219).
+Default: the machine's native browser (`open` on macOS, `xdg-open` on Linux).
+That is Chrome, Brave, or whatever the OS default is — not an app name we pin,
+and not an Orca tab. Concurrent runs must not pile tabs in Orca's browser
+(Pitfall #242). Nothing here gates a step: a failed open only prints the URI
+(Pitfall #219).
 
-  WEB2HTML_BROWSER=auto     Orca first, then the fallback (default)
+  WEB2HTML_BROWSER=default  native browser (the default; also the fallback for a typo)
+  WEB2HTML_BROWSER=auto     Orca tab first, then the native browser
   WEB2HTML_BROWSER=orca     Orca only; a miss prints the URI and returns False
-  WEB2HTML_BROWSER=default  skip Orca, use the fallback
 
-  python3 open_doc.py file:///path/to/pipeline.html [more URIs…]   # CLI: Orca else `open`
+  python3 open_doc.py file:///path/to/pipeline.html [more URIs…]
 
-The Capture Tool (needs the Chromium extension) and Paper (its own app) keep
-their own openers; this is for the HTML the pipeline itself writes.
+Pass fallback=None. Do not pin `open -a "Google Chrome"`. The Capture Tool
+(needs the Chromium extension) and Paper (its own app) keep their own openers;
+this is for the HTML the pipeline itself writes — pipeline.html, index.html,
+polish reports, built routes.
 """
 from __future__ import annotations
 
@@ -63,8 +66,9 @@ def orca_cli(env: dict) -> str | None:
 
 
 def preference(env: dict) -> str:
-    value = str(env.get("WEB2HTML_BROWSER") or "auto").strip().lower()
-    return value if value in {"auto", "orca", "default"} else "auto"
+    """Unset means the OS default browser. Orca tabs are opt-in."""
+    value = str(env.get("WEB2HTML_BROWSER") or "default").strip().lower()
+    return value if value in {"auto", "orca", "default"} else "default"
 
 
 def open_in_orca(uri: str, env: dict | None = None, run: Runner = _run) -> dict:
@@ -125,7 +129,12 @@ def open_doc(
 
 
 def open_docs(uris: Sequence[str], fallback: Sequence[str] | None = None, **kw) -> list[dict]:
-    """Open several URIs. In Orca each gets its own tab; a multi-URI fallback (Chrome takes many) runs once."""
+    """Open several URIs in the native browser, one opener call each.
+
+    WEB2HTML_BROWSER=auto|orca gives each URI its own Orca tab. A caller-supplied
+    multi-URI fallback still runs once when Orca is not used — pass None so the
+    OS default handler is used instead of a pinned browser.
+    """
     env = dict(os.environ if kw.get("env") is None else kw["env"])
     kw["env"] = env
     if preference(env) != "default":

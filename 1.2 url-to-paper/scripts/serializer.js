@@ -1,8 +1,12 @@
-// Paper Snapshot 0.3.12 (lidfahaahiogmnlccifabccgplofocck), ported from
+// Paper Snapshot 0.4.4 (lidfahaahiogmnlccifabccgplofocck), ported from
 // Paper-Bridge content/paper-snapshot.js @ fda64f2 (0.3.8 base) plus the
 // 0.3.12 upstream deltas: throttled frame yield, positioned-element baseline
 // resets, canvas/video PNG rasterization, in-page reduced-motion emulation,
-// and ::before/::after content:url() images. Keep the computed-style diff.
+// and ::before/::after content:url() images. 0.4.4 deltas: valid-nesting
+// scope (block tags inside <p>, nested <a>/<button> emit as <span>), <img>
+// percentage sizes pinned to px when the parent depends on them,
+// appearance:none checkbox/radio with pseudo kids emit as <div>, and a thrown
+// walk returns { status: "error" }. Keep the computed-style diff.
 // 1.2-only layer-name / sidecar / dryRun / AbortController stay in fe().
 function svgHrefId(href) {
   const raw = String(href || "").trim();
@@ -146,6 +150,14 @@ async function fe(n, opts = {}) {
       "source",
       "track",
       "wbr",
+    ]),
+    // 0.4.4: tags that cannot live inside <p>; re-emitted as <span> there.
+    blockTags = new Set([
+      "address", "article", "aside", "blockquote", "center", "dd", "details",
+      "dialog", "dir", "div", "dl", "dt", "fieldset", "figcaption", "figure",
+      "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup",
+      "hr", "li", "listing", "main", "menu", "nav", "ol", "p", "pre", "search",
+      "section", "summary", "table", "ul",
     ]),
     u = ["display", "appearance", "box-sizing"],
     i = document.getElementsByTagName("x-paper-toast")[0],
@@ -425,7 +437,7 @@ async function fe(n, opts = {}) {
   }
   // 0.3.12: emit a ::before/::after as <img> when its content is a single
   // url(), a styled <div> of text and inline <img>s otherwise.
-  function pseudoHtml(styles) {
+  function pseudoHtml(styles, wrapTag = "div") {
     const parts = parseContent(styles.content);
     delete styles.content;
     const css = m(styles),
@@ -435,7 +447,51 @@ async function fe(n, opts = {}) {
     let inner = "";
     for (const part of parts)
       inner += part.kind === "url" ? `<img src="${I(part.url)}">` : x(part.text);
-    return `<div style="${I(css)}">${inner}</div>`;
+    return `<${wrapTag} style="${I(css)}">${inner}</${wrapTag}>`;
+  }
+  // 0.4.4: nesting scope so the emitted HTML stays valid when Paper parses it.
+  function mustDemote(tag, scope) {
+    return !!(
+      (scope.inParagraph && blockTags.has(tag)) ||
+      (scope.inAnchor && tag === "a") ||
+      (scope.inButton && tag === "button")
+    );
+  }
+  function childScope(tag, scope) {
+    return tag === "p"
+      ? { ...scope, inParagraph: !0 }
+      : tag === "a"
+        ? { ...scope, inAnchor: !0 }
+        : tag === "button"
+          ? { ...scope, inButton: !0, inParagraph: !1 }
+          : scope;
+  }
+  // 0.4.4: nearest flat-tree parent that generates a box (skips display:contents).
+  function layoutParent(el) {
+    let node = el;
+    for (;;) {
+      let next = null;
+      if (node.assignedSlot) next = node.assignedSlot;
+      else if (node.parentElement) next = node.parentElement;
+      else if (node.parentNode instanceof ShadowRoot) next = node.parentNode.host;
+      if (!next) return null;
+      if (window.getComputedStyle(next).display !== "contents") return next;
+      node = next;
+    }
+  }
+  // 0.4.4: pin a percentage <img> width/height to its used px size when the
+  // parent's box depends on it (shrink-to-fit parent).
+  function pinPercentSize(el, styles, prop) {
+    if (!styles[prop]?.includes("%")) return;
+    const parent = layoutParent(el);
+    if (!parent) return;
+    const used = window.getComputedStyle(el)[prop],
+      before = parent.getBoundingClientRect()[prop],
+      inline = el.getAttribute("style");
+    el.style.setProperty(prop, "0px", "important");
+    const after = parent.getBoundingClientRect()[prop];
+    inline === null ? el.removeAttribute("style") : el.setAttribute("style", inline);
+    if (after !== before) styles[prop] = used;
   }
   function F(e) {
     if (!e) return "";
@@ -623,6 +679,7 @@ async function fe(n, opts = {}) {
       __isRoot: r = !0,
       __processedNodes: g = 0,
       __path: ie = "0",
+      __scope: scope = { inParagraph: !1, inAnchor: !1, inButton: !1 },
     } = {},
   ) {
     if (t?.aborted) return { html: "", processedNodes: 0 };
@@ -668,9 +725,19 @@ async function fe(n, opts = {}) {
     const z = [];
     let k = {};
     const ae = !(e instanceof SVGElement) || e instanceof SVGGraphicsElement;
+    // 0.4.4: output tag + nesting scope are decided before the children walk.
+    let X = [
+      "table", "thead", "tbody", "tfoot", "tr", "td", "th", "caption",
+      "colgroup", "col", "body",
+    ].includes(L)
+      ? "div"
+      : L;
+    const kept = P(e) || (isCheckVisible(e) && s.display !== "contents"),
+      nextScope = kept ? childScope(X, scope) : scope,
+      pseudoTag = nextScope.inParagraph ? "span" : "div";
     if (!o && ae) {
       const v = $(e, { pseudo: "::before" });
-      if (Object.keys(v).length && !d(v)) z.push(pseudoHtml(v));
+      if (Object.keys(v).length && !d(v)) z.push(pseudoHtml(v, pseudoTag));
       k = $(e, { isRoot: r });
     }
     const U = e.getAttributeNames().map((v) => [v, e.getAttribute(v) || ""]),
@@ -720,6 +787,7 @@ async function fe(n, opts = {}) {
             __isRoot: !1,
             __processedNodes: g + K,
             __path: G,
+            __scope: nextScope,
           });
           ((K += W.processedNodes), o || z.push(W.html));
         }
@@ -731,14 +799,14 @@ async function fe(n, opts = {}) {
       return { html: "", processedNodes: K };
     }
     const Y = $(e, { pseudo: "::after" });
-    if (Object.keys(Y).length && !d(Y)) z.push(pseudoHtml(Y));
+    if (Object.keys(Y).length && !d(Y)) z.push(pseudoHtml(Y, pseudoTag));
     const M = [];
-    if (
-      e instanceof HTMLImageElement &&
-      (M.push(["src", e.src]), !k.width && !k.height)
-    ) {
-      const v = window.getComputedStyle(e);
-      ((k.width = v.width), (k.height = v.height));
+    if (e instanceof HTMLImageElement) {
+      if ((M.push(["src", e.src]), !k.width && !k.height)) {
+        const v = window.getComputedStyle(e);
+        ((k.width = v.width), (k.height = v.height));
+      }
+      (pinPercentSize(e, k, "width"), pinPercentSize(e, k, "height"));
     }
     if (e instanceof HTMLInputElement) {
       if (
@@ -759,20 +827,12 @@ async function fe(n, opts = {}) {
       (M.push(["placeholder", e.placeholder]),
         M.push(["data-paper-placeholder-styles", m(v)]));
     }
-    const ce = [
-        "table",
-        "thead",
-        "tbody",
-        "tfoot",
-        "tr",
-        "td",
-        "th",
-        "caption",
-        "colgroup",
-        "col",
-      ],
-      le = ["body"];
-    let X = [...ce, ...le].includes(L) ? "div" : L;
+    // 0.4.4: a styled (appearance:none) checkbox/radio with pseudo kids is a box.
+    e instanceof HTMLInputElement &&
+      (e.type === "checkbox" || e.type === "radio") &&
+      k.appearance === "none" &&
+      z.length > 0 &&
+      (X = "div");
     // 0.3.12: emit rasterized canvas/video as a real <img> layer.
     if (e instanceof HTMLCanvasElement || e instanceof HTMLVideoElement) {
       const dataUrl = rasterCache.get(e);
@@ -784,7 +844,8 @@ async function fe(n, opts = {}) {
       }
     }
     if (
-      (X !== L && M.push(["paper-snapshot-original-tag", e.tagName]),
+      (mustDemote(X, scope) && (X = "span"),
+      X !== L && M.push(["paper-snapshot-original-tag", e.tagName]),
       e instanceof SVGElement)
     ) {
       const v = window.getComputedStyle(e);
@@ -807,7 +868,7 @@ async function fe(n, opts = {}) {
       (Object.keys(k).length > 0 &&
         ((k.width || k.height) && ((k.width ??= "auto"), (k.height ??= "auto")),
         M.push(["style", m(k)])),
-      P(e) || (isCheckVisible(e) && k.display !== "contents"))
+      kept)
     ) {
       // Do not grow a pc-id tree in Paper. Drop generated path ids; keep a
       // scrape name when the HTML already has one; otherwise let Paper name it.
@@ -892,6 +953,12 @@ async function fe(n, opts = {}) {
                 warning: "Some elements were unable to be captured.",
               }
           : { status: "success", html: r.html, ids: layerIds };
+    } catch (err) {
+      // 0.4.4: a thrown walk is reported, not propagated.
+      return {
+        status: "error",
+        error: `Capture failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
     } finally {
       (window.removeEventListener("keydown", e, { capture: !0 }),
         undoReducedMotion && undoReducedMotion(),

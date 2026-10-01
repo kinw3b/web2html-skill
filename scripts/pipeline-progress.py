@@ -5,7 +5,7 @@ Every run writes a condensed live board into the *template project* folder
 (e.g. Documents/templates/prior-run/pipeline.html). Never overwrite the spec
 at the repository's pipeline.html.
 
-  python3 pipeline-progress.py start  /path/to/project            # NEW run only
+  python3 pipeline-progress.py start  /path/to/project            # NEW run only; git init -b main + .gitignore when missing
   python3 pipeline-progress.py resume /path/to/project --at 2.1 --owner session-2
   python3 pipeline-progress.py resume /path/to/project --owner session-2   # --at detected from the board
   python3 pipeline-progress.py mark   /path/to/project --step 1.2 --status active
@@ -532,6 +532,17 @@ NOISE_REBUILD_GLOBS = (
     "section-[0-9][0-9].png",
 )
 KEEP_ROOT = frozenset({"rebuild", "astro", LIVE_NAME, "run-report.md"})
+# Written by start when the project has no .gitignore. A later ship leaves
+# an existing file alone, so this set covers the paths that ship ignores.
+PROJECT_GITIGNORE = """\
+.env
+.DS_Store
+**/.DS_Store
+node_modules/
+.vercel/
+.vercel-static/
+*.pem
+"""
 TIDY_SUMMARY = "tidy → lean folder (rebuild/ + astro/ + pipeline.html)"
 AGENT_RUNS = Path("qa/agent-runs")
 LEASES = AGENT_RUNS / "leases"
@@ -3642,12 +3653,39 @@ def cmd_open_capture(root: Path) -> int:
     return 0 if open_capture_tool(root) else 2
 
 
+def ensure_project_git(root: Path) -> str | None:
+    """Make the run folder its own git repo and give it a .gitignore.
+
+    Returns an error string, or None. An existing repo and an existing
+    .gitignore are left alone. Called from start, before the board reset.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    if not (root / ".git").exists():
+        result = subprocess.run(
+            ["git", "-C", str(root), "init", "-b", "main"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return (result.stderr or result.stdout or "git init failed").strip()
+        print(f"git init -b main → {root}")
+    ignore = root / ".gitignore"
+    if not ignore.exists():
+        ignore.write_text(PROJECT_GITIGNORE, encoding="utf-8")
+        print("wrote .gitignore")
+    return None
+
+
 def cmd_start(root: Path, agent: str | None = None, model: str | None = None) -> int:
     if is_spec_repo(root):
         print("FAIL: do not stamp the web2html spec repo. Pass the template project folder.", file=sys.stderr)
         return 2
     if not live_template().is_file():
         print(f"FAIL: missing {live_template()}", file=sys.stderr)
+        return 2
+    git_error = ensure_project_git(root)
+    if git_error:
+        print(f"FAIL: {git_error}", file=sys.stderr)
         return 2
     moved = quarantine_unauthorized_ship(root)
     stale_paper = root / "qa" / "paper-file.json"
@@ -3718,16 +3756,10 @@ def open_live_board(dest: Path) -> bool:
     path = dest.resolve()
     uri = path.as_uri()
     print(f"OPEN {uri}")
-    if sys.platform == "darwin":
-        fallback = ["open", str(path)]
-    elif sys.platform.startswith("linux"):
-        fallback = ["xdg-open", str(path)]
-    else:
-        fallback = None
     try:
         import open_doc
 
-        result = open_doc.open_doc(uri, fallback)
+        result = open_doc.open_doc(uri)
     except Exception as exc:  # noqa: BLE001
         print(f"FAIL: could not open board: {exc}", file=sys.stderr)
         return False

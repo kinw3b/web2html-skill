@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Render a URL and serialize it to Paper-compatible inline-styled HTML, using
-// the Paper Snapshot 0.3.12 serializer (plus 1.2 layer-name / sidecar).
+// the Paper Snapshot 0.4.4 serializer (plus 1.2 layer-name / sidecar).
 //
 // Usage:
 //   node capture.mjs --url <url> [--selector <css>] [--out <file>] [--width 1600]

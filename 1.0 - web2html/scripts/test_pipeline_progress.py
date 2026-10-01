@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unittest
 from html import escape as html_escape
@@ -1947,6 +1948,29 @@ class TimingTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r'data-step-time="', template)), 2 * len(pipeline_progress.STEP_IDS))
         self.assertEqual(re.findall(r'data-phase-time="(\d)"', template), ["1", "2", "3", "4", "5"])
         self.assertIn(".row-time:empty { display: none; }", template)
+
+    def test_start_inits_git_and_writes_gitignore(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            original = pipeline_progress.open_live_board
+            pipeline_progress.open_live_board = lambda dest: True
+            try:
+                self.assertEqual(pipeline_progress.cmd_start(root), 0)
+                self.assertTrue((root / ".git").is_dir())
+                text = (root / ".gitignore").read_text(encoding="utf-8")
+                for line in (".env", ".DS_Store", "node_modules/", ".vercel/", ".vercel-static/", "*.pem"):
+                    self.assertIn(line, text)
+                branch = subprocess.check_output(
+                    ["git", "-C", str(root), "branch", "--show-current"],
+                    text=True,
+                ).strip()
+                self.assertEqual(branch, "main")
+                (root / ".gitignore").write_text("custom\n", encoding="utf-8")
+                self.assertEqual(pipeline_progress.cmd_start(root), 0)
+                self.assertEqual((root / ".gitignore").read_text(encoding="utf-8"), "custom\n")
+                self.assertTrue((root / ".git").is_dir())
+            finally:
+                pipeline_progress.open_live_board = original
 
     def test_start_and_resume_log_sessions(self):
         with tempfile.TemporaryDirectory() as tmp:

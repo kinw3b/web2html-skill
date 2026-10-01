@@ -244,6 +244,142 @@ def extract_regions(html: str) -> dict[str, str]:
     }
 
 
+def normalize_asset_href(value: str) -> str:
+    """Ship-relative (or root-relative) asset path → Astro public path."""
+    raw = (value or "").strip()
+    if raw.startswith("/") and not raw.startswith("//"):
+        raw = raw.lstrip("/")
+    return astro_href(raw)
+
+
+def _is_external(value: str) -> bool:
+    return bool(re.match(r"^(?:https?:)?//", value, re.I)) or value.startswith("data:")
+
+
+WIRING_TAG_RE = re.compile(
+    r"<link\b[^>]*>|<style\b[^>]*>.*?</style>|<script\b[^>]*>.*?</script>|<script\b[^>]*/>",
+    re.I | re.S,
+)
+STYLESHEET_REL_RE = re.compile(r"""rel\s*=\s*['"]?stylesheet['"]?""", re.I)
+ASSET_ATTR_RE = re.compile(r"""(?:href|src)\s*=\s*(['"])([^'"]+)\1""", re.I)
+SCRIPT_OPEN_RE = re.compile(r"<script\b([^>]*)>", re.I)
+SCRIPT_TYPE_RE = re.compile(r"""type\s*=\s*(['"])([^'"]+)\1""", re.I)
+STYLE_BODY_RE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.I | re.S)
+JS_SCRIPT_TYPES = frozenset({"", "text/javascript", "application/javascript", "module"})
+
+
+def _where(pos: int, head_end: int) -> str:
+    """head = before </head>. A missing </head> is treated as body for scripts
+    (DOM-dependent) — styles are still emitted in the layout head."""
+    if head_end == -1:
+        return "body"
+    return "head" if pos < head_end else "body"
+
+
+def _attr_list(attrs: str) -> list[str]:
+    """Boolean + module + crossorigin attributes worth re-emitting.
+
+    Dropping type=module turns an ES module into a classic script and the
+    import fails. Dropping crossorigin breaks CDN font/script loads.
+    """
+    out = [flag for flag in ("defer", "async", "nomodule") if re.search(rf"\b{flag}\b", attrs, re.I)]
+    type_m = SCRIPT_TYPE_RE.search(attrs)
+    if type_m and type_m.group(2).strip().lower() == "module":
+        out.append('type="module"')
+    co = re.search(r"""\bcrossorigin(?:\s*=\s*(['"])([^'"]*)\1)?""", attrs, re.I)
+    if co:
+        out.append("crossorigin" if not co.group(1) else f'crossorigin="{co.group(2)}"')
+    return out
+
+
+def _link_extra(tag: str) -> str:
+    """media / crossorigin on a stylesheet. Dropping media=print (or a
+    viewport media query) applies that sheet everywhere."""
+    parts: list[str] = []
+    media = re.search(r"""\bmedia\s*=\s*(['"])([^'"]*)\1""", tag, re.I)
+    if media and media.group(2):
+        parts.append(f'media="{media.group(2)}"')
+    for attr in _attr_list(tag):
+        if attr == "crossorigin" or attr.startswith("crossorigin="):
+            parts.append(attr)
+    return (" " + " ".join(parts)) if parts else ""
+
+
+def ship_wiring(html: str) -> dict:
+    """The signed ship's ordered CSS/JS wiring (QA overlay stripped).
+
+    5.1 builds BaseLayout from THIS, never from a fixed asset list — the
+    ship head is the only manifest that is guaranteed complete (Pitfall #240).
+
+    styles rows:  {"kind": "link", "href", "external", "extra", "where"}
+                  | {"kind": "style", "css", "where"}
+    scripts rows: {"kind": "src", "src", "external", "flags", "where"}
+                  | {"kind": "inline", "js", "flags", "where"}
+    `where` is "head" or "body" — a head inline script that adds a class
+    before first paint must stay in <head> (kp-tdmax intro-pending).
+    JSON-LD and other non-JS script types are data, not wiring, and are skipped.
+    """
+    cleaned = strip_qa(html)
+    head_end = cleaned.lower().find("</head>")
+    styles: list[dict] = []
+    scripts: list[dict] = []
+    seen: set[str] = set()
+    for match in WIRING_TAG_RE.finditer(cleaned):
+        tag = match.group(0)
+        low = tag.lower()
+        where = _where(match.start(), head_end)
+        if low.startswith("<link"):
+            if not STYLESHEET_REL_RE.search(tag):
+                continue
+            attr = ASSET_ATTR_RE.search(tag)
+            if not attr:
+                continue
+            href = normalize_asset_href(attr.group(2))
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            styles.append({
+                "kind": "link",
+                "href": href,
+                "external": _is_external(href),
+                "extra": _link_extra(tag),
+                "where": where,
+            })
+        elif low.startswith("<style"):
+            body = STYLE_BODY_RE.match(tag)
+            css = body.group(1).strip() if body else ""
+            if css:
+                styles.append({"kind": "style", "css": css, "where": where})
+        else:
+            opening = SCRIPT_OPEN_RE.match(tag)
+            attrs = opening.group(1) if opening else ""
+            flags = _attr_list(attrs)
+            attr = ASSET_ATTR_RE.search(attrs)
+            if attr:
+                src = normalize_asset_href(attr.group(2))
+                if not src or src in seen:
+                    continue
+                seen.add(src)
+                scripts.append({
+                    "kind": "src",
+                    "src": src,
+                    "external": _is_external(src),
+                    "flags": flags,
+                    "where": where,
+                })
+                continue
+            body_m = re.match(r"<script\b[^>]*>(.*?)</script>\s*$", tag, re.I | re.S)
+            body = body_m.group(1).strip() if body_m else ""
+            if not body:
+                continue
+            type_m = SCRIPT_TYPE_RE.search(attrs)
+            script_type = type_m.group(2).strip().lower() if type_m else ""
+            if script_type not in JS_SCRIPT_TYPES:
+                continue
+            scripts.append({"kind": "inline", "js": body, "flags": flags, "where": where})
+    return {"styles": styles, "scripts": scripts}
+
+
 def astro_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 

@@ -100,7 +100,11 @@ after the checkpoint is signed.
 **2.3 VALIDATE LOOK is required.** After `--shoot-open`, run `wave.py
 prepare/start/wait/apply`. Skipping it fails `section_22_gate.py` (Pitfall
 #221). 3.2 companion receipts and 5.2 page bodies may wave when the probe
-rung is `orca` or `subagent`; they may stay serial.
+rung is `orca` or `subagent`; they may stay serial. `/compare` (any phase)
+waves the same way via `--phase compare` (2.36.0): shoot once, one read-only
+worker per band in `qa/side-by-side/report.json`, controller patches serially,
+re-shoots only patched bands, one confirm wave (new run-id), hard cap 2 rounds
+per band then residual (Pitfall #239).
 
 The worker is a read-only reviewer in the `agent_loop.py` lane: SHA snapshot, one
 reviewer lease per task, one finding file under `qa/agent-findings/<run>/<phase>/`.
@@ -150,18 +154,23 @@ Default `--max-workers`: 2.3 → 4, 3.2 → 3, 5.2 → 2 (the 5.2 two-author pol
 The old "max two workers" at 2.3 is about in-process **writers**; wave reviewers
 do not write the ship.
 
-## Documents open in the Orca browser
+## Documents open in the native browser
 
-Inside a reachable Orca, every HTML the pipeline hands the human opens as an Orca
-browser tab in the coordinator's worktree (`open_doc.py` → `orca tab create --url
-file://… --worktree id:$ORCA_WORKTREE_ID`): the live board at `start`, the 2.4 TAGS
-review, the 3.4 lock / polish / report trio, the 5.6 built routes. Outside Orca, or
-when the tab cannot be created, the same call falls back to the previous opener
-(Chrome on macOS, `open` / `xdg-open` otherwise). `WEB2HTML_BROWSER=default` keeps
-Chrome; `=orca` refuses the fallback and prints the URI. The Capture Tool still
-needs a Chromium with the extension and Paper opens in its own app; neither goes
-through this path. Orca 1.4.206 exposes no pane placement for browser tabs — the
-tab lands in the worktree's browser surface and is made active.
+Pipeline HTML the human reviews — the live board at `start`, the 2.4 TAGS review,
+the 3.4 ship + polish report, the 5.6 built routes, any `index.html` — opens in
+the machine's default browser (`open` on macOS, `xdg-open` on Linux). That is
+Chrome, Brave, or whatever the OS default is. It is not an Orca tab and not a
+pinned `open -a "Google Chrome"`.
+
+Concurrent runs share one Orca. Opening each board and preview there piles tabs
+in the coordinator (Pitfall #242). `open_doc.py` therefore defaults to the native
+browser even when the probe says `orca reachable`. Do not `orca tab create` for
+these files.
+
+`WEB2HTML_BROWSER=auto` tries an Orca tab first, then the native browser. `=orca`
+refuses the fallback and prints the URI. Unset means native. The Capture Tool
+still needs a Chromium with the extension. Paper opens in its own app. Neither
+goes through `open_doc.py`.
 
 ## Budget you are aiming at
 

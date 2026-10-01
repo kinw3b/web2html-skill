@@ -79,6 +79,12 @@ class AuthorNavDropdownTest(unittest.TestCase):
             self.assertIn("js/nav-dropdown.js", html)
             self.assertIn("css/nav-dropdown.css", html)
             self.assertNotIn("https://", html)
+            # interaction contract (Pitfall #241): desktop clicks only open;
+            # touch toggles; hover handlers stay off on touch
+            js = (root / "rebuild" / "js" / "nav-dropdown.js").read_text(encoding="utf-8")
+            self.assertIn("(hover: none), (pointer: coarse)", js)
+            self.assertIn("touch.matches ? !open : true", js)
+            self.assertIn("narrow.matches || touch.matches", js)
 
     def test_no_dropdown_is_ok_skip(self):
         with tempfile.TemporaryDirectory() as tmp:
