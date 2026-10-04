@@ -28,7 +28,10 @@ never the gate — font hinting never reaches zero. section_22_gate.py refuses
 changed after the pairs were shot; the report stamps the ship fingerprint).
 
 Invokable at any phase through the /compare skill (targeted --id runs); the
-skill owns how fixes land under the current phase's write rules.
+skill owns how fixes land under the current phase's write rules. Phase 5:
+--page {slug} --ship astro/dist/{slug}/index.html pairs the built interior
+against its capture/{slug}-* clips; pairs land at qa/side-by-side/{slug}/ so
+per-page reports never clobber the homepage one.
 
 Exit 0 ok (or Playwright skipped) · 2 missing ship / no stops / rebuild
 selector missing / --fail-over exceeded.
@@ -65,6 +68,55 @@ LIVE_STOPS_JS = (
     "document.querySelectorAll('body > header, main > section, body > section,"
     " body > footer')"
 )
+
+
+def out_root(page: str) -> Path:
+    """Home pairs stay at qa/side-by-side/; interior pages nest by slug."""
+    slug = (page or "home").strip()
+    if slug in {"", "home", "index"}:
+        return OUT.parent
+    return Path("qa/side-by-side") / slug
+
+
+def out_rel(page: str) -> Path:
+    return out_root(page) / "report.json"
+
+
+def sheet_rel(page: str) -> Path:
+    return out_root(page) / "index.html"
+
+
+def ship_fingerprint_for(root: Path, ship_rel: Path) -> str:
+    """What a patch can touch for THIS ship. rebuild/index.html keeps the 2.3
+    fingerprint (rebuild/index.html + rebuild/css). Any other ship — the
+    phase-5 built page astro/dist/{slug}/index.html — fingerprints itself plus
+    the dist css/js a 5.x fix could change."""
+    import hashlib
+
+    if ship_rel.as_posix() == "rebuild/index.html":
+        return gate.ship_fingerprint(root)
+    digest = hashlib.sha256()
+    ship = root / ship_rel
+    try:
+        digest.update(gate.normalized_ship_html(
+            ship.read_text(encoding="utf-8", errors="replace")
+        ).encode("utf-8"))
+    except OSError:
+        pass
+    dist = root / "astro" / "dist"
+    if dist.is_dir():
+        for sub in ("styles", "scripts"):
+            asset_dir = dist / sub
+            if asset_dir.is_dir():
+                for path in sorted(asset_dir.rglob("*")):
+                    if not path.is_file():
+                        continue
+                    digest.update(b"\0" + path.relative_to(root).as_posix().encode("utf-8") + b"\0")
+                    try:
+                        digest.update(path.read_bytes())
+                    except OSError:
+                        continue
+    return digest.hexdigest()
 
 
 def run_widths(root: Path) -> tuple[int, ...]:
@@ -122,9 +174,10 @@ def build_stops(
     page: str,
     widths: tuple[int, ...],
     ids: list[str] | None = None,
+    ship_rel: Path | None = None,
 ) -> tuple[list[dict], list[str]]:
     """Ship bands × matched 1.2 clips, one row per band with per-width tops."""
-    ship = root / gold.ship_rel_for(page)
+    ship = root / (ship_rel or gold.ship_rel_for(page))
     html = ship.read_text(encoding="utf-8") if ship.is_file() else ""
     available = shots.ship_section_ids(html)
     wanted = list(ids) if ids else available
@@ -133,13 +186,16 @@ def build_stops(
     clips_by_width = {
         width: gold.list_clips(root / gold.lander_dir(page, width)) for width in widths
     }
+    # assign over EVERY ship band so a targeted --id reshoot keeps the same
+    # ordinal clip it had on the full shoot (Pitfall #248)
+    assigned = {width: gold.assign_clips(available, clips_by_width[width], page=page) for width in widths}
     for sid in wanted:
         if sid not in available:
             missing.append(f"{sid} not in ship")
             continue
         row: dict = {"id": sid, "nn": None, "slug": sid, "source": {}, "sidecar": {}}
         for width in widths:
-            clip = gold.match_clip(sid, clips_by_width[width])
+            clip = assigned[width].get(sid)
             row["source"][str(width)] = clip
             row["sidecar"][str(width)] = sidecar_top(clip["json"] if clip else None)
             if clip and row["nn"] is None:
@@ -156,16 +212,16 @@ def safe_stem(nn: str | None, slug: str, width: int) -> str:
     return f"{number}-{name}-{width}"
 
 
-def pane_dir(width: int) -> Path:
-    return OUT.parent / str(width)
+def pane_dir(width: int, page: str = "home") -> Path:
+    return out_root(page) / str(width)
 
 
-def source_pane_path(root: Path, stop: dict, width: int) -> Path:
-    return root / pane_dir(width) / f"{safe_stem(stop['nn'], stop['slug'], width)}-source.png"
+def source_pane_path(root: Path, stop: dict, width: int, page: str = "home") -> Path:
+    return root / pane_dir(width, page) / f"{safe_stem(stop['nn'], stop['slug'], width)}-source.png"
 
 
-def rebuild_pane_path(root: Path, stop: dict, width: int) -> Path:
-    return root / pane_dir(width) / f"{safe_stem(stop['nn'], stop['slug'], width)}-rebuild.png"
+def rebuild_pane_path(root: Path, stop: dict, width: int, page: str = "home") -> Path:
+    return root / pane_dir(width, page) / f"{safe_stem(stop['nn'], stop['slug'], width)}-rebuild.png"
 
 
 def find_clip_top(fullpage, clip) -> int | None:
@@ -287,22 +343,23 @@ def _shoot_viewports(
 
 
 def capture_rebuild(root: Path, stops: list[dict], widths: tuple[int, ...],
-                    height: int, page: str = "home") -> list[dict]:
-    ship_rel = gold.ship_rel_for(page)
+                    height: int, page: str = "home",
+                    ship_rel: Path | None = None) -> list[dict]:
+    ship_rel = ship_rel or gold.ship_rel_for(page)
     url = (root / ship_rel).resolve().as_uri()
     return _shoot_viewports(
         url, stops, widths, height,
-        lambda stop, width: rebuild_pane_path(root, stop, width),
+        lambda stop, width: rebuild_pane_path(root, stop, width, page),
         lambda stop, index: shots.locator_selector(stop["id"]),
         strict=True,
     )
 
 
 def capture_live(root: Path, stops: list[dict], widths: tuple[int, ...],
-                 height: int, url: str) -> list[dict]:
+                 height: int, url: str, page: str = "home") -> list[dict]:
     return _shoot_viewports(
         url, stops, widths, height,
-        lambda stop, width: source_pane_path(root, stop, width),
+        lambda stop, width: source_pane_path(root, stop, width, page),
         lambda stop, index: None,
         strict=False,
     )
@@ -358,8 +415,8 @@ def stitch(left, right, dest: Path, left_label: str, right_label: str, width: in
     return True
 
 
-def write_skip(root: Path, reason: str) -> Path:
-    dest = root / SKIP
+def write_skip(root: Path, reason: str, page: str = "home") -> Path:
+    dest = root / out_root(page) / "skip.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(
         json.dumps(
@@ -367,6 +424,7 @@ def write_skip(root: Path, reason: str) -> Path:
                 "generatedFrom": GENERATED_FROM,
                 "ok": True,
                 "skipped": True,
+                "page": page,
                 "reason": reason,
                 "updated": _now_iso(),
             },
@@ -379,7 +437,7 @@ def write_skip(root: Path, reason: str) -> Path:
 
 
 def write_sheet(root: Path, payload: dict) -> Path:
-    dest = root / SHEET
+    dest = root / sheet_rel(str(payload.get("page") or "home"))
     rows: list[str] = []
     for stop in payload.get("stops") or []:
         side = stop.get("side")
@@ -415,15 +473,16 @@ def compare_project(
     source_mode: str = "disk",
     source_url: str = "",
     ids: list[str] | None = None,
+    ship_rel: Path | None = None,
 ) -> dict:
     """Pair panes already on disk (shot by capture_rebuild / capture_live)."""
     root = root.resolve()
     widths = tuple(widths) if widths else run_widths(root)
-    stops, missing = build_stops(root, page, widths, ids=ids)
-    (root / OUT.parent).mkdir(parents=True, exist_ok=True)
+    ship_rel = ship_rel or gold.ship_rel_for(page)
+    stops, missing = build_stops(root, page, widths, ids=ids, ship_rel=ship_rel)
+    (root / out_root(page)).mkdir(parents=True, exist_ok=True)
     for width in widths:
-        (root / pane_dir(width)).mkdir(parents=True, exist_ok=True)
-    ship_rel = gold.ship_rel_for(page)
+        (root / pane_dir(width, page)).mkdir(parents=True, exist_ok=True)
     rows: list[dict] = []
     sides = 0
     for stop in stops:
@@ -444,7 +503,7 @@ def compare_project(
             }
             left = None
             mode = source_mode
-            live_pane = source_pane_path(root, stop, width)
+            live_pane = source_pane_path(root, stop, width, page)
             if source_mode == "live" and live_pane.is_file():
                 try:
                     from PIL import Image
@@ -455,13 +514,13 @@ def compare_project(
             if left is None:
                 left, mode = source_pane_disk(root, page, width, stop, height)
             row["sourceMode"] = mode
-            rebuild_pane = rebuild_pane_path(root, stop, width)
+            rebuild_pane = rebuild_pane_path(root, stop, width, page)
             if left is not None:
-                row["sourcePane"] = f"{pane_dir(width)}/{stem}-source.png"
+                row["sourcePane"] = f"{pane_dir(width, page)}/{stem}-source.png"
                 if mode != "live" or not live_pane.is_file():
                     left.save(root / row["sourcePane"])
             if rebuild_pane.is_file():
-                row["rebuildPane"] = f"{pane_dir(width)}/{stem}-rebuild.png"
+                row["rebuildPane"] = f"{pane_dir(width, page)}/{stem}-rebuild.png"
             else:
                 missing.append(f"{stop['id']}@{width} rebuild pane")
             if left is not None and row["rebuildPane"]:
@@ -473,7 +532,7 @@ def compare_project(
                     right = None
                 if right is not None:
                     row["diffPct"] = diff_pct(left, right)
-                    side_rel = f"{pane_dir(width)}/{stem}-side.png"
+                    side_rel = f"{pane_dir(width, page)}/{stem}-side.png"
                     if stitch(
                         left,
                         right,
@@ -499,13 +558,14 @@ def compare_project(
         "stops": rows,
         "sides": sides,
         "missing": missing,
-        "shipFingerprint": gate.ship_fingerprint(root),
+        "shipFingerprint": ship_fingerprint_for(root, ship_rel),
         "updated": _now_iso(),
     }
-    (root / OUT).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    dest = root / out_rel(page)
+    dest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     if sides:
         write_sheet(root, payload)
-    skip = root / SKIP
+    skip = root / out_root(page) / "skip.json"
     if skip.is_file():
         skip.unlink()
     return payload
@@ -515,6 +575,10 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("root", type=Path)
     ap.add_argument("--page", default="home")
+    ap.add_argument("--ship", default="",
+                    help="ship page to shoot the rebuild pane from (default: "
+                         "rebuild/index.html for home, rebuild/{slug}.html otherwise; "
+                         "phase 5 passes astro/dist/{slug}/index.html)")
     ap.add_argument("--widths", default="")
     ap.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
     ap.add_argument("--source", choices=("disk", "live"), default="disk")
@@ -529,7 +593,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
     root = args.root.resolve()
-    ship_rel = gold.ship_rel_for(args.page)
+    ship_rel = Path(args.ship) if args.ship else gold.ship_rel_for(args.page)
     if not (root / ship_rel).is_file():
         print(f"FAIL: missing {ship_rel.as_posix()}", file=sys.stderr)
         return 2
@@ -537,7 +601,7 @@ def main(argv: list[str] | None = None) -> int:
         print("FAIL: --source live needs --source-url", file=sys.stderr)
         return 2
     widths = gold.parse_widths(args.widths or None, root)
-    stops, stop_missing = build_stops(root, args.page, widths, ids=args.ids)
+    stops, stop_missing = build_stops(root, args.page, widths, ids=args.ids, ship_rel=ship_rel)
     if not stops:
         print(
             f"FAIL: no targetable <section id> in {ship_rel.as_posix()} "
@@ -548,17 +612,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         import playwright.sync_api  # noqa: F401  type: ignore[import-not-found]
     except ImportError:
-        write_skip(root, "Playwright not installed — read the 1.2 clip side-by-sides")
+        write_skip(root, "Playwright not installed — read the 1.2 clip side-by-sides", args.page)
         print("paper-23-side-by-side: skipped (no Playwright)")
         return 0
-    rebuild_rows = capture_rebuild(root, stops, widths, args.height, args.page)
+    rebuild_rows = capture_rebuild(root, stops, widths, args.height, args.page, ship_rel)
     errors = [row for row in rebuild_rows if row.get("error")]
     if errors:
         for row in errors:
             print(f"FAIL: {row['id']}@{row['width']} {row['error']}", file=sys.stderr)
         return 2
     if args.source == "live":
-        capture_live(root, stops, widths, args.height, args.source_url)
+        capture_live(root, stops, widths, args.height, args.source_url, args.page)
     payload = compare_project(
         root,
         page=args.page,
@@ -567,6 +631,7 @@ def main(argv: list[str] | None = None) -> int:
         source_mode=args.source,
         source_url=args.source_url,
         ids=args.ids,
+        ship_rel=ship_rel,
     )
     print(
         f"paper-23-side-by-side: ok {len(payload['stops'])} pairs "

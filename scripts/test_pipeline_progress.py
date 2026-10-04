@@ -61,12 +61,12 @@ class PipelineProgressTests(unittest.TestCase):
                 ("4.2", "Capture pages"),
                 ("4.3", "Seed tokens"),
                 ("4.4", "Human review"),
-                ("5.1", "Scaffold Astro"),
-                ("5.2", "Author pages"),
-                ("5.3", "Desktop QA"),
-                ("5.4", "Responsive"),
-                ("5.5", "Wire routes + SEO"),
-                ("5.6", "Human checkpoint"),
+                ("5.1", "Scaffold + chrome"),
+                ("5.2", "Draft pages"),
+                ("5.3", "Desktop clips"),
+                ("5.4", "Page loop"),
+                ("5.5", "Links + SEO"),
+                ("5.6", "Human review + scorecard"),
             ],
         )
         self.assertEqual(
@@ -129,7 +129,7 @@ class PipelineProgressTests(unittest.TestCase):
                 "Sign-off → 3.0 polish",
                 "Human checkpoint",
                 "Human review",
-                "Human checkpoint",
+                "Human review + scorecard",
             ],
         )
         self.assertIn("Take it wherever you build", template)
@@ -365,6 +365,9 @@ class PipelineProgressTests(unittest.TestCase):
             (root / "rebuild" / "images").mkdir()
             (root / "rebuild" / "images" / "hero.png").write_bytes(b"x")
             (root / "source-site").mkdir()
+            (root / "source-site" / "index.html").write_text("<html></html>")
+            (root / "source-html").mkdir()
+            (root / "source-html" / "index.html").write_text("<html></html>")
             (root / "v4-build.png").write_bytes(b"x")
             (root / "scratch").mkdir()
             data = self._finished_progress(root)
@@ -374,7 +377,8 @@ class PipelineProgressTests(unittest.TestCase):
             removed = pipeline_progress.tidy_completed_run(root)
             self.assertIn("qa", removed)
             self.assertIn("capture", removed)
-            self.assertIn("source-site", removed)
+            self.assertNotIn("source-site", removed)
+            self.assertNotIn("source-html", removed)
             self.assertNotIn("pipeline.html", removed)
             self.assertIn("rebuild/polish-report.html", removed)
             self.assertFalse((root / "qa").exists())
@@ -388,11 +392,13 @@ class PipelineProgressTests(unittest.TestCase):
             self.assertFalse((root / "NEXT.html").exists())
             self.assertFalse((root / "rebuild" / "NEXT.html").exists())
             self.assertFalse((root / "rebuild" / "polish-report.html").exists())
-            # Real site assets survive the sweep.
+            # Real site assets and the original source survive the sweep.
             self.assertTrue((root / "rebuild" / "images" / "hero.png").is_file())
+            self.assertTrue((root / "source-site" / "index.html").is_file())
+            self.assertTrue((root / "source-html" / "index.html").is_file())
             self.assertEqual(
                 sorted(p.name for p in root.iterdir()),
-                ["pipeline.html", "rebuild"],
+                ["pipeline.html", "rebuild", "source-html", "source-site"],
             )
             self.assertTrue(pipeline_progress.run_may_tidy(root))
             self.assertEqual(pipeline_progress.cmd_finish(root), 0)
@@ -1593,10 +1599,28 @@ class PipelineProgressTests(unittest.TestCase):
         pipeline_progress.save_progress(root, data, force=True)
         return data
 
+    def test_stale_phase5_receipts_reopen_on_resume(self):
+        """Pitfall #248: 5.4/5.5 'done' on pre-2.41 receipts must not let the
+        board jump to 5.6 — resume reopens them and every later 5.x step."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._phase5_ready(root)
+            (root / "qa" / "phase-5-clip-compare.json").write_text(json.dumps({"ok": True}))
+            (root / "qa" / "phase-5-responsive.json").write_text("{}\n")
+            (root / "qa" / "phase-5-links.json").write_text(json.dumps({"ok": True}))
+            data = pipeline_progress.load_progress(root)
+            self.assertEqual(pipeline_progress.reopen_stale_phase5(root, data), ["5.4", "5.5", "5.6"])
+            self.assertEqual(data["steps"]["5.3"]["status"], "done")
+            self.assertEqual(data["steps"]["5.4"]["status"], "pending")
+
     def test_56_done_requires_review_then_tidies(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._phase5_ready(root)
+            from unittest import mock
+
+            self.addCleanup(mock.patch.stopall)
+            mock.patch.object(pipeline_progress, "reopen_stale_phase5", return_value=[]).start()
             (root / "astro").mkdir(exist_ok=True)
             (root / "astro" / "package.json").write_text("{}\n")
             self.assertEqual(pipeline_progress.cmd_mark(root, "5.6", "done", None), 2)

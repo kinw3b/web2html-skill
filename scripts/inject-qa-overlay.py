@@ -29,7 +29,7 @@ SKIP_HTML = {"polish-report.html", "design-system.html", "index-raw.html", "inde
 BOOT_ID = "qa-outlines-boot"
 BOOT_SNIPPET = """<script id="qa-outlines-boot">
 (function () {
-  var MODES = ["off", "on", "tags", "mono"];
+  var MODES = ["off", "on", "tags", "components", "mono"];
   function read(raw) {
     if (!raw) return null;
     try {
@@ -49,7 +49,8 @@ BOOT_SNIPPET = """<script id="qa-outlines-boot">
   var next = read(location.search) || read((location.hash || "").replace(/^#/, "")) || "off";
   var html = document.documentElement;
   if (next === "off") html.removeAttribute("data-qa-outlines");
-  else html.setAttribute("data-qa-outlines", next);
+  else html.setAttribute("data-qa-outlines", next === "components" ? "tags" : next);
+  if (next === "components") html.setAttribute("data-qa-components", "on");
 })();
 </script>"""
 

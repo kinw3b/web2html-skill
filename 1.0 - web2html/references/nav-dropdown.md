@@ -65,3 +65,30 @@ agent-authored nav JS (`nav-menu.js` et al.) must obey:
 
 `verify-polish-passes.py` and `mark --step 3.2 --status done` require
 `qa/nav-dropdown.json`. Pitfall #210.
+
+## Phase 5 — the same hunt on the built pages (5.4+, Pitfall #247)
+
+`author-nav-dropdown.py` only edits `rebuild/index.html` — it is a 3.2
+homepage gate and NEVER the phase-5 path. Phase 5 interiors get the same
+hidden-item hunt through the **5.4+ interior /compare pass**
+(`compare` skill, `/compare {slug}`) plus the machine audit:
+
+```sh
+python3 "$SKILLS/web2html/scripts/phase_5_nav_audit.py" .   # qa/phase-5-nav.json
+```
+
+- Inventory per page: hover-reel `dropdown` / `nav-mobile-*` manifests,
+  scrape submenus (the page's own `source-site/{slug}.html`, falling back to
+  home), painted triggers in the raw dumps. Home's inventory applies to
+  EVERY page — the Header is shared.
+- Each inventoried item is checked against the BUILT page
+  (`astro/dist/{slug}/index.html`) and `astro/src/components/Header.astro`:
+  `wired` needs trigger + panel + wired CSS/JS; a trigger without a panel is
+  `unwired`; no trace of a painted trigger is `missing`.
+- `ok:true` only when every item on every page is `wired`.
+  `wire-astro-routes.py` (5.5) refuses without a fresh ok receipt.
+- The fix obeys the same interaction contract above (Pitfall #241) and lands
+  ONCE in `astro/src/components/Header.astro` + `astro/public/styles|scripts/`
+  for chrome triggers; in `src/pages/{slug}.astro` for page-local ones.
+  Never `rebuild/` in phase 5. Rebuild with `build-astro-dist.py`, re-shoot
+  patched bands, then rerun the audit.

@@ -92,10 +92,14 @@ def compare_project(
     *,
     page: str = "home",
     widths: tuple[int, ...] | None = None,
+    ship_rel: Path | None = None,
 ) -> dict:
+    """ship_rel: the page to read band ids from (phase 5 passes
+    astro/dist/{slug}/index.html — the default rebuild/{slug}.html does not
+    exist on an Astro run, so every interior compared zero bands; #248)."""
     root = root.resolve()
     widths = tuple(widths) if widths else gold.run_widths(root)
-    mapped = gold.build_index(root, page=page, widths=widths)
+    mapped = gold.build_index(root, page=page, widths=widths, ship_rel=ship_rel)
     gold_rel = gold.OUT if page == "home" else Path(f"qa/paper-measure/disk-gold-{page}.json")
     gold.write_index(root, mapped, gold_rel)
     skip = _read_json(root / SKIP)

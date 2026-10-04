@@ -136,6 +136,90 @@ class CompareTest(unittest.TestCase):
             self.assertEqual(Image.open(dest).size, (202, sbs.LABEL_H + 80))
 
 
+def _plant_interior(root: Path, slug: str = "about") -> None:
+    """Interior clips + built dist page — the phase-5 /compare pair source."""
+    dist = root / "astro" / "dist" / slug
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        '<section id="about-hero"></section>', encoding="utf-8"
+    )
+    lander = root / "capture" / f"{slug}-desktop"
+    sections = lander / "source-sections"
+    sections.mkdir(parents=True, exist_ok=True)
+    if HAS_PIL:
+        Image.new("RGB", (1600, 3000), (240, 240, 240)).save(lander / "fullpage.png")
+        png = sections / "01-about-hero.png"
+        Image.new("RGB", (1600, 900), (200, 210, 220)).save(png)
+    else:
+        (sections / "01-about-hero.png").write_bytes(gate.TINY_PNG)
+    (sections / "01-about-hero.json").write_text(
+        json.dumps({"id": "about-hero", "slug": "about-hero",
+                    "bbox": {"x": 0, "y": 200, "w": 1600, "h": 900}}) + "\n",
+        encoding="utf-8",
+    )
+
+
+class InteriorCompareTest(unittest.TestCase):
+    """Phase 5: --page {slug} pairs the built interior, per-slug output dirs."""
+
+    @unittest.skipUnless(HAS_PIL, "Pillow not installed")
+    def test_interior_pairs_land_in_the_slug_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _plant_interior(root)
+            # Panes "shot" from astro/dist/about/index.html (capture_rebuild output).
+            dest = root / sbs.pane_dir(1600, "about")
+            dest.mkdir(parents=True, exist_ok=True)
+            (dest / "01-about-hero-1600-rebuild.png").write_bytes(gate.TINY_PNG)
+            payload = sbs.compare_project(
+                root,
+                page="about",
+                widths=(1600,),
+                ship_rel=Path("astro/dist/about/index.html"),
+            )
+            self.assertTrue(payload["ok"], payload["missing"])
+            self.assertEqual(payload["page"], "about")
+            self.assertEqual(payload["rebuild"], "astro/dist/about/index.html")
+            self.assertEqual(payload["sides"], 1)
+            report = root / "qa" / "side-by-side" / "about" / "report.json"
+            self.assertTrue(report.is_file())
+            # The homepage report is untouched — per-slug dirs never clobber it.
+            self.assertFalse((root / sbs.OUT).exists())
+            side = root / str(payload["stops"][0]["side"])
+            self.assertTrue(side.is_file())
+            self.assertIn("side-by-side/about", payload["stops"][0]["side"])
+
+    def test_interior_fingerprint_tracks_the_built_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _plant_interior(root)
+            ship = Path("astro/dist/about/index.html")
+            first = sbs.ship_fingerprint_for(root, ship)
+            (root / ship).write_text('<section id="about-hero">patched</section>', encoding="utf-8")
+            self.assertNotEqual(first, sbs.ship_fingerprint_for(root, ship))
+            # Home keeps the 2.3 fingerprint.
+            (root / "rebuild").mkdir(parents=True)
+            (root / "rebuild" / "index.html").write_text("<main></main>", encoding="utf-8")
+            self.assertEqual(
+                sbs.ship_fingerprint_for(root, Path("rebuild/index.html")),
+                gate.ship_fingerprint(root),
+            )
+
+    def test_main_refuses_a_missing_ship(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            code = sbs.main([str(root), "--page", "about",
+                             "--ship", "astro/dist/about/index.html"])
+            self.assertEqual(code, 2)
+
+    def test_skip_receipt_lands_in_the_slug_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sbs.write_skip(root, "Playwright not installed", "about")
+            self.assertTrue((root / "qa" / "side-by-side" / "about" / "skip.json").is_file())
+            self.assertFalse((root / sbs.SKIP).exists())
+
+
 class GateStalenessTest(unittest.TestCase):
     def test_gate_requires_fresh_side_by_side(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -100,9 +100,16 @@ for entry in "${SKILLS[@]}"; do
     find "$ROOT/$name" \
       \( -name node_modules -o -name .venv -o -name __pycache__ -o -name '_tmp*' \) \
       -prune -exec rm -rf {} + 2>/dev/null || true
-    find "$ROOT/$name" \
-      \( -name 'package-lock.json' -o -name '*.pyc' \) \
-      -delete 2>/dev/null || true
+    # package-lock.json is pruned only when the repo does NOT track it —
+    # 1.2 url-to-paper's lock is committed (its node tests need a
+    # reproducible install), so deleting it here breaks `npm ci` + test-all.
+    if ! git -C "$ROOT" ls-files --error-unmatch "$name/package-lock.json" >/dev/null 2>&1; then
+      find "$ROOT/$name" \
+        \( -name 'package-lock.json' -o -name '*.pyc' \) \
+        -delete 2>/dev/null || true
+    else
+      find "$ROOT/$name" -name '*.pyc' -delete 2>/dev/null || true
+    fi
   fi
 
   # hover-reel ships its tests and the installable Capture Tool extension

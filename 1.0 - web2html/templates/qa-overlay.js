@@ -12,7 +12,11 @@
     }
   }
 
-  var MODES = ["off", "on", "tags", "mono"];
+  // "components" = the tags view (semantic rings + chips) PLUS Astro component
+  // boxes: [data-astro-component] solid + named, top-level markup that is NOT a
+  // component dashed orange "inline". Phase 5 review (Pitfall #248).
+  var MODES = ["off", "on", "tags", "components", "mono"];
+  var COMP_SEL = "[data-astro-component]";
   var hoverEl = null;
   var labelEl = null;
   var inspectEl = null;
@@ -113,6 +117,7 @@
     var cls = classListOf(el);
     if (cls.length) out += "." + cls.slice(0, 4).join(".");
     var attrs = [
+      "data-astro-component",
       "data-component",
       "data-paper-section",
       "data-paper-node",
@@ -701,8 +706,67 @@
     if (tagLayer) tagLayer.innerHTML = "";
   }
 
+  function inlineBlocks() {
+    // Top-level markup a page pasted as raw HTML instead of importing a
+    // component: main > * and body > * that neither are nor contain one.
+    var out = [];
+    var pools = [];
+    var main = document.querySelector("main");
+    if (main) pools.push(main.children);
+    pools.push(document.body.children);
+    for (var p = 0; p < pools.length; p++) {
+      for (var i = 0; i < pools[p].length; i++) {
+        var el = pools[p][i];
+        var tag = el.tagName;
+        if (tag === "SCRIPT" || tag === "STYLE" || tag === "MAIN" || tag === "TEMPLATE") continue;
+        if (isQaChrome(el)) continue;
+        if (el.matches(COMP_SEL) || el.closest(COMP_SEL) || el.querySelector(COMP_SEL)) continue;
+        out.push(el);
+      }
+    }
+    return out;
+  }
+
+  function syncComponentMarks(on) {
+    var prev = document.querySelectorAll("[data-qa-inline]");
+    for (var i = 0; i < prev.length; i++) prev[i].removeAttribute("data-qa-inline");
+    if (!on) return { comps: 0, inline: 0 };
+    var blocks = inlineBlocks();
+    for (var j = 0; j < blocks.length; j++) blocks[j].setAttribute("data-qa-inline", "true");
+    return { comps: document.querySelectorAll(COMP_SEL).length, inline: blocks.length };
+  }
+
+  function componentChips(vw, vh) {
+    var html = "";
+    var used = [];
+    var nodes = document.querySelectorAll(COMP_SEL + ",[data-qa-inline]");
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      if (r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) continue;
+      var name = el.getAttribute("data-astro-component");
+      var label = name ? "\u25C6 " + name : "inline \u00B7 not a component";
+      var top = Math.max(2, Math.round(r.top) + 2);
+      var left = Math.max(2, Math.round(r.left) + 2);
+      // chips of a sticky header and a band scrolled under it share a corner
+      for (var u = 0; u < used.length; u++) {
+        if (Math.abs(used[u][0] - top) < 18 && Math.abs(used[u][1] - left) < 160) {
+          top = used[u][0] + 18;
+          u = -1;
+        }
+      }
+      used.push([top, left]);
+      html +=
+        '<span class="qa-comp-chip' + (name ? "" : " is-inline") + '" style="top:' +
+        top + "px;left:" + left + 'px">' + label.replace(/</g, "&lt;") + "</span>";
+    }
+    return html;
+  }
+
   function syncTagLabels() {
-    if (mode() !== "tags") {
+    var m = mode();
+    if (m !== "tags" && m !== "components") {
       clearTagLabels();
       return;
     }
@@ -733,6 +797,7 @@
         tag +
         "</span>";
     }
+    if (m === "components") html += componentChips(vw, vh);
     layer.innerHTML = html;
   }
 
@@ -752,11 +817,20 @@
       html.removeAttribute("data-qa-outlines");
       clearHover();
       clearTagLabels();
-    } else html.setAttribute("data-qa-outlines", next);
+    } else html.setAttribute("data-qa-outlines", next === "components" ? "tags" : next);
+    if (next === "components") html.setAttribute("data-qa-components", "on");
+    else html.removeAttribute("data-qa-components");
+    var counts = syncComponentMarks(next === "components");
     var btn = document.getElementById("qa-outline-toggle");
     if (btn) {
       btn.setAttribute("aria-pressed", next === "off" ? "false" : "true");
-      var labels = { off: "Outlines", on: "Outlines · on", tags: "Outlines · tags", mono: "Outlines · mono" };
+      var labels = {
+        off: "Outlines",
+        on: "Outlines · on",
+        tags: "Outlines · tags",
+        components: "Outlines · components " + counts.comps + " / inline " + counts.inline,
+        mono: "Outlines · mono",
+      };
       btn.textContent = labels[next] || "Outlines";
     }
     scheduleTagLabels();
@@ -788,8 +862,8 @@
     btn.type = "button";
     var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
     btn.title = isMac
-      ? "Cycle outlines: off / all / tags / mono (Option+O). Tags = headings, a, p, button, aside, article, main, section, header, footer, nav. ↑ ↓ parent/child."
-      : "Cycle outlines: off / all / tags / mono (Alt+O). Tags = headings, a, p, button, aside, article, main, section, header, footer, nav. ↑ ↓ parent/child.";
+      ? "Cycle outlines: off / all / tags / components / mono (Option+O). Tags = headings, a, p, button, aside, article, main, section, header, footer, nav. Components = tags + Astro components (purple, named) vs inline markup (orange dashed). ↑ ↓ parent/child."
+      : "Cycle outlines: off / all / tags / components / mono (Alt+O). Tags = headings, a, p, button, aside, article, main, section, header, footer, nav. Components = tags + Astro components (purple, named) vs inline markup (orange dashed). ↑ ↓ parent/child.";
     btn.addEventListener("click", cycle);
     var kbd = document.createElement("kbd");
     kbd.textContent = isMac ? "⌥O" : "Alt+O";

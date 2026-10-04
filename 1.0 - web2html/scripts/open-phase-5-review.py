@@ -3,7 +3,7 @@
 
 Opens the built home + first interior from astro/dist on file:// (never a
 server). The human may also run `npm run preview`. Marking 5.6 done tidies
-and keeps rebuild/ + astro/ + pipeline.html.
+and keeps rebuild/ + astro/ + source-site/ + source-html/ + pipeline.html.
 
   python3 open-phase-5-review.py /path/to/project
   python3 open-phase-5-review.py /path/to/project --no-open
@@ -24,6 +24,16 @@ Walk every route. Shared Header / Footer must match the 3.4 polish chrome.
 Interior bodies must match their Paper desktop pages. Tokens stay the 2.1 set.
 Hrefs should already connect the site (5.5).
 
+Outlines (same QA overlay as 2.4 / 3.4; bare URL stays clean):
+
+- `?qa-outlines=components` — Astro components boxed purple + named;
+  orange dashed = markup pasted inline, not a component
+- `?qa-outlines=tags` — semantic tags (h1–h6, main, section, header, footer, nav …)
+- ⌥O / Alt+O cycles off → on → tags → components → mono
+
+Scorecard: `qa/phase-5-scorecard.md` (fidelity, /compare loop, nav, links,
+component share, semantics per route).
+
 Routes:
 
 {pages}
@@ -38,7 +48,7 @@ npm run preview
 ```
 
 After sign-off, `mark --step 5.6 --status done`. That tidies the project and keeps
-`rebuild/` + `astro/` + `pipeline.html`.
+`rebuild/` + `astro/` + `source-site/` + `source-html/` + `pipeline.html`.
 """
 
 
@@ -71,16 +81,23 @@ def main(argv: list[str] | None = None) -> int:
         path = root / rel
         route = "/" if slug == "index" else f"/{slug}/"
         astro = "astro/src/pages/index.astro" if slug == "index" else f"astro/src/pages/{slug}.astro"
-        state = path.as_uri() if path.is_file() else "(not built — run wire-astro-routes.py / build-astro-dist.py)"
+        state = (
+            path.as_uri() + "?qa-outlines=components"
+            if path.is_file()
+            else "(not built — run wire-astro-routes.py / build-astro-dist.py)"
+        )
         rows.append(f"- `{route}` — {astro} — {state}")
         if path.is_file() and len(to_open) < 2:
             to_open.append(path)
+    import phase_5_scorecard
+
+    card = phase_5_scorecard.score(root)
     dest = root / "qa" / "phase-5-review.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(TEMPLATE.format(pages="\n".join(rows) or "- (none)"), encoding="utf-8")
     opened = []
     for path in to_open:
-        uri = path.as_uri()
+        uri = path.as_uri() + "?qa-outlines=components"
         opened.append(uri)
         if not args.no_open:
             import open_doc
@@ -102,7 +119,9 @@ def main(argv: list[str] | None = None) -> int:
         encoding="utf-8",
     )
     print(dest)
-    print("Review the Astro routes (built pages on file://), then mark 5.6 done.")
+    print(root / phase_5_scorecard.OUT_MD)
+    print("scorecard: " + json.dumps(card["totals"]))
+    print("Review the Astro routes (built pages on file://, ?qa-outlines=components), then mark 5.6 done.")
     return 0
 
 

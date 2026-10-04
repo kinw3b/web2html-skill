@@ -117,6 +117,7 @@ cannot tell `orca` from `serial` — both write that file.
 | 2.3 | one open band | Read the three `NN-<band>-{1600,768,390}-side.png`, write verdict + `seen` + misses + patch proposal | `--shoot` every open band **before** `prepare`; after the wave: apply each patch, `--record` from the finding, `--shoot` the next round |
 | 3.2 | one companion skill | run `web-design-guidelines` / `find-animation-opportunities` / `apple-design` on `rebuild/index.html`; write the report `.md` + finding | `apply` promotes each report to `qa/<skill>.md` (Pitfall #215) |
 | 5.2 | one interior page | author `astro/src/pages/{slug}.astro` `<main>` only | serial `get_jsx` dumps first; `record-phase-5-pages.py` after |
+| **5.4+ page-loop** | **one interior page, OWNED** — the only wave whose workers write | loop section by section: `page_loop.py shoot` (locked `astro build` + side-by-sides) → Read each band's pairs → `record` match/miss → fix `{slug}.astro` → reshoot the touched bands, until `page_loop.py check --page {slug}` exits 0 (≤4 miss rounds/band, then residual) | owns `Header.astro` / `Footer.astro` / shared sections: applies `findings` requests after the wave, rebuilds, `page_loop.py status .`, re-waves any page a shared edit reopened (Pitfall #249) |
 
 Never a wave: 1.2 / 1.3 (serial Paper writes), 2.2 (one author, one vocabulary).
 
@@ -150,7 +151,16 @@ Orca rules the helper keeps, and you must keep when driving verbs by hand:
 - Workers never edit `rebuild/`, `qa/paper-measure/*.validate.json`, or `qa/<skill>.md`.
   A finding whose `inputSha256` no longer matches the snapshot is stale and rejected.
 
-Default `--max-workers`: 2.3 → 4, 3.2 → 3, 5.2 → 2 (the 5.2 two-author policy).
+```sh
+# 5.4+ — REQUIRED on every Phase 5 run: one Orca worker per interior page
+python3 $W prepare "$PROJECT" --phase page-loop --run-id p1     # only pages page_loop.py says are open
+python3 $W start   "$PROJECT" --phase page-loop --run-id p1     # orca worker-start per page (≤4 live)
+python3 $W wait    "$PROJECT" --phase page-loop --run-id p1     # repeat until every page settles
+python3 $W apply   "$PROJECT" --phase page-loop --run-id p1
+python3 $SKILLS/web2html/scripts/page_loop.py status "$PROJECT"   # every page `ok`, else a new run-id
+```
+
+Default `--max-workers`: 2.3 → 4, 3.2 → 3, 5.2 → 2 (the 5.2 two-author policy), page-loop → 4 (each worker writes only its own page; `astro build` is serialized by `astro/.build.lock`).
 The old "max two workers" at 2.3 is about in-process **writers**; wave reviewers
 do not write the ship.
 

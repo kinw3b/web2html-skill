@@ -32,7 +32,8 @@ Optional Phase 4 (4.1–4.4) imports remaining source pages into Paper after 3.4
 Optional Phase 5 (5.1–5.6) binds the site into astro/ after 4.4: scaffold the
 Astro app + pull Header / Footer / components ONCE from the 3.4 polish, then
 author each Paper page as a .astro body on that chrome, QA, wire routes + SEO,
-build, review. 5.6 done tidies (keeps rebuild/ + astro/ + pipeline.html).
+build, review. 5.6 done tidies (keeps rebuild/ + astro/ + source-site/ +
+source-html/ + pipeline.html).
 `mark --step 1.4 --status done` and `mark --step 2.4 --status done` release the
 controller lease and print a copy-ready prompt for the next session
 (qa/handoff-2.0.md / qa/handoff-3.0.md). 4.4 opted in emits qa/handoff-5.0.md.
@@ -160,12 +161,12 @@ STEPS = [
     ("4.2", "Capture pages"),
     ("4.3", "Seed tokens"),
     ("4.4", "Human review"),
-    ("5.1", "Scaffold Astro"),
-    ("5.2", "Author pages"),
-    ("5.3", "Desktop QA"),
-    ("5.4", "Responsive"),
-    ("5.5", "Wire routes + SEO"),
-    ("5.6", "Human checkpoint"),
+    ("5.1", "Scaffold + chrome"),
+    ("5.2", "Draft pages"),
+    ("5.3", "Desktop clips"),
+    ("5.4", "Page loop"),
+    ("5.5", "Links + SEO"),
+    ("5.6", "Human review + scorecard"),
 ]
 STEP_IDS = [s[0] for s in STEPS]
 PHASE4_STEPS = [s[0] for s in STEPS if s[0].startswith("4.")]
@@ -508,10 +509,11 @@ def live_template() -> Path:
 
 NEXT_NAME = "NEXT.html"
 LIVE_NAME = "pipeline.html"
+# source-site/ and source-html/ are not noise. Tidy keeps the original source
+# so it is still on disk after 5.6 (and after a 3.4 / 4.4 finish).
 NOISE_DIRS = (
     "qa",
     "capture",
-    "source-site",
     "analysis",
     "cms",
     "design-library",
@@ -531,7 +533,14 @@ NOISE_REBUILD_GLOBS = (
     "*.spec.json",
     "section-[0-9][0-9].png",
 )
-KEEP_ROOT = frozenset({"rebuild", "astro", LIVE_NAME, "run-report.md"})
+KEEP_ROOT = frozenset({
+    "rebuild",
+    "astro",
+    "source-site",
+    "source-html",
+    LIVE_NAME,
+    "run-report.md",
+})
 # Written by start when the project has no .gitignore. A later ship leaves
 # an existing file alone, so this set covers the paths that ship ignores.
 PROJECT_GITIGNORE = """\
@@ -543,7 +552,9 @@ node_modules/
 .vercel-static/
 *.pem
 """
-TIDY_SUMMARY = "tidy → lean folder (rebuild/ + astro/ + pipeline.html)"
+TIDY_SUMMARY = (
+    "tidy → lean folder (rebuild/ + astro/ + source-site/ + source-html/ + pipeline.html)"
+)
 AGENT_RUNS = Path("qa/agent-runs")
 LEASES = AGENT_RUNS / "leases"
 
@@ -862,6 +873,52 @@ def hint_step(step: str, status: str = "active", root: Path | None = None) -> No
 
 def _any_exists(root: Path, *relpaths: str) -> bool:
     return any((root / rel).exists() for rel in relpaths)
+
+
+def _json_ok(root: Path, rel: str) -> bool:
+    try:
+        payload = json.loads((root / rel).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(payload, dict) and payload.get("ok") is True
+
+
+def _older(root: Path, rel: str, than: str) -> bool:
+    """True when `rel` was written before `than` (both must exist)."""
+    a, b = root / rel, root / than
+    return a.is_file() and b.is_file() and a.stat().st_mtime + 1 < b.stat().st_mtime
+
+
+PHASE5_REVALIDATE = ("5.3", "5.4", "5.5")
+
+
+def reopen_stale_phase5(root: Path, data: dict) -> list[str]:
+    """A 5.x step marked done whose receipt no longer satisfies its gate goes
+    back to pending, and so does every later 5.x step (Pitfall #248: a 5.3
+    re-run left old 5.4/5.5 'done', the board jumped to 5.6, and the compare
+    loop + link wiring never ran)."""
+    steps = data.get("steps") or {}
+    if not phase5_opted(root):
+        return []
+    first = next(
+        (sid for sid in PHASE5_REVALIDATE
+         if (steps.get(sid) or {}).get("status") == "done" and not artifact_done(root, sid)),
+        None,
+    )
+    if first is None:
+        return []
+    reopened: list[str] = []
+    for sid in STEP_IDS[STEP_IDS.index(first):]:
+        if not sid.startswith("5."):
+            continue
+        row = steps.get(sid) or {}
+        if row.get("status") in {"done", "active"}:
+            row["status"] = "pending"
+            row["reason"] = f"reopened: {first} receipt stale or below the 2.41 gate (Pitfall #248)"
+            for key in ("started", "ended", "durationSeconds"):
+                row.pop(key, None)
+            reopened.append(sid)
+    return reopened
 
 
 def _any_glob(root: Path, *patterns: str) -> bool:
@@ -1289,11 +1346,33 @@ def artifact_done(root: Path, step: str) -> bool:
     if step == "5.2":
         return _any_exists(root, "qa/phase-5-pages.json") and source_images_ready(root)
     if step == "5.3":
-        return _any_exists(root, "qa/phase-5-clip-compare.json")
+        return _json_ok(root, "qa/phase-5-clip-compare.json")
     if step == "5.4":
-        return _any_exists(root, "qa/phase-5-responsive.json")
+        # 5.4 closes only when the responsive compare is ok AND the 5.4+
+        # interior /compare loop ran (applied wave per slug) AND the
+        # hidden-nav audit is green (Pitfall #247 #248).
+        if not _json_ok(root, "qa/phase-5-responsive.json"):
+            return False
+        if _older(root, "qa/phase-5-responsive.json", "qa/phase-5-clip-compare.json"):
+            return False  # 5.3 was re-run after 5.4 — responsive pairs are stale
+        import page_loop
+        import phase_5_nav_audit
+
+        return not phase_5_nav_audit.gate_errors(root) and not page_loop.gate_errors(root)
     if step == "5.5":
-        return _any_exists(root, "qa/phase-5-links.json")
+        links = root / "qa" / "phase-5-links.json"
+        try:
+            payload = json.loads(links.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if payload.get("ok") is not True or not isinstance(payload.get("links"), dict):
+            return False  # pre-2.41 receipt: no chrome-link audit ran (Pitfall #248)
+        if payload["links"].get("dead"):
+            return False
+        return not any(
+            _older(root, "qa/phase-5-links.json", rel)
+            for rel in ("qa/phase-5-clip-compare.json", "qa/phase-5-responsive.json", "qa/phase-5-nav.json")
+        )
     if step == "5.6":
         return _any_exists(root, "qa/phase-5-review.md")
     return False
@@ -1415,6 +1494,11 @@ def load_progress(root: Path) -> dict:
     data = json.loads(p.read_text())
     data["revision"] = _revision(data.get("revision"))
     steps = data.setdefault("steps", {})
+    # step labels follow the spec — a renamed step (2.42 phase-5 rename)
+    # shows its new name on boards already in flight
+    for sid, row in steps.items():
+        if isinstance(row, dict) and sid in TITLES and sid.startswith("5."):
+            row["title"] = TITLES[sid]
     if "1.6" in steps:
         old = dict(steps)
         extension_rows = [old.get(sid, {"status": "pending"}) for sid in ("1.3", "1.4")]
@@ -2174,9 +2258,10 @@ def run_may_tidy(root: Path) -> bool:
 
 
 def tidy_completed_run(root: Path) -> list[str]:
-    """Drop QA shots, capture, scrape, and run files after 3.4.
+    """Drop QA shots, capture, and run files after the run finishes.
 
-    Keep rebuild/ and the finished pipeline.html. NEXT.html is retired.
+    Keep rebuild/, astro/, source-site/, source-html/, run-report.md, and the
+    finished pipeline.html. NEXT.html is retired.
     """
     root = root.resolve()
     if is_spec_repo(root):
@@ -2206,8 +2291,8 @@ def tidy_completed_run(root: Path) -> list[str]:
         for pattern in NOISE_REBUILD_GLOBS:
             for hit in sorted(rebuild.glob(pattern)):
                 drop(hit)
-    # Nothing but the ship folder and the finished board survive at the root
-    # (dotfiles stay — .git, .DS_Store).
+    # Ship, Astro, and the original source survive at the root. Dotfiles stay
+    # (.git, .DS_Store).
     for entry in sorted(root.iterdir()):
         if entry.name.startswith(".") or entry.name in KEEP_ROOT:
             continue
@@ -2987,7 +3072,7 @@ rebuild/index.html (the promoted polish) + convert the homepage to src/pages/ind
 5.4 live 768/390 clips + responsive compare on astro/dist ->
 5.5 wire sitemap paths / labels to Astro routes + scrape-only SEO per page + astro build ->
 5.6 Human checkpoint (built routes on file://). The only stop is 5.6.
-5.6 done tidies and keeps rebuild/ + astro/ + pipeline.html.
+5.6 done tidies and keeps rebuild/ + astro/ + source-site/ + source-html/ + pipeline.html.
 
 No React. No Tailwind CDN. No new tokens. No create_file. Do not start astro dev.
 Controller owns Paper and astro/src/components. Workers write one page body each.
@@ -3572,6 +3657,14 @@ def cmd_resume(
         )
         return 2
     data = load_progress(root)
+    reopened = reopen_stale_phase5(root, data)
+    if reopened:
+        print(
+            "resume: reopened " + ", ".join(reopened)
+            + " — their receipts predate the current build or fail the 2.41 gates "
+            "(compare loop per slug, nav audit, chrome links). Redo them in order (Pitfall #248)."
+        )
+        at = None
     detected = detect_resume_step(data, root)
     if at is None:
         if detected is None:
@@ -3968,6 +4061,16 @@ def cmd_mark(
             file=sys.stderr,
         )
         return 2
+    if step.startswith("5.") and step not in {"5.1", "5.2", "5.3"}:
+        reopened = reopen_stale_phase5(root, data)
+        if reopened and step in reopened:
+            reopened = [s for s in reopened if s != step] or reopened
+        if reopened:
+            print(
+                "mark: reopened " + ", ".join(reopened)
+                + " — stale or below the 2.41 gates (Pitfall #248). Redo them first.",
+                file=sys.stderr,
+            )
     pending = pending_predecessors(data, step, for_active=(status == "active"))
     if pending:
         print(
@@ -4056,9 +4159,30 @@ def cmd_mark(
         if step == "5.2":
             detail = " 5.2 writes qa/phase-5-pages.json (record-phase-5-pages.py) after src/pages/{slug}.astro bodies are authored. bind_source_images.py must still be green (Pitfall #243)."
         if step == "5.3":
-            detail = " 5.3 writes qa/phase-5-clip-compare.json from desktop disk gold vs astro/dist shots."
+            detail = (
+                " 5.3 needs qa/phase-5-clip-compare.json ok:true (phase_5_compare.py --mode desktop) — "
+                "every page must have ≥1 side-by-side; a page that compared 0 bands fails (Pitfall #248)."
+            )
         if step == "5.4":
-            detail = " 5.4 writes qa/phase-5-responsive.json after live 768/390 compare vs astro/dist shots."
+            detail = (
+                " 5.4 needs qa/phase-5-responsive.json ok:true, then the 5.4+ interior /compare loop: "
+                "per slug paper_23_side_by_side.py --page {slug} --ship astro/dist/{slug}/index.html + an "
+                "APPLIED wave.py --phase compare --page {slug} (one subagent per band), then "
+                "author-nav-dropdown.py --astro + phase_5_nav_audit.py ok (Pitfall #247 #248)."
+            )
+            detail += (
+                " Interior pages are authored by the PAGE LOOP: wave.py prepare/start/wait/apply . "
+                "--phase page-loop --run-id pN (one Orca worker per page, section by section until "
+                "page_loop.py check passes — Pitfall #249)."
+            )
+            try:
+                import page_loop
+                import phase_5_nav_audit
+
+                for err in (page_loop.gate_errors(root) + phase_5_nav_audit.gate_errors(root))[:10]:
+                    detail += f"\n  - {err}"
+            except Exception:  # noqa: BLE001
+                pass
         if step == "5.5":
             detail = " 5.5 writes qa/phase-5-links.json after routes are wired, interior SEO runs, and astro build passes."
         print(
@@ -4482,7 +4606,7 @@ def main(argv: list[str] | None = None) -> int:
     sy.add_argument("root", type=Path)
     fn = sub.add_parser(
         "finish",
-        help="After 3.4: drop QA/capture/scrape trees; keep rebuild/ + pipeline.html",
+        help="After the run finishes: drop QA/capture noise; keep rebuild/, astro/, source-site/, source-html/, pipeline.html",
     )
     fn.add_argument("root", type=Path)
     cl = sub.add_parser("claim-controller", help="Claim the sole run mutation lease")

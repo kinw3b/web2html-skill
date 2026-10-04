@@ -46,11 +46,12 @@ how map drift happens. Touching a surface that did not change is also a failure.
 |---|---|---|
 | `capture/` | Stage **P** (`url-to-paper`) | Per-section serialized DOM **+** `fullpage.png` (required). `pre-pesticide.json` (live DOM contract, before capture). `fullpage-paper.jpg` only if opting into a Paper sibling |
 | `design-library/` | Stage **L** (not P alone) | Paper Design Library mirror: `library.json`, optional `exports-inline/` |
-| `source-site/` | Step **0** | Sitemap + assets + fonts |
+| `source-site/` | Step **0** | Sitemap + assets + fonts. Survives end-of-run tidy (Pitfall #246). |
+| `source-html/` | Intake (folder run) | Copy of the pasted HTML folder. The ship on an adopted run. Survives end-of-run tidy (Pitfall #246). |
 | `source-site/components/` | A/6 Steps **4.0-4.4** (`hover-reel`, after all Stage P pages) | `<page>/<kind>/` (`nav/ buttons/ forms/ faq/ footer/ dropdown/ nav-mobile-768/ nav-mobile-390/`) — state HTML + `manifest.json` → Paper artboards + C/3 hover parity; `capture-run.json` records the page matrix. Dropdowns and burgers land on `Interactive components`, not A/6. |
 | `rebuild/` | Steps **2a–9** | **Ship** — only after Stage L passes. `index.html` is the ONE homepage file from 2.2 on — authored at 2.2, patched at 2.3, locked at 2.4, polished in place at 3.1–3.3; `mark 3.4 done` strips the QA overlay from that same file. No variant siblings (2.34.0; Pitfall #237). Do not write `NEXT.html` |
 | `astro/` | Optional **5.x** | Static Astro app: Header / Footer / components pulled once from the signed homepage, one `.astro` body per Paper page, `dist/` built and `file://`-relativized. Does not replace `rebuild/`. |
-| `qa/` | Gates | Contracts, export log, diffs, ledgers, `b2b-r-evidence.md`, `runs/<run-id>/STOP-*.md`, `component-state-coverage.json`, `component-paper-qa.json`. `agent-findings/` and `agent-runs/` are noncanonical reviewer evidence/leases only; **deleted when 3.4 is marked done** (lean handoff). After that sweep the project root keeps `rebuild/` plus the finished `pipeline.html`, `run-report.md` (the portable run log — sessions, durations, agent + model, checkpoint notes, captured Paper comments), and `astro/` when Phase 5 ran. |
+| `qa/` | Gates | Contracts, export log, diffs, ledgers, `b2b-r-evidence.md`, `runs/<run-id>/STOP-*.md`, `component-state-coverage.json`, `component-paper-qa.json`. `agent-findings/` and `agent-runs/` are noncanonical reviewer evidence/leases only; **deleted when 3.4 is marked done** (lean handoff). After that sweep the project root keeps `rebuild/` plus the finished `pipeline.html`, `run-report.md` (the portable run log — sessions, durations, agent + model, checkpoint notes, captured Paper comments), `source-site/` and `source-html/` (the original source — Pitfall #246), and `astro/` when Phase 5 ran. |
 
 `first-pass/` appears only on the Stage H fallback, when no URL is reachable.
 

@@ -28,7 +28,7 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 | `paper_23_disk_gold.py` | 2.3 | Map ship bands → 1.2 `source-sections/NN-*.png` |
 | `paper_23_rebuild_shots.py` | 2.3 | `file://` rebuild PNGs at 1600 / 768 / 390 (includes footer) |
 | `paper_23_clip_compare.py` | 2.3 | Pull numbered 1.2 clips into `qa/paper-measure/compare/` + side-by-sides |
-| `paper_23_side_by_side.py` | 2.3 + `/compare` | Viewport pairs at the run widths: 1.2 `fullpage.png` crop left (or `--source live`), rebuild viewport right, native scale → `qa/side-by-side/<width>/NN-slug-side.png` + `report.json` + contact sheet. `--id` targets bands; gate refuses a stale report |
+| `paper_23_side_by_side.py` | 2.3 + `/compare` + 5.4+ | Viewport pairs at the run widths: 1.2 `fullpage.png` crop left (or `--source live`), rebuild viewport right, native scale → `qa/side-by-side/<width>/NN-slug-side.png` + `report.json` + contact sheet. `--id` targets bands; gate refuses a stale report. Phase 5 interiors: `--page {slug} --ship astro/dist/{slug}/index.html` → pairs + `report.json` under `qa/side-by-side/{slug}/` (Pitfall #247) |
 | `paper_23_validate.py` | 2.3 | VALIDATE after APPLY: `--shoot-open` (refreshes closed bands a later patch staled — same pixels restamp, changed reopen once — then shoots every open band; `--refresh` alone), then `wave.py` LOOK, then `--record` from the findings / `--residual`, `--status`. `--next` / `--id X --shoot` remain for a single band. ≤3 rounds per band, residual from round 2. Receipt `qa/paper-measure/<id>.validate.json` + applied 2.3 wave (Pitfall #216 #221 #232) |
 | `inject-qa-overlay.py` | 2.4 | Outlines toggle. Always `rebuild/css` + `rebuild/js`. Never a sibling `css/` |
 | `open-build-review.py` | 2.4 | `--stage 2.4` TAGS on. `qa/build-checkpoint-opened.json` |
@@ -50,13 +50,17 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 | `extract-astro-components.py` | 5.1 | Header + Footer (once), the sitemap reuse plan's `home`-origin bands, plus Paper/comment components → `qa/phase-5-components.json` (prints `BUILD FIRST` for interior-only groups) |
 | `shared_sections.py` | 5.1 / 5.2 | Sitemap-wide reuse plan: groups bands that repeat across pages by copy + image overlap (homepage `<main>`, `capture/{slug}-desktop/NN-*.html`, else `rebuild/{slug}-raw.html`) → `qa/phase-5-reuse.json` (`groups`, `buildFirst`, `byPage`). Re-run after `dump-interior-raw.mjs` (Pitfall #244) |
 | `convert-astro-home.py` | 5.1 | Polish homepage → `src/pages/index.astro` + `qa/phase-5-home.json` |
-| `html_to_astro.py` / `astro_build.py` | 5.x | Shared helpers: HTML → .astro fragments; `astro build` + `file://` relativize of `astro/dist` |
+| `html_to_astro.py` / `astro_build.py` | 5.x | Shared helpers: HTML → .astro fragments; `astro build` (stamps `data-astro-component` on component roots) + `file://` relativize + QA overlay into `astro/dist/qa-review/` |
 | `dump-interior-raw.mjs` | 5.2 | Serial `get_jsx` → `rebuild/{slug}-raw.html` (wrapper; real dump is `url-to-paper`) |
 | `record-phase-5-pages.py` | 5.2 | `astro/src/pages/{slug}.astro` on the 5.1 chrome, contamination + `#` hrefs, and the reuse plan (every `byPage` shared section imported + rendered, never pasted; build-first components exist; plan not stale) → `qa/phase-5-pages.json` |
 | `build-astro-dist.py` | 5.3 / 5.4 | `astro build` + relativize → `qa/phase-5-build.json`; fails when a built page references a stylesheet/script missing from `dist/`; the ship for shots is `astro/dist/{slug}/index.html` |
-| `phase_5_compare.py` | 5.3 / 5.4 | `--mode desktop` (1600) or `responsive` (768,390) against `astro/dist` shots |
-| `wire-astro-routes.py` / `interior_seo.py` | 5.5 | Sitemap path / label → `/slug/`; `/` home; per-page scrape-only SEO into frontmatter; `astro build` → `qa/phase-5-links.json` |
-| `open-phase-5-review.py` | 5.6 | Writes `qa/phase-5-review.md`; opens built home + first interior on `file://` |
+| `phase_5_compare.py` | 5.3 / 5.4 | `--mode desktop` (1600) or `responsive` (768,390) against `astro/dist` shots; fails a page with 0 bands / 0 side-by-sides (Pitfall #248) |
+| `author-nav-dropdown.py --astro` | 5.4+ | Wire + fill `Header.astro` dropdown panels from the source scrape (incl. Framer `Mega Menu` layers); adds nav-dropdown css/js to BaseLayout → `qa/phase-5-nav-dropdown.json` |
+| `page_loop.py` | 5.4+ | Page-loop worker driver: `shoot` (locked astro build + side-by-sides + coverage), `record` (per-band verdict on the current page), `check` / `status` (page done = full coverage, no demoted sections, every band match/residual on the current file) → `qa/phase-5-loop/{slug}.json`. Gates 5.4 done + 5.5 (Pitfall #249) |
+| `phase_5_scorecard.py` | 5.6 | Per-route quality scorecard from receipts + built pages → `qa/phase-5-scorecard.{json,md}` (run by `open-phase-5-review.py`) |
+| `phase_5_nav_audit.py` | 5.4+ | Hidden-nav inventory per page (hover-reel `dropdown` / `nav-mobile-*` manifests, scrape submenus, painted triggers) checked against the BUILT pages + `Header.astro` → `qa/phase-5-nav.json`; `ok:true` only when every item is wired. Gate (5.4 done + 5.5) also requires an applied compare wave per slug (Pitfall #247 #248) |
+| `wire-astro-routes.py` / `interior_seo.py` | 5.5 | Refuses without a fresh ok `qa/phase-5-nav.json` covering every slug. Sitemap path / label → `/slug/`; `/` home; per-page scrape-only SEO into frontmatter; `astro build` → `qa/phase-5-links.json` |
+| `open-phase-5-review.py` | 5.6 | Writes `qa/phase-5-review.md` + the scorecard; opens built home + first interior on `file://` with `?qa-outlines=components` |
 | `watch_agent_ping.py` | 1.4 | Optional: wake into Paper sign-off after Capture Tool Done |
 
 Sibling packages (load the skill, then its scripts):

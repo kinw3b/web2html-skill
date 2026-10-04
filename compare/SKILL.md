@@ -49,11 +49,15 @@ file per worker, stale findings rejected, only the controller writes
 /compare pricing              one band (repeat ids for several)
 /compare pricing --live       live source panes (sticky-nav parity; needs network)
 /compare --widths 1600,390    subset of breakpoints
+/compare about                phase 5: interior page — pairs the BUILT
+                              astro/dist/about/index.html (--ship), pairs at
+                              qa/side-by-side/about/
 ```
 
 Flags pass through to the script: `--id <section>` (repeatable),
 `--widths 1600,768,390`, `--height 1000`, `--source disk|live`,
-`--source-url <url>`, `--fail-over <pct>`.
+`--source-url <url>`, `--page <slug>`, `--ship <rel-path>`,
+`--fail-over <pct>`.
 
 ## Run
 
@@ -84,10 +88,16 @@ Flags pass through to the script: `--id <section>` (repeatable),
    through the same finding files. When the probe says `waves orca`, load
    `orchestration` + `orca-cli` (stubs; `orca skills get …`) before `start`.
    Each worker reads only its band's pairs and writes one finding: verdict per
-   width (`match|miss`), `seen` (≥12 words), misses, and a patch proposal
-   scoped to `#<band>`. `miss` is only for a glance-level difference (wrap
+   width (`match|miss`), `seen` (≥12 words), misses, a patch proposal
+   scoped to `#<band>`, and a **mandatory `nav` list** — one row per
+   hidden-until-interaction nav affordance the band's chrome shows
+   (dropdown / megamenu / drawer / submenu), each `wired|missing|unwired`.
+   A `missing`/`unwired` row forces a `miss` verdict and a patch proposal —
+   `wave.py check` rejects a finding without it (Pitfall #247).
+   `miss` is only for a glance-level difference (wrap
    count, column count, missing element, pane-edge bleed, wrong radius class,
-   >8px gap drift, sticky chrome over the band); everything else is `match`.
+   >8px gap drift, sticky chrome over the band, a nav affordance the source
+   paints that the rebuild lacks); everything else is `match`.
 4. **Apply serially.** Only the controller writes `rebuild/`. Apply each
    printed `patch` under the current phase's write rules (table below), one
    band at a time, selectors scoped to that band (`#pricing …`). No global
@@ -131,7 +141,76 @@ Flags pass through to the script: `--id <section>` (repeatable),
 | **3.1–3.3** | Polish edits `rebuild/index.html` in place. After the patch, `fidelity_freeze.py verify` and `verify-polish-passes.py` must stay green — a visual fix must not drift type / library-class / section-id. |
 | **3.4 (before done)** | Same as 3.x. If the review tab is open, refresh it (`open-human-review.py`) after the patch so the human sees the fixed ship. |
 | **After 3.4 done / tidied** | `capture/` may be gone: disk mode falls back to the numbered 1.2 clips, then to `--live`. Patch `rebuild/index.html` in place and re-shoot the pairs; note the fix in `run-report.md`. |
-| **Phase 4 / 5** | Pairs validate the homepage ship only. Interior pages use their own `--page <slug>` (ship at `rebuild/<slug>.html`, clips under `capture/<slug>-*/`). |
+| **Phase 4** | Pairs validate the homepage ship only. Interior pages use their own `--page <slug>` (ship at `rebuild/<slug>.html`, clips under `capture/<slug>-*/`). |
+| **Phase 5 (5.4+ interior pass)** | The ship is the BUILT page `astro/dist/{slug}/index.html` — pass `--ship`. Pairs land at `qa/side-by-side/{slug}/`. Chrome fixes land ONCE in `astro/src/components/Header.astro` / `Footer.astro` (controller only); page-local fixes in `astro/src/pages/{slug}.astro`. Never touch `rebuild/`. After every patch: `build-astro-dist.py`, then re-shoot. See the interior pass below. |
+
+## 5.4+ interior pass — /compare on the built pages (Pitfall #247)
+
+Runs after 5.4, before 5.5. Stage 5 QA'd interiors with static `<main>` clips
+only — a closed dropdown and a MISSING dropdown look identical there, so
+subnavs, megamenus, and burger drawers vanished on interior runs while the
+homepage's 3.2 pass caught them. This pass is the stage-5 equivalent of the
+3.2 hidden-item hunt, over every built page.
+
+1. **Build first.** `build-astro-dist.py .` — the ship is
+   `astro/dist/{slug}/index.html`, never the `.astro` source.
+2. **Shoot per page** (once per round):
+
+   ```sh
+   python3 "$SKILLS/web2html/scripts/paper_23_side_by_side.py" . \
+     --page {slug} --ship astro/dist/{slug}/index.html [--widths 1600,768,390]
+   # → qa/side-by-side/{slug}/report.json + pairs + contact sheet
+   ```
+
+   Gold is `capture/{slug}-desktop|768|390/` (4.2 + 5.4 clips). Homepage pairs
+   stay at `qa/side-by-side/` — the per-slug folder never clobbers them.
+3. **Wave with `--page`** — same lane, same loop-stoppers, one round:
+
+   ```sh
+   python3 $W prepare . --phase compare --run-id c1 --page {slug}
+   python3 $W start   . --phase compare --run-id c1 --page {slug}
+   python3 $W wait    . --phase compare --run-id c1 --page {slug}
+   python3 $W ready   . --phase compare --run-id c1 --page {slug}
+   python3 $W apply   . --phase compare --run-id c1 --page {slug}
+   ```
+
+   Every worker spec carries the **NAV block**: on any band whose pair shows
+   the navbar, the worker must inventory hidden-until-interaction items —
+   dropdown menus, mega/super-nav panels, burger drawers, submenu links — and
+   report each as `wired|missing|unwired` in the finding's `nav` list. A
+   closed panel and a missing panel look the same in a static pair, so the
+   worker checks the TRIGGER: chevron/caret, `aria-haspopup`, or a nav label
+   the source paints with children. A `missing`/`unwired` row forces a `miss`
+   verdict + patch; `check` rejects the finding otherwise.
+4. **Wire what's missing.** A broken `nav` row is fixed per
+   `references/nav-dropdown.md` (desktop: hover/click only **opens**; touch:
+   click toggles; ≤768px: the burger drawer owns navigation — Pitfall #241).
+   The fix lands in the shared component (`Header.astro`) when the trigger is
+   chrome, in the page body when it is page-local, plus
+   `astro/public/styles|scripts/` for the panel css/js. Never invent a nav
+   label the source never painted.
+5. **Rebuild + confirm.** `build-astro-dist.py .`, re-shoot ONLY patched bands
+   (`--page {slug} --ship … --id <band>`), one confirm wave with a NEW
+   `--run-id`. Hard cap 2 rounds per band, then residual.
+6. **Machine audit — the pass is not done until this is green:**
+
+   ```sh
+   python3 "$SKILLS/web2html/scripts/phase_5_nav_audit.py" .   # qa/phase-5-nav.json
+   ```
+
+   It inventories every hidden nav item per page (hover-reel
+   `dropdown`/`nav-mobile-*` manifests, scrape submenus, painted triggers in
+   the raw dumps — home's inventory applies to every page, the Header is
+   shared) and checks each against the BUILT page. `ok:true` only when every
+   item is `wired`. **`wire-astro-routes.py` (5.5) refuses to run without a
+   fresh ok receipt** — a stale or missing `qa/phase-5-nav.json` blocks route
+   wiring. Capture-Tool-style "do not hunt" skips fail, exactly like Pitfall
+   #210.
+7. **The loop must actually run (Pitfall #248).** `mark 5.4 done` and the 5.5
+   gate check, per slug, that the report has side-by-sides and that an
+   APPLIED compare wave covers every band. Fill empty dropdown panels with
+   `author-nav-dropdown.py --astro .` (reads Framer `Mega Menu` layers too)
+   before the audit.
 
 ## Hard rules
 

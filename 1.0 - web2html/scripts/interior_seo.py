@@ -28,6 +28,7 @@ A_RE = re.compile(
     r"<a\b([^>]*?)\bhref=(['\"])(.*?)\2([^>]*)>(.*?)</a>",
     re.I | re.S,
 )
+LOGO_RE = re.compile(r"""class=(['"])[^'"]*\b(logo|brand|site-logo|wordmark)\b""", re.I)
 UA = "Mozilla/5.0 web2html-phase5/2.20.0"
 TIMEOUT = 12
 LOCAL_SCRAPE = (
@@ -81,7 +82,52 @@ def route_map(rows: list[dict]) -> dict[str, str]:
         name = str(row.get("paperName") or slug).strip().lower()
         if name:
             mapping[name] = dest
+        # 4.1 collapses dynamic children to ONE sample per template; any other
+        # child of that template (e.g. the source's own "Blog Details" link)
+        # routes to the sample (Pitfall #248).
+        template = str(row.get("template") or "").strip().lower()
+        if template.endswith("/*"):
+            mapping.setdefault(template, dest)
     return mapping
+
+
+def _norm_path(raw: str) -> str:
+    """'./about' / '../about/' / 'about.html' → '/about'; './' → '/'."""
+    path = urlparse(raw).path or ""
+    while path.startswith(("./", "../")):
+        path = path[2:] if path.startswith("./") else path[3:]
+    if path in {"", ".", ".."}:
+        return "/"
+    if path.endswith(".html"):
+        path = path[:-5]
+        if path.endswith("/index") or path == "index":
+            path = path[: -len("index")]
+    return "/" + path.strip("/")
+
+
+def source_label_map(root: Path, mapping: dict[str, str]) -> dict[str, str]:
+    """label → route from the SOURCE scrape's own internal links.
+
+    The 2.2 rebuild replaces source hrefs with in-page anchors (#pricing-section,
+    #footer) — label routing never fired on those, so the built chrome linked
+    nowhere (Pitfall #248). The source scrape still knows that 'Pricing' goes
+    to /pricing and 'Homepage 02' to /home-2. Only labels with ONE internal
+    destination are kept; ambiguous labels ('Get Started Now') are dropped."""
+    src = root / "source-site" / "index.html"
+    if not src.is_file():
+        return {}
+    text = src.read_text(encoding="utf-8", errors="replace")
+    seen: dict[str, set[str]] = {}
+    for _before, _q, href, _after, inner in A_RE.findall(text):
+        label = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", inner or "")).strip().lower()
+        label = re.sub(r"&[a-z#0-9]+;", " ", label).strip()
+        if not label or len(label) > 60:
+            continue
+        dest = dest_for_href(href, mapping)
+        if dest in (None, "#"):
+            continue
+        seen.setdefault(label, set()).add(dest)
+    return {label: next(iter(dests)) for label, dests in seen.items() if len(dests) == 1}
 
 
 def dest_for_href(href: str, mapping: dict[str, str]) -> str | None:
@@ -93,6 +139,20 @@ def dest_for_href(href: str, mapping: dict[str, str]) -> str | None:
         return "#"
     if raw == "/":
         return HOME
+    if raw.startswith((".", "/")) or "/" in raw or raw.endswith(".html"):
+        norm = _norm_path(raw)
+        if norm == "/":
+            return HOME
+        key = norm.lower()
+        if raw.startswith("/") and raw.endswith("/") and key.strip("/") in {k.strip("/") for k in mapping}:
+            return None  # already a route
+        if key in mapping:
+            return mapping[key]
+        if key.strip("/") in mapping:
+            return mapping[key.strip("/")]
+        for tpl, dest in mapping.items():
+            if tpl.endswith("/*") and key.startswith(tpl[:-1]):
+                return dest
     if raw.startswith("/") and raw.endswith("/") and raw.strip("/").lower() in {
         key.strip("/") for key in mapping
     }:
@@ -121,14 +181,25 @@ def dest_for_label(text: str, mapping: dict[str, str]) -> str | None:
     return mapping.get(label)
 
 
-def rewrite_anchor_hrefs(text: str, mapping: dict[str, str]) -> tuple[str, int]:
-    """Rewrite `<a href>` inside HTML or an .astro template literal."""
+def rewrite_anchor_hrefs(
+    text: str, mapping: dict[str, str], labels: dict[str, str] | None = None
+) -> tuple[str, int]:
+    """Rewrite `<a href>` inside HTML or an .astro template literal.
+
+    `labels` (source_label_map) routes a placeholder / in-page-anchor href by
+    its visible label when the source linked that label to an internal page."""
     changed = 0
 
     def repl(match: re.Match[str]) -> str:
         nonlocal changed
         before, quote, href, after, inner = match.groups()
         dest = dest_for_href(href, mapping)
+        placeholder = href.strip() in {"#", ""} or href.strip().startswith("#")
+        if dest is None and placeholder and labels:
+            label = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", inner or "")).strip().lower()
+            dest = labels.get(label)
+        if dest is None and placeholder and LOGO_RE.search(f"{before} {after}"):
+            dest = HOME  # the brand mark links home on every page
         if dest is None and href.strip() in {"#", ""}:
             dest = dest_for_label(inner, mapping)
         if dest is None or dest == href:

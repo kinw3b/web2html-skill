@@ -129,6 +129,38 @@ def match_clip(section_id: str, clips: list[dict]) -> dict | None:
     return None
 
 
+def assign_clips(ids: list[str], clips: list[dict], *, page: str = "home") -> dict[str, dict | None]:
+    """Ship section id -> 1.2/4.2 clip. Name match first; on an interior page
+    (never home — 2.3 keeps strict names) an unmatched id takes the next free
+    clip in capture order between its named neighbours (Pitfall #248: 5.2
+    authors interior ids like `joinourteamsection` that never name-match the
+    4.2 clips `02-content-section`, so every source pane was missing and the
+    stage-5 compare reviewed nothing)."""
+    out: dict[str, dict | None] = {sid: match_clip(sid, clips) for sid in ids}
+    if (page or "home") in {"home", "index", ""} or not clips:
+        return out
+    order = {clip["stem"]: i for i, clip in enumerate(clips)}
+    used = {clip["stem"] for clip in out.values() if clip}
+    last = -1
+    for pos, sid in enumerate(ids):
+        if out[sid]:
+            last = order.get(out[sid]["stem"], last)
+            continue
+        nxt = next(
+            (order[out[s]["stem"]] for s in ids[pos + 1:] if out.get(s) and out[s]["stem"] in order),
+            len(clips),
+        )
+        cand = next(
+            (c for c in clips if c["stem"] not in used and last < order[c["stem"]] < nxt),
+            None,
+        )
+        if cand is not None:
+            out[sid] = {**cand, "ordinal": True}
+            used.add(cand["stem"])
+            last = order[cand["stem"]]
+    return out
+
+
 def relative_or_none(root: Path, path: Path | None) -> str | None:
     if path is None or not path.is_file():
         return None
@@ -148,6 +180,7 @@ def build_index(
     html = ship.read_text(encoding="utf-8") if ship.is_file() else ""
     ids = shots.ship_section_ids(html) if html else []
     clips_by_width = {width: list_clips(root / lander_dir(page, width)) for width in widths}
+    assigned = {width: assign_clips(ids, clips_by_width[width], page=page) for width in widths}
     sections: list[dict] = []
     missing: list[str] = []
     for sid in ids:
@@ -155,13 +188,13 @@ def build_index(
         sidecar: dict[str, str | None] = {}
         rebuild: dict[str, str | None] = {}
         for width in widths:
-            clip = match_clip(sid, clips_by_width[width])
+            clip = assigned[width].get(sid)
             source[str(width)] = relative_or_none(root, clip["png"] if clip else None)
             sidecar[str(width)] = relative_or_none(root, clip["json"] if clip else None)
             rebuild[str(width)] = relative_or_none(root, shots.shot_path(root, sid, width, page))
             if source[str(width)] is None:
                 missing.append(f"{sid}@{width}")
-        clip1600 = match_clip(sid, clips_by_width.get(1600) or clips_by_width[widths[0]])
+        clip1600 = (assigned.get(1600) or assigned[widths[0]]).get(sid)
         stem = (clip1600 or {}).get("stem") or ""
         numbered = re.match(r"^(\d{2})-(.+)$", stem)
         sections.append(

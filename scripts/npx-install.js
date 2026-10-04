@@ -17,6 +17,10 @@
 //         --home <dir>     install home (default ~/.web2html/skills)
 //         --skip-deps      do not run npm install inside the skills
 //         --skip-browser   do not download Playwright's Chromium
+//
+// The installed version comes from this package's own package.json (resolved
+// next to this script, never the cwd). A copied install records it in
+// <home>/VERSION so `cat ~/.web2html/skills/VERSION` answers "what do I have?".
 "use strict";
 
 const { spawnSync } = require("child_process");
@@ -59,10 +63,24 @@ const BANNER = [
   "    \\_/\\_/ \\___|_.__/|_____|_| |_| |_| |_|  |_|_____|",
 ];
 
+// ------------------------------------------------------------- version ----
+// Read at runtime from the package that is running, so npx, a checkout and a
+// copied home all report the version they actually are. Never fatal.
+const PKG = (() => {
+  try {
+    const p = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
+    return { name: p.name || "web2html-skill", version: typeof p.version === "string" ? p.version : null };
+  } catch {
+    return { name: "web2html-skill", version: null };
+  }
+})();
+const VERSION_TAG = PKG.version ? ` v${PKG.version}` : "";
+const PKG_ID = PKG.version ? `${PKG.name}@${PKG.version}` : `${PKG.name} ${dim("(version unknown)")}`;
+
 log();
 for (const row of BANNER) log(cyan(row));
 log();
-log(`   ${bold("Web2HTML")} ${dim("— live URL to pixel-perfect static HTML, via Paper")}`);
+log(`   ${bold(`Web2HTML${VERSION_TAG}`)} ${dim("— live URL to pixel-perfect static HTML, via Paper")}`);
 log(`   ${dim("github.com/kinw3b/w2h-private")}`);
 if (DRY) log(`\n   ${yellow("DRY RUN")} ${dim("— printing the plan, changing nothing")}`);
 
@@ -95,6 +113,14 @@ if (root === source) {
   line(" ", dim(`from ${short(source)}`));
   line(" ", dim("npx's cache can be pruned at any time; this folder is permanent"));
   copyPackage(source, root);
+  // Record what was installed so it can be checked later.
+  if (!DRY && PKG.version) {
+    try {
+      fs.writeFileSync(path.join(root, "VERSION"), PKG.version + "\n");
+    } catch {
+      /* informational only */
+    }
+  }
 }
 
 // -------------------------------------------------------------- skills ----
@@ -281,6 +307,8 @@ log(bold(depsFailed ? yellow("Done, with warnings.") : green("Done.")));
 log(`   Skills live in   ${bold(short(root))}`);
 log(`   Linked into      ${dests.map(([l]) => l).join(", ")}`);
 log(`   Nothing else on your machine was changed.`);
+log();
+log(`   ${DRY ? "Would install" : "Installed"} ${bold(PKG_ID)} ${dim("→")} ${bold(short(root))}`);
 log();
 log(`   Skill docs refer to ${bold("$SKILLS")}. Set it once (any linked folder works):`);
 log(`     ${cyan('export SKILLS="' + short(dests[0][1]) + '"')}`);

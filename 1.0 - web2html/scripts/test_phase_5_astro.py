@@ -29,6 +29,7 @@ wire_astro = _load("wire_astro", "wire-astro-routes.py")
 build_dist = _load("build_astro_dist", "build-astro-dist.py")
 open_review = _load("open_phase_5_review", "open-phase-5-review.py")
 shared_sections = _load("shared_sections", "shared_sections.py")
+nav_audit = _load("phase_5_nav_audit", "phase_5_nav_audit.py")
 
 CTA_COPY = (
     "<h2>Ready to grow your business with us today</h2>"
@@ -307,6 +308,33 @@ class Phase5AstroTests(unittest.TestCase):
             self.assertEqual(pages["pages"][0]["route"], "/about/")
             self.assertEqual(pages["pages"][0]["dist"], "astro/dist/about/index.html")
 
+            # 5.4+ — hidden-nav audit on the BUILT pages gates 5.5 (Pitfall #247)
+            dist = root / "astro" / "dist"
+            (dist / "about").mkdir(parents=True)
+            (dist / "index.html").write_text('<link rel="stylesheet" href="/styles/tokens.css"><a href="/about/">A</a>')
+            (dist / "about" / "index.html").write_text('<link rel="stylesheet" href="/styles/tokens.css"><a href="/">H</a>')
+            self.assertEqual(nav_audit.main([str(root)]), 0)
+            nav_receipt = json.loads((root / "qa" / "phase-5-nav.json").read_text())
+            self.assertTrue(nav_receipt["ok"], nav_receipt["errors"])
+            self.assertEqual({row["slug"] for row in nav_receipt["pages"]}, {"home", "about"})
+            # 5.5 refuses without the audit receipt
+            (root / "qa" / "phase-5-nav.json").unlink()
+            with self.assertRaises(ValueError) as ctx:
+                wire_astro.wire(root, skip_build=True, fetch_fn=lambda url: ABOUT_LIVE)
+            self.assertIn("phase-5-nav", str(ctx.exception))
+            self.assertEqual(nav_audit.main([str(root)]), 0)
+            # 5.5 also refuses until the interior /compare loop ran (Pitfall #248)
+            with self.assertRaises(ValueError) as ctx:
+                wire_astro.wire(root, skip_build=True, fetch_fn=lambda url: ABOUT_LIVE)
+            self.assertIn("side-by-side/about", str(ctx.exception))
+            nav_audit.plant_compare_loop(root, "about", ["about-hero"])
+            from unittest import mock
+
+            self.addCleanup(mock.patch.stopall)
+            import page_loop as _pl
+
+            mock.patch.object(_pl, "gate_errors", return_value=[]).start()
+
             # 5.5 — routes + per-page SEO (build skipped: no npm in tests)
             receipt = wire_astro.wire(root, skip_build=True, fetch_fn=lambda url: ABOUT_LIVE)
             self.assertTrue(receipt["ok"], receipt["errors"])
@@ -334,7 +362,7 @@ class Phase5AstroTests(unittest.TestCase):
 
             # 5.3 / 5.4 — built pages are the ship; check-only pass on a planted dist
             dist = root / "astro" / "dist"
-            (dist / "about").mkdir(parents=True)
+            (dist / "about").mkdir(parents=True, exist_ok=True)
             (dist / "styles").mkdir(parents=True)
             (dist / "styles" / "tokens.css").write_text(":root { --x: 1; }\n")
             (dist / "index.html").write_text('<link rel="stylesheet" href="/styles/tokens.css"><a href="/about/">A</a>')

@@ -45,6 +45,7 @@ def run(root: Path, mode: str) -> dict:
     dest_rel, widths = RECEIPTS[mode]
     rows = []
     missing: list[str] = []
+    failed: list[str] = []
     for row in pages(root):
         slug = str(row["slug"])
         for width in widths:
@@ -55,12 +56,26 @@ def run(root: Path, mode: str) -> dict:
         if not (root / ship).is_file():
             missing.append(f"missing {ship.as_posix()} — run build-astro-dist.py first")
             continue
-        payload = compare.compare_project(root, page=slug, widths=widths)
-        rows.append({"slug": slug, "ok": payload.get("ok"), "missing": payload.get("missing") or []})
+        payload = compare.compare_project(root, page=slug, widths=widths, ship_rel=ship)
+        bands = len({str(p.get("id")) for p in payload.get("pairs") or []})
+        sides = int(payload.get("sides") or 0)
+        rows.append({
+            "slug": slug,
+            "ok": bool(payload.get("ok")) and sides > 0,
+            "bands": bands,
+            "sides": sides,
+            "missing": payload.get("missing") or [],
+        })
         missing.extend(f"{slug}:{item}" for item in payload.get("missing") or [])
+        if not bands:
+            # a page with zero comparable bands was a silent pass (#248)
+            failed.append(f"{slug}: no <section id> bands in {ship.as_posix()} — nothing was compared")
+        elif not sides and not payload.get("shotsSkipped"):
+            failed.append(f"{slug}: 0 side-by-sides — shoot astro/dist first (paper_23_rebuild_shots.py --page {slug} --ship {ship.as_posix()})")
     receipt = {
         "generatedFrom": "web2html/phase-5-compare",
-        "ok": bool(rows) and not missing,
+        "ok": bool(rows) and not missing and not failed and all(row["ok"] for row in rows),
+        "failed": failed,
         "mode": mode,
         "widths": list(widths),
         "pages": rows,
@@ -84,7 +99,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
     if not receipt["ok"]:
-        print(f"FAIL: {receipt['missing']}", file=sys.stderr)
+        for item in (receipt["failed"] + receipt["missing"])[:20]:
+            print(f"FAIL: {item}", file=sys.stderr)
+        bad = [row["slug"] for row in receipt["pages"] if not row["ok"]]
+        if bad:
+            print(f"FAIL: pages not ok: {', '.join(bad)}", file=sys.stderr)
         return 2
     print(json.dumps({"ok": True, "mode": args.mode, "pages": len(receipt["pages"])}, indent=2))
     return 0

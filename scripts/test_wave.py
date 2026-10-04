@@ -345,11 +345,12 @@ class CompareWaveTests(unittest.TestCase):
             seen="hero headline wraps to three lines at 390 while the source crop wraps to two",
             misses=[{"width": 1600, "what": "columns stacked", "fix": "#hero .grid: repeat(2, 1fr)"}],
             patch="#hero .grid { grid-template-columns: repeat(2, 1fr); }",
+            nav=[],
             findings=[{"key": "1600", "severity": "medium", "source": self.REPORT["stops"][0]["side"],
                        "evidence": "stacked", "suggestion": "2-col"}])))
         (self.root / doc["tasks"][1]["findings"]).write_text(json.dumps(finding_for(
             doc, doc["tasks"][1], band="pricing", verdict={"1600": "match", "390": "match"},
-            seen="pricing cards, gaps, and radii match the source crop at both widths", misses=[], patch="")))
+            seen="pricing cards, gaps, and radii match the source crop at both widths", misses=[], patch="", nav=[])))
         self.assertTrue(wave.ready(self.root, "c1", "compare")[0])
         out = wave.apply(self.root, "c1", "compare")
         self.assertEqual([a["band"] for a in out["actions"]], ["hero", "pricing"])
@@ -366,13 +367,96 @@ class CompareWaveTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(finding_for(
             doc, hero, band="hero", verdict={"1600": "match", "390": "match"},
-            seen="hero headline, CTA pair, and photo frame match the crop at both widths", misses=[], patch="")))
+            seen="hero headline, CTA pair, and photo frame match the crop at both widths", misses=[], patch="", nav=[])))
         self.assertEqual(wave.check_one(self.root, "c1", "compare", "band-hero"), [])
         (self.root / "rebuild" / "index.html").write_text("<main><section id='hero'>patched</section></main>")
         errors = wave.check_one(self.root, "c1", "compare", "band-hero")
         self.assertTrue(any("stale" in e for e in errors))
         argv = ["check", str(self.root), "--phase", "compare", "--run-id", "c1", "--agent", "band-hero"]
         self.assertEqual(wave.main(argv), 3)
+
+    def test_nav_inventory_is_mandatory_and_a_missing_item_forces_a_miss(self):
+        doc = wave.prepare(self.root, "c1", "compare")
+        hero = doc["tasks"][0]
+        path = self.root / hero["findings"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # No nav list at all → invalid (Pitfall #247).
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "match", "390": "match"},
+            seen="hero headline, CTA pair, and photo frame match the crop at both widths", misses=[], patch="")))
+        errors = wave.check_one(self.root, "c1", "compare", "band-hero")
+        self.assertTrue(any("nav must be a list" in e for e in errors))
+        # A missing dropdown with a match verdict → invalid.
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "match", "390": "match"},
+            seen="hero headline, CTA pair, and photo frame match the crop at both widths", misses=[], patch="",
+            nav=[{"trigger": "Products", "kind": "dropdown", "state": "missing",
+                  "evidence": "source paints a chevron + panel; rebuild paints a flat link"}])))
+        errors = wave.check_one(self.root, "c1", "compare", "band-hero")
+        self.assertTrue(any("Products" in e and "verdict must be miss" in e for e in errors))
+        # A missing dropdown with a miss verdict but no patch → invalid.
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "miss", "390": "match"},
+            seen="source paints a Products chevron with an open panel; rebuild paints a flat link",
+            misses=[], patch="",
+            nav=[{"trigger": "Products", "kind": "dropdown", "state": "missing",
+                  "evidence": "source paints a chevron + panel; rebuild paints a flat link"}])))
+        errors = wave.check_one(self.root, "c1", "compare", "band-hero")
+        self.assertTrue(any("Products" in e and "patch proposal" in e for e in errors))
+        # Miss verdict + scoped patch → valid; apply prints the nav-dropdown wiring note.
+        path.write_text(json.dumps(finding_for(
+            doc, hero, band="hero", verdict={"1600": "miss", "390": "match"},
+            seen="source paints a Products chevron with an open panel; rebuild paints a flat link",
+            misses=[{"width": 1600, "what": "Products dropdown missing",
+                     "fix": "#hero header: stamp data-nav-dropdown-trigger + panel"}],
+            patch="#hero header [data-nav-dropdown-trigger] Products: insert [data-nav-dropdown-panel] from scrape submenu",
+            nav=[{"trigger": "Products", "kind": "dropdown", "state": "missing",
+                  "evidence": "source paints a chevron + panel; rebuild paints a flat link"}])))
+        self.assertEqual(wave.check_one(self.root, "c1", "compare", "band-hero"), [])
+        (self.root / doc["tasks"][1]["findings"]).write_text(json.dumps(finding_for(
+            doc, doc["tasks"][1], band="pricing", verdict={"1600": "match", "390": "match"},
+            seen="pricing cards, gaps, and radii match the source crop at both widths", misses=[], patch="", nav=[])))
+        out = wave.apply(self.root, "c1", "compare")
+        nav_notes = [a for a in out["actions"] if a.get("nav")]
+        self.assertTrue(nav_notes)
+        self.assertTrue(any("nav-dropdown.md" in a["note"] and "Pitfall #241" in a["note"] for a in nav_notes))
+
+    def test_interior_page_compare_wave_reads_the_per_slug_report(self):
+        interior = {
+            "generatedFrom": "web2html/section-23-side-by-side",
+            "ok": True,
+            "page": "about",
+            "widths": [1600, 390],
+            "rebuild": "astro/dist/about/index.html",
+            "stops": [
+                {"id": "about-hero", "nn": "01", "width": 1600,
+                 "side": "qa/side-by-side/about/1600/01-about-hero-1600-side.png"},
+                {"id": "about-hero", "nn": "01", "width": 390,
+                 "side": "qa/side-by-side/about/390/01-about-hero-390-side.png"},
+            ],
+        }
+        pairs = self.root / "qa" / "side-by-side" / "about"
+        pairs.mkdir(parents=True)
+        (pairs / "report.json").write_text(json.dumps(interior))
+        dist = self.root / "astro" / "dist" / "about"
+        dist.mkdir(parents=True)
+        (dist / "index.html").write_text("<main><section id='about-hero'></section></main>")
+        (self.root / "astro" / "src").mkdir(parents=True)
+        doc = wave.prepare(self.root, "c1", "compare", page="about")
+        self.assertEqual(doc["page"], "about")
+        self.assertEqual([t["id"] for t in doc["tasks"]], ["about--band-about-hero"])
+        self.assertEqual(doc["tasks"][0]["page"], "about")
+        spec = doc["tasks"][0]["spec"]
+        self.assertIn("qa/side-by-side/about/1600/01-about-hero-1600-side.png", spec)
+        self.assertIn("PHASE-5 interior pass", spec)
+        self.assertIn("--page about", spec)
+        self.assertIn("astro/dist/about", " ".join(doc["inputs"]))
+        # Without the built page the wave refuses.
+        (dist / "index.html").unlink()
+        dist.rmdir()
+        with self.assertRaises(FileNotFoundError) as ctx:
+            wave.prepare(self.root, "c2", "compare", page="about")
+        self.assertIn("build-astro-dist.py", str(ctx.exception))
 
 
 if __name__ == "__main__":

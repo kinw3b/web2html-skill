@@ -12,7 +12,8 @@ No new `--color` / `--font` names. The agent never starts `astro dev`.
 
 ```
 5.1 scaffold + reuse plan + chrome/shared sections  →  5.2 build-first sections, then bodies
-→  5.3 desktop QA  →  5.4 responsive  →  5.5 routes + SEO + build  →  5.6 human checkpoint (tidy)
+→  5.3 desktop QA  →  5.4 responsive  →  5.4+ interior /compare + hidden-nav audit
+→  5.5 routes + SEO + build  →  5.6 human checkpoint (tidy)
 ```
 
 **Reuse before authoring (Pitfall #244).** A band that appears on two or more
@@ -193,11 +194,102 @@ Gold is `capture/{slug}-desktop/source-sections/` (4.2) and
 disk-only workers. **No Paper MCP.** No extra Paper frames. Real media
 queries, never `width:100% !important`.
 
+Clip QA reads static `<main>` crops — a closed dropdown and a MISSING
+dropdown look identical there, so subnavs / megamenus / burger drawers slip
+past 5.3/5.4 (Pitfall #247). The interior /compare pass below is the
+mandatory hidden-nav check.
+
+## 5.4+ — PAGE LOOP: author each interior until it matches (2.42.0, Pitfall #249)
+
+Stage 5 exists to author each interior page from what stage 4 pulled — the
+Paper page (`rebuild/{slug}-raw.html`) and the source clips. A read-only
+review only *reports* a mismatch; the page loop **owns the fix**.
+
+```sh
+W=$SKILLS/web2html/scripts/wave.py
+python3 $W prepare . --phase page-loop --run-id p1   # one task per OPEN interior page
+python3 $W start   . --phase page-loop --run-id p1   # probe `waves orca` → orca worker-start per page
+python3 $W wait    . --phase page-loop --run-id p1   # repeat until every worker settles
+python3 $W apply   . --phase page-loop --run-id p1
+python3 $SKILLS/web2html/scripts/page_loop.py status .
+```
+
+Each worker, on its own page only:
+
+1. `page_loop.py shoot . --page {slug}` — locked `astro build` (workers share
+   `dist/`; `astro/.build.lock` serializes them) + side-by-sides at the run
+   widths; prints coverage (source clips vs built bands) and the pair PNGs.
+2. Coverage first: one `<section id>` per source clip, same order, no extras.
+   **Never demote a section to `<div>`** to dodge the compare — `check` fails it.
+3. Read each band's pairs → `page_loop.py record … --band ID --verdict match|miss --seen "…"`.
+4. Fix misses in `{slug}.astro` (page CSS under `main[data-page="{slug}"]`),
+   reshoot the touched bands (`--id`), re-record. ≤4 miss rounds per band, then
+   `residual`.
+5. Done when `page_loop.py check . --page {slug}` exits 0.
+
+The controller owns `Header.astro`, `Footer.astro`, `src/components/*` and
+`public/styles/*`: after `apply` it lands the workers' `findings` requests,
+rebuilds, runs `page_loop.py status .`, and re-waves any page a shared edit
+reopened (a new `--run-id`). `mark 5.4 done` and the 5.5 gate refuse while
+any page is open. A page whose loop is done also satisfies the interior
+`/compare` requirement below.
+
+## 5.4+ — interior /compare pass + hidden-nav audit (self, T1)
+
+Runs after 5.4, before 5.5 — the stage-5 equivalent of the 3.2 dropdown
+hunt + the 2.3 side-by-side wave, on the BUILT pages. Full command lane in
+the `compare` skill (`/compare {slug}`); summary:
+
+```sh
+python3 "$SKILLS/web2html/scripts/paper_23_side_by_side.py" . \
+  --page {slug} --ship astro/dist/{slug}/index.html          # qa/side-by-side/{slug}/
+python3 "$SKILLS/web2html/scripts/wave.py" prepare . --phase compare \
+  --run-id c1 --page {slug}                                   # start/wait/ready/apply as usual
+python3 "$SKILLS/web2html/scripts/author-nav-dropdown.py" --astro .  # fill Header.astro panels from the scrape
+python3 "$SKILLS/web2html/scripts/build-astro-dist.py" .
+python3 "$SKILLS/web2html/scripts/phase_5_nav_audit.py" .     # qa/phase-5-nav.json
+```
+
+**The loop is mandatory, per slug (2.41.0, Pitfall #248).** `mark 5.4 done`
+and the 5.5 gate refuse until EVERY interior slug has a
+`qa/side-by-side/{slug}/report.json` with side-by-sides and an **applied**
+`wave.py --phase compare --page {slug}` whose tasks cover every band in that
+report. One subagent per band (`subagent` rung) or Orca terminals (`orca`);
+`serial` only when the probe offers neither. Do not read the pairs yourself
+on the orca/subagent rungs. A report with 0 side-by-sides means the source
+panes are missing — fix the clip match, do not skip the wave.
+
+- Pairs land per-slug at `qa/side-by-side/{slug}/` — they never clobber the
+  homepage report at `qa/side-by-side/report.json`.
+- Every compare finding carries a **mandatory `nav` list**: one row per
+  hidden-until-interaction nav item the band's chrome shows (dropdown,
+  mega/super-nav panel, burger drawer, submenu), state `wired|missing|
+  unwired`. A `missing`/`unwired` row forces a `miss` verdict + patch;
+  `wave.py check` rejects a finding without it.
+- The fix obeys `references/nav-dropdown.md`'s interaction contract
+  (Pitfall #241) and lands ONCE in the shared component —
+  `astro/src/components/Header.astro` + `astro/public/styles|scripts/` —
+  when the trigger is chrome; in `src/pages/{slug}.astro` when page-local.
+  Never `rebuild/` in phase 5.
+- After patches: `build-astro-dist.py .`, re-shoot only patched bands
+  (`--page {slug} --ship … --id <band>`), one confirm wave, cap 2 rounds.
+- `phase_5_nav_audit.py` inventories every hidden nav item per page
+  (hover-reel `dropdown`/`nav-mobile-*` manifests, scrape submenus, painted
+  triggers — home's inventory applies to every page, the Header is shared)
+  and checks each against the BUILT page; `ok:true` only when every item is
+  `wired`. Capture-Tool-style "do not hunt" skips fail (Pitfall #210).
+
 ## 5.5 — wire routes + SEO + build (machine)
 
 ```sh
 python3 "$SKILLS/web2html/scripts/wire-astro-routes.py" .    # qa/phase-5-links.json
 ```
+
+**Entry gate:** refuses to run without a fresh, ok `qa/phase-5-nav.json`
+covering every slug (the receipt's ship fingerprint must match the current
+build; its href values are fingerprint-neutral, so 5.5's own route rewrite
+never stales it). Run `phase_5_nav_audit.py` again after any post-audit
+edit. Pitfall #247.
 
 - Sitemap paths and nav / footer labels → routes across `astro/src`
   (Header, Footer, pages): `/` home, `/about/` interiors. Leftover `.html`
@@ -207,8 +299,15 @@ python3 "$SKILLS/web2html/scripts/wire-astro-routes.py" .    # qa/phase-5-links.
   live URL or 4.x local copy. Homepage takes its own `qa/scrape-meta.json`.
   Never merge homepage meta onto an interior. No heading / section retag.
   Receipts `qa/phase-5-semantics/{slug}.json`.
+- Chrome links still on `#…` in-page anchors route by the **source's own
+  label → page** map (`source_label_map`, stored as `sourceLabels`); the
+  logo links home; labels the source never linked stay `#` (never invent).
+  A chrome link the source routes but the build left on `#` FAILS 5.5
+  (`links.dead`); routes no Header/Footer link reaches are warned.
 - `astro build`, then relativize `astro/dist` for `file://`. Build log in
-  `qa/phase-5-build.log`. `--skip-build` only for tests.
+  `qa/phase-5-build.log`. `--skip-build` only for tests. Every build stamps
+  `data-astro-component="{Name}"` on each `src/components/{Name}.astro` root
+  and wires the QA overlay into `astro/dist/qa-review/` (bare URL clean).
 
 ## 5.6 — human checkpoint
 
@@ -217,9 +316,14 @@ python3 "$SKILLS/web2html/scripts/open-phase-5-review.py" .   # qa/phase-5-revie
 ```
 
 Walk the routes. Shared chrome must match the 3.4 ship; bodies must match
-Paper. Human preview server is optional (`cd astro && npm run preview`).
+Paper. Pages open with `?qa-outlines=components`: Astro components boxed
+purple + named, orange dashed = markup pasted inline (not a component).
+`?qa-outlines=tags` = the 2.4/3.4 semantic chips; ⌥O cycles off → on → tags →
+components → mono. `qa/phase-5-scorecard.md` scores every route: clip
+fidelity, /compare loop coverage, hidden nav, dead/unreachable chrome links,
+component share, one `<h1>`. Human preview server is optional (`cd astro && npm run preview`).
 Then `mark --step 5.6 --status done` — that tidies and keeps `rebuild/` +
-`astro/` + `pipeline.html`.
+`astro/` + `source-site/` + `source-html/` + `pipeline.html`.
 
 ## Layout
 

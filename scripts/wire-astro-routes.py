@@ -27,14 +27,17 @@ from pathlib import Path
 
 from astro_build import build, write_build_log
 from html_to_astro import astro_href, astro_string, now_pages
+import phase_5_nav_audit as nav_audit
 from interior_seo import (
     default_fetch,
     homepage_meta,
     load_sitemap,
     page_rows,
+    A_RE,
     rewrite_anchor_hrefs,
     route_map,
     scrape_meta_for,
+    source_label_map,
 )
 
 HTML_HREF_RE = re.compile(
@@ -81,10 +84,10 @@ def rewrite_html_hrefs(text: str) -> tuple[str, int]:
     return next_text, count + lit_count
 
 
-def rewrite_file(path: Path, mapping: dict[str, str]) -> int:
+def rewrite_file(path: Path, mapping: dict[str, str], labels: dict[str, str] | None = None) -> int:
     text = path.read_text(encoding="utf-8", errors="replace")
     next_text, n_html = rewrite_html_hrefs(text)
-    next_text, n_map = rewrite_anchor_hrefs(next_text, mapping)
+    next_text, n_map = rewrite_anchor_hrefs(next_text, mapping, labels)
     if next_text != text:
         path.write_text(next_text, encoding="utf-8")
     return n_html + n_map
@@ -100,6 +103,40 @@ def leftover_html_hrefs(root: Path) -> list[str]:
         for match in HTML_LEFT_RE.finditer(text):
             hits.append(f"{path.relative_to(root)}:{match.group(0)}")
     return hits
+
+
+CHROME_RE = re.compile(r"<(header|footer)\b.*?</\1>", re.I | re.S)
+
+
+def link_audit(root: Path, routes: list[dict], labels: dict[str, str]) -> dict:
+    """Post-wire check on the shared chrome (Pitfall #248).
+
+    `dead`: a Header/Footer link whose label the SOURCE routes to an internal
+    page but which still points at '#…' — that is the "footer and navbar do
+    not link to the pages" regression. `unreachable`: interior routes that no
+    Header/Footer link reaches (warning — the human checks them at 5.6)."""
+    comps = root / "astro" / "src" / "components"
+    blob = ""
+    for name in ("Header.astro", "Footer.astro"):
+        path = comps / name
+        if path.is_file():
+            blob += path.read_text(encoding="utf-8", errors="replace")
+    dead: list[str] = []
+    linked: set[str] = set()
+    for _b, _q, href, _a, inner in A_RE.findall(blob):
+        label = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", inner or "")).strip().lower()
+        value = href.strip()
+        if value.startswith("/"):
+            linked.add(value if value.endswith("/") else value + "/")
+        elif label in labels and (value == "" or value.startswith("#")):
+            dead.append(f"{label!r} → {value or '(empty)'} (source links it to {labels[label]})")
+    wanted = {str(row["route"]) for row in routes if row.get("slug") != "index"}
+    unreachable = sorted(route for route in wanted if route not in linked)
+    return {
+        "chromeLinks": len(linked),
+        "dead": sorted(set(dead)),
+        "unreachable": unreachable,
+    }
 
 
 def apply_frontmatter_seo(text: str, meta: dict[str, str]) -> tuple[str, list[str]]:
@@ -141,10 +178,20 @@ def wire(root: Path, *, skip_build: bool = False, fetch_fn=default_fetch) -> dic
     astro = root / "astro"
     if not (astro / "package.json").is_file():
         raise FileNotFoundError("need astro/package.json from 5.1")
+    # 5.5 entry gate — hidden nav items (dropdowns / megamenus / drawers /
+    # submenus) must be inventoried and wired on the BUILT pages before routes
+    # go live (Pitfall #247). The receipt's fingerprint blanks href values, so
+    # this step's own route rewrite never stales it.
+    import page_loop
+
+    nav_errors = nav_audit.gate_errors(root) + page_loop.gate_errors(root)
+    if nav_errors:
+        raise ValueError("5.5 refuses to wire routes — " + "; ".join(nav_errors))
     mapping = route_map(load_sitemap(root))
+    labels = source_label_map(root, mapping)
     rewritten = 0
     for path in sorted((astro / "src").rglob("*.astro")):
-        rewritten += rewrite_file(path, mapping)
+        rewritten += rewrite_file(path, mapping, labels)
     pages = now_pages(root)
     rows = page_rows(root)
     errors: list[str] = []
@@ -173,6 +220,8 @@ def wire(root: Path, *, skip_build: bool = False, fetch_fn=default_fetch) -> dic
     leftovers = leftover_html_hrefs(root)
     if leftovers:
         errors.extend(f"html href left: {hit}" for hit in leftovers[:8])
+    links = link_audit(root, routes, labels)
+    errors.extend(f"dead chrome link: {hit}" for hit in links["dead"][:12])
     built = False
     log = ""
     relativized: list[str] = []
@@ -186,7 +235,9 @@ def wire(root: Path, *, skip_build: bool = False, fetch_fn=default_fetch) -> dic
         "generatedFrom": "web2html/phase-5-links",
         "ok": bool(routes) and not errors,
         "map": mapping,
+        "sourceLabels": labels,
         "rewritten": rewritten,
+        "links": links,
         "routes": routes,
         "seo": seo_rows,
         "built": built,
@@ -218,9 +269,18 @@ def main(argv: list[str] | None = None) -> int:
         for err in receipt["errors"]:
             print(f"FAIL: {err}", file=sys.stderr)
         return 2
+    if receipt["links"]["unreachable"]:
+        print(
+            "WARN: no Header/Footer link reaches "
+            + ", ".join(receipt["links"]["unreachable"][:10])
+            + " — check the nav dropdown panel was filled (author-nav-dropdown.py --astro)",
+            file=sys.stderr,
+        )
     print(json.dumps({
         "ok": True,
         "routes": len(receipt["routes"]),
+        "chromeLinks": receipt["links"]["chromeLinks"],
+        "unreachable": len(receipt["links"]["unreachable"]),
         "seo": len(receipt["seo"]),
         "built": receipt["built"],
     }, indent=2))

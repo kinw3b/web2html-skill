@@ -266,7 +266,8 @@ Live board IDs for Design stay `1.1`–`1.4` — now (contract, capture + Naviga
   pre-2.34 run's leftover variant files still get archived under `rebuild/archive/`), then
   stops the live-board
   refresh, plays confetti, and shows port targets. Then tidy drops `qa/`,
-  `capture/`, scrape trees, and run files. The finished `pipeline.html` stays
+  `capture/`, and run files. `source-site/` and `source-html/` stay (Pitfall #246).
+  The finished `pipeline.html` stays
   at the project root next to `rebuild/`. Do not write `NEXT.html`. Tidy never
   runs before 1.1–3.4 are done (Pitfall #151).
 - **C/4** = docs + design-system polish, then **open Chrome on the `file://` path

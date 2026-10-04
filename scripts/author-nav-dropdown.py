@@ -34,6 +34,12 @@ DROPDOWN_CLASS = re.compile(
 CHEVRON = re.compile(r"chevron|caret|arrow-down", re.I)
 LOGO_HINT = re.compile(r"\b(logo|brand|wordmark|site-logo)\b", re.I)
 LABEL_PREFIX = re.compile(r"^(nav|menu|link)\s*[-–—:]\s*", re.I)
+# Framer / Webflow builders paint no <header>/<nav>/<ul>: the menu panel is a
+# named layer (data-framer-name="Mega Menu") after a href-less trigger
+# ("All Pages"). Pitfall #248 — without this the scrape found ZERO submenus,
+# the 3.2 panel stayed empty, and the stage-5 audit had nothing to check.
+PANEL_NAME = re.compile(r"mega\s*-?\s*menu|drop\s*-?\s*down|sub\s*-?\s*menu|menu\s*panel", re.I)
+BUILDER_NAME_ATTRS = ("data-framer-name", "data-w-id-name", "data-name")
 
 DROPDOWN_CSS = """/* 3.2 nav dropdown — authored when a trigger or scrape submenu exists. Pitfall #210 */
 [data-nav-dropdown] {
@@ -123,13 +129,59 @@ def is_submenu_container(el, trigger) -> bool:
     return el.name in {"div", "nav"} and len(links) >= 2
 
 
+def _panel_named(el) -> bool:
+    return any(PANEL_NAME.search(str(el.get(attr) or "")) for attr in BUILDER_NAME_ATTRS)
+
+
+def builder_dropdowns(soup) -> list[dict]:
+    """Named builder panels (Framer `Mega Menu`, …) + the nearest href-less
+    trigger before them. Items are the panel's labelled links, in order."""
+    panels = [
+        el for el in soup.find_all(_panel_named)
+        if not el.find_parent(_panel_named) and not el.find_parent("footer")
+    ]
+    out: list[dict] = []
+    for panel in panels:
+        trigger = None
+        for el in panel.find_all_previous(["a", "button"]):
+            if el.get("href") or el.find_parent(_panel_named) or is_logo(el):
+                continue
+            label = text_of(el)
+            if label and len(label) <= 40:
+                trigger = el
+                break
+        if trigger is None:
+            continue
+        items = [
+            {"href": a.get("href") or "#", "label": text_of(a)}
+            for a in panel.find_all("a")
+            if text_of(a) and len(text_of(a)) <= 60
+        ]
+        out.append({"label": text_of(trigger), "items": items})
+    return out
+
+
 def scrape_dropdowns(html: str) -> list[dict]:
     if not html:
         return []
     soup = soup_of(html)
     scope = nav_scope(soup)
     if scope is None:
-        return []
+        menus: list[dict] = []
+        seen_b: set[str] = set()
+        for row in builder_dropdowns(soup):
+            qk = key(row["label"])
+            clean, dupe = [], set()
+            for item in row["items"]:
+                ik = key(item["label"])
+                if not ik or ik == qk or ik in dupe:
+                    continue
+                dupe.add(ik)
+                clean.append({"href": ship_href(item["href"]), "label": item["label"]})
+            if qk and qk not in seen_b and len(clean) >= 2:
+                seen_b.add(qk)
+                menus.append({"label": row["label"], "key": qk, "items": clean})
+        return menus
     seen: set[str] = set()
     menus: list[dict] = []
 
@@ -407,10 +459,106 @@ def author_nav_dropdown(root: Path) -> dict:
     return receipt
 
 
+ASTRO_LITERAL = re.compile(r"(const html = `)(.*?)(`;\s*\n---)", re.S)
+
+
+def _astro_unescape(value: str) -> str:
+    return re.sub(r"\\(\\|`|\$\{)", lambda m: m.group(1), value)
+
+
+def _astro_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+
+
+def author_astro_header(root: Path) -> dict:
+    """Phase 5 (5.4+ fix lane, Pitfall #247/#248): wire + FILL the dropdown
+    panels in astro/src/components/Header.astro from the source scrape, and
+    make sure BaseLayout loads nav-dropdown.css/js. Never touches rebuild/."""
+    root = root.resolve()
+    header = root / "astro" / "src" / "components" / "Header.astro"
+    if not header.is_file():
+        raise FileNotFoundError("need astro/src/components/Header.astro from 5.1")
+    text = header.read_text(encoding="utf-8")
+    match = ASTRO_LITERAL.search(text)
+    if not match:
+        raise FileNotFoundError("Header.astro is not a 5.1 fragment component (const html = `…`)")
+    html = _astro_unescape(match.group(2))
+    scrape_path = root / "source-site" / "index.html"
+    scrape = scrape_path.read_text(encoding="utf-8", errors="replace") if scrape_path.is_file() else ""
+    menus = scrape_dropdowns(scrape)
+    by_key = {row["key"]: row for row in menus}
+    soup = soup_of(html)
+    scope = nav_scope(soup) or soup
+    jobs, seen = [], set()
+    for trigger in painted_triggers(soup):
+        if id(trigger) not in seen:
+            seen.add(id(trigger))
+            jobs.append((trigger, (by_key.get(key(text_of(trigger))) or {}).get("items") or [], text_of(trigger)))
+    for menu in menus:
+        trigger = find_trigger(scope, menu["label"])
+        if trigger is not None and id(trigger) not in seen:
+            seen.add(id(trigger))
+            jobs.append((trigger, menu["items"], menu["label"]))
+    applied, unfilled = [], []
+    for index, (trigger, items, label) in enumerate(jobs):
+        info = stamp_dropdown(trigger, items, soup, index)
+        panel_id = trigger.get("aria-controls")
+        panel = soup.find(id=panel_id) if panel_id else None
+        count = len([a for a in panel.find_all("a") if text_of(a)]) if panel is not None else 0
+        applied.append({"label": label, "filled": info["filled"], "items": count})
+        if count == 0:
+            unfilled.append(label)
+    new_html = str(soup)
+    if new_html != html:
+        header.write_text(text[: match.start(2)] + _astro_escape(new_html) + text[match.end(2):], encoding="utf-8")
+    public = root / "astro" / "public"
+    (public / "styles").mkdir(parents=True, exist_ok=True)
+    (public / "scripts").mkdir(parents=True, exist_ok=True)
+    if not (public / "styles" / "nav-dropdown.css").is_file():
+        (public / "styles" / "nav-dropdown.css").write_text(DROPDOWN_CSS, encoding="utf-8")
+    if not (public / "scripts" / "nav-dropdown.js").is_file():
+        shutil.copyfile(JS_TEMPLATE, public / "scripts" / "nav-dropdown.js")
+    layout = root / "astro" / "src" / "layouts" / "BaseLayout.astro"
+    if layout.is_file() and jobs:
+        lt = layout.read_text(encoding="utf-8")
+        if "/styles/nav-dropdown.css" not in lt:
+            lt = lt.replace("  </head>", '    <link rel="stylesheet" href="/styles/nav-dropdown.css" />\n  </head>', 1)
+        if "/scripts/nav-dropdown.js" not in lt:
+            lt = lt.replace("  </body>", '    <script is:inline src="/scripts/nav-dropdown.js"></script>\n  </body>', 1)
+        layout.write_text(lt, encoding="utf-8")
+    receipt = {
+        "ok": not unfilled,
+        "writer": WRITER,
+        "mode": "astro",
+        "painted": bool(jobs),
+        "applied": applied,
+        "unfilled": unfilled,
+        "scrapeMenus": [{"label": m["label"], "items": len(m["items"])} for m in menus],
+        "files": ["astro/src/components/Header.astro"],
+    }
+    dest = root / "qa" / "phase-5-nav-dropdown.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    return receipt
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("root", type=Path, nargs="?", default=Path("."))
+    ap.add_argument("--astro", action="store_true",
+                    help="phase 5: wire + fill dropdown panels in astro/src/components/Header.astro")
     args = ap.parse_args(argv)
+    if args.astro:
+        try:
+            receipt = author_astro_header(args.root)
+        except FileNotFoundError as exc:
+            fail(str(exc))
+            return 2
+        print(json.dumps(receipt, indent=2))
+        if not receipt["ok"]:
+            fail(f"dropdown panel(s) still empty: {receipt['unfilled']} — no source items matched")
+            return 2
+        return 0
     try:
         receipt = author_nav_dropdown(args.root)
     except FileNotFoundError as exc:

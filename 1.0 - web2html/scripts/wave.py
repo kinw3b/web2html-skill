@@ -13,9 +13,13 @@ records receipts. 2.3 VALIDATE LOOK MUST run this after --shoot-open
   3.2  one task per companion skill: guidelines / animation / apple-design receipt
   5.2  one task per interior page: author <main> of astro/src/pages/{slug}.astro
   compare  (/compare skill, any phase) one task per band in the last
-       qa/side-by-side/report.json: Read that band's viewport pairs → verdict +
-       scoped patch proposal (controller shoots first; after the wave it patches
-       serially and re-shoots ONLY patched bands, ≤2 rounds per band)
+       qa/side-by-side/report.json (--page {slug} reads
+       qa/side-by-side/{slug}/report.json — the phase-5 interior pass): Read
+       that band's viewport pairs → verdict + scoped patch proposal + a
+       MANDATORY `nav` hidden-item inventory (dropdown / megamenu / drawer /
+       submenu: wired|missing|unwired; a broken row forces a miss verdict and a
+       patch — Pitfall #247). Controller shoots first; after the wave it patches
+       serially and re-shoots ONLY patched bands, ≤2 rounds per band
 
 Adapters (harness_probe.py picks; absence lowers the rung, never blocks):
   orca      supervised Orca workers, SAME agent as this orchestrator (Pitfall #220)
@@ -45,8 +49,8 @@ from typing import Callable
 import agent_loop
 
 GENERATED_FROM = "web2html/wave/v1"
-PHASES = ("2.3", "3.2", "5.2", "compare")
-DEFAULT_WORKERS = {"2.3": 4, "3.2": 3, "5.2": 2, "compare": 4}
+PHASES = ("2.3", "3.2", "5.2", "compare", "page-loop")
+DEFAULT_WORKERS = {"2.3": 4, "3.2": 3, "5.2": 2, "compare": 4, "page-loop": 4}
 COMPANIONS = (
     ("web-design-guidelines", "qa/web-design-guidelines.md"),
     ("find-animation-opportunities", "qa/find-animation-opportunities.md"),
@@ -140,7 +144,7 @@ def _existing(root: Path, *rels: str) -> list[str]:
     return [rel for rel in rels if (root / rel).exists()]
 
 
-def inputs_for(root: Path, phase: str) -> list[str]:
+def inputs_for(root: Path, phase: str, page: str = "home") -> list[str]:
     root = root.resolve()
     if phase == "2.3":
         inputs = _existing(
@@ -159,17 +163,44 @@ def inputs_for(root: Path, phase: str) -> list[str]:
         if "qa/phase-4-pages.json" not in inputs:
             raise FileNotFoundError("5.2 wave needs qa/phase-4-pages.json from 4.2")
         return inputs
+    if phase == "page-loop":
+        # Workers WRITE their own page, so the snapshot covers only inputs
+        # nobody edits during the wave: the page list + stage-4 evidence.
+        inputs = _existing(root, "qa/phase-4-pages.json", "qa/phase-4-sitemap.json")
+        if "qa/phase-4-pages.json" not in inputs:
+            raise FileNotFoundError("page-loop wave needs qa/phase-4-pages.json from 4.2")
+        if not (root / "astro" / "package.json").is_file():
+            raise FileNotFoundError("page-loop wave needs astro/ from 5.1")
+        return inputs
     if phase == "compare":
-        inputs = _existing(root, "rebuild/index.html", "rebuild/css", "qa/side-by-side/report.json")
-        if "rebuild/index.html" not in inputs:
-            raise FileNotFoundError("compare wave needs rebuild/index.html")
-        if "qa/side-by-side/report.json" not in inputs:
+        report = _compare_report_rel(page)
+        if _is_home(page):
+            inputs = _existing(root, "rebuild/index.html", "rebuild/css", report)
+            if "rebuild/index.html" not in inputs:
+                raise FileNotFoundError("compare wave needs rebuild/index.html")
+        else:
+            # Phase 5: the ship is the BUILT interior page; chrome fixes land
+            # in astro/src, so the snapshot covers both.
+            inputs = _existing(root, f"astro/dist/{page}", "astro/src", report)
+            if f"astro/dist/{page}" not in inputs:
+                raise FileNotFoundError(
+                    f"compare wave on {page} needs astro/dist/{page}/ — run build-astro-dist.py first"
+                )
+        if report not in inputs:
             raise FileNotFoundError(
-                "compare wave needs qa/side-by-side/report.json — shoot the pairs first: "
-                "paper_23_side_by_side.py . [--id …]"
+                f"compare wave needs {report} — shoot the pairs first: "
+                "paper_23_side_by_side.py . [--page …] [--ship …] [--id …]"
             )
         return inputs
     raise ValueError(f"unknown wave phase {phase!r}; use {PHASES}")
+
+
+def _is_home(page: str) -> bool:
+    return (page or "home").strip() in {"", "home", "index"}
+
+
+def _compare_report_rel(page: str = "home") -> str:
+    return "qa/side-by-side/report.json" if _is_home(page) else f"qa/side-by-side/{page}/report.json"
 
 
 def _open_bands(root: Path) -> list[dict]:
@@ -208,22 +239,23 @@ def _pages(root: Path) -> list[str]:
     return slugs
 
 
-def _compare_bands(root: Path) -> list[dict]:
+def _compare_bands(root: Path, page: str = "home") -> list[dict]:
     """Bands in the last side-by-side report, in shoot order, deduped.
     The report is the receipt of a FRESH shoot — the /compare skill shoots
-    before prepare, and a patch to rebuild/ stales every finding via the
+    before prepare, and a patch to the ship stales every finding via the
     snapshot SHA, so a wave can never review pre-patch pairs in a loop."""
+    report_rel = _compare_report_rel(page)
     try:
-        report = json.loads((root / "qa" / "side-by-side" / "report.json").read_text(encoding="utf-8"))
+        report = json.loads((root / report_rel).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise FileNotFoundError(
-            f"qa/side-by-side/report.json unreadable ({exc}) — shoot the pairs first: "
-            "paper_23_side_by_side.py . [--id …]"
+            f"{report_rel} unreadable ({exc}) — shoot the pairs first: "
+            "paper_23_side_by_side.py . [--page …] [--ship …] [--id …]"
         ) from exc
     stops = report.get("stops")
     if not isinstance(stops, list) or not stops:
         raise FileNotFoundError(
-            "qa/side-by-side/report.json lists no stops — re-shoot: paper_23_side_by_side.py . [--id …]"
+            f"{report_rel} lists no stops — re-shoot: paper_23_side_by_side.py . [--page …] [--ship …] [--id …]"
         )
     seen: set[str] = set()
     bands: list[dict] = []
@@ -235,13 +267,13 @@ def _compare_bands(root: Path) -> list[dict]:
             seen.add(band)
             bands.append({"id": band, "nn": str(row.get("nn") or "")})
     if not bands:
-        raise FileNotFoundError("qa/side-by-side/report.json stops carry no band ids — re-shoot")
+        raise FileNotFoundError(f"{report_rel} stops carry no band ids — re-shoot")
     return bands
 
 
-def _compare_pairs(root: Path, band: str) -> list[str]:
+def _compare_pairs(root: Path, band: str, page: str = "home") -> list[str]:
     """Exact viewport-pair paths for one band from the report (no globbing)."""
-    report = json.loads((root / "qa" / "side-by-side" / "report.json").read_text(encoding="utf-8"))
+    report = json.loads((root / _compare_report_rel(page)).read_text(encoding="utf-8"))
     pairs: list[str] = []
     for row in report.get("stops") or []:
         if isinstance(row, dict) and str(row.get("id") or "") == band and row.get("side"):
@@ -249,9 +281,9 @@ def _compare_pairs(root: Path, band: str) -> list[str]:
     return pairs
 
 
-def _compare_widths(root: Path) -> tuple[str, ...]:
+def _compare_widths(root: Path, page: str = "home") -> tuple[str, ...]:
     try:
-        report = json.loads((root / "qa" / "side-by-side" / "report.json").read_text(encoding="utf-8"))
+        report = json.loads((root / _compare_report_rel(page)).read_text(encoding="utf-8"))
         widths = [str(w) for w in report.get("widths") or []]
         if widths:
             return tuple(widths)
@@ -260,7 +292,7 @@ def _compare_widths(root: Path) -> tuple[str, ...]:
     return tuple(str(w) for w in _run_widths(root))
 
 
-def plan_tasks(root: Path, phase: str) -> list[dict]:
+def plan_tasks(root: Path, phase: str, page: str = "home") -> list[dict]:
     root = root.resolve()
     if phase == "2.3":
         return [
@@ -273,9 +305,18 @@ def plan_tasks(root: Path, phase: str) -> list[dict]:
     if phase == "5.2":
         return [{"id": f"page-{_safe(slug)}", "kind": "astro-body", "slug": slug,
                  "writes": [f"astro/src/pages/{slug}.astro"]} for slug in _pages(root)]
+    if phase == "page-loop":
+        import page_loop
+
+        wanted = [page] if not _is_home(page) else _pages(root)
+        return [{"id": f"loop-{_safe(slug)}", "kind": "page-loop", "slug": slug,
+                 "writes": [f"astro/src/pages/{slug}.astro"]}
+                for slug in wanted if not page_loop.page_done(root, slug)]
     if phase == "compare":
-        return [{"id": f"band-{_safe(str(row['id']))}", "kind": "compare-band", "band": str(row["id"])}
-                for row in _compare_bands(root)]
+        # interior ids carry the page so two pages' waves never share a lease
+        prefix = "band-" if _is_home(page) else f"{_safe(page)}--band-"
+        return [{"id": f"{prefix}{_safe(str(row['id']))}", "kind": "compare-band", "band": str(row["id"])}
+                for row in _compare_bands(root, page)]
     raise ValueError(f"unknown wave phase {phase!r}")
 
 
@@ -310,7 +351,7 @@ def _viewport_pngs(root: Path, band: str) -> list[str]:
     return found
 
 
-def spec_text(root: Path, phase: str, task: dict, sha: str, run_id: str) -> str:
+def spec_text(root: Path, phase: str, task: dict, sha: str, run_id: str, page: str = "home") -> str:
     """Self-contained Task spec: target, change, constraints, ownership, acceptance."""
     root = root.resolve()
     skills = skills_dir()
@@ -318,6 +359,7 @@ def spec_text(root: Path, phase: str, task: dict, sha: str, run_id: str) -> str:
     agent = task["id"]
     check = (
         f'python3 "{skills}/web2html/scripts/wave.py" check "{root}" --phase {phase} --run-id {run_id} --agent {agent}'
+        + (f" --page {page}" if phase == "compare" and not _is_home(page) else "")
     )
     done = (
         f"DONE  Under Orca: send worker_done with --report-path {finding} and --outcome succeeded "
@@ -385,26 +427,45 @@ ACCEPTANCE  {check}   → exit 0
 """
     if phase == "compare":
         band = task["band"]
-        pairs = _compare_pairs(root, band)
-        widths = _compare_widths(root)
+        pairs = _compare_pairs(root, band, page)
+        widths = _compare_widths(root, page)
         pairs_block = "\n  ".join(pairs) or "  (no pairs in the report for this band — stop, outcome failed)"
         read_budget = max(len(pairs), 1)
         verdict_keys = ",".join(f'"{w}":"match|miss"' for w in widths)
-        return f"""web2html /compare VALIDATE — band #{band}  (wave {run_id}, snapshot {sha[:12]})
+        chrome_note = (
+            "This is a PHASE-5 interior pass: the right pane is the BUILT Astro page. The\n"
+            "  shared header/footer are components — a chrome fix names Header.astro or the\n"
+            "  page body, never rebuild/.\n  "
+            if not _is_home(page)
+            else ""
+        )
+        return f"""web2html /compare VALIDATE — band #{band}{' · page ' + page if not _is_home(page) else ''}  (wave {run_id}, snapshot {sha[:12]})
 Project  {root}
 
 TARGET  Read the viewport pairs for THIS band only (captured source left, rebuild
   right, same scroll stop, native scale):
   {pairs_block}
   diffPct in the report is a hint — never a verdict.
-
+  {chrome_note}
 VERDICT  `miss` only for a difference a reviewer would flag at a glance: heading
   wrap count, column count, a missing / extra element, icon, overlay or image,
   a card clipped or bleeding at the pane edge, wrong radius class, type size or
   weight visibly off, a gap or padding off by more than ~8px, sticky chrome
-  overlapping the band, band order. Everything else is `match`: sub-8px drift,
+  overlapping the band, band order, or a nav affordance the source paints that
+  the rebuild lacks (see NAV). Everything else is `match`: sub-8px drift,
   anti-aliasing, font hinting, image crop within a few px, colour within one
   shade. When unsure, `match` and say why in `seen`.
+
+NAV  MANDATORY for any band whose pair shows the navbar in either pane (always the
+  topmost band, plus any sticky-chrome stop) — inspect both panes for
+  hidden-until-interaction items: dropdown menus, mega/super-nav
+  panels, burger drawers, submenu links, anything hover/click reveals. A closed
+  panel and a MISSING panel look identical in a static pair — check the trigger:
+  a chevron/caret, aria-haspopup, or a nav label the source paints with children
+  that the rebuild paints without them is a `miss` with a `nav` entry. Record one
+  row per affordance you checked in `nav` (empty list only when the band shows no
+  navbar at all). `state`: "wired" (trigger + panel present), "missing" (source
+  paints it, rebuild has no trigger/panel), "unwired" (trigger painted, no panel).
 
 BUDGET  At most {read_budget} image Reads and one finding file. No second pass, no
   re-reading a pair you already looked at, no other files, no live-URL fetch.
@@ -414,12 +475,13 @@ CHANGE  Write ONE file and nothing else: {finding}
    "inputSha256":"{sha}","band":"{band}",
    "verdict":{{{verdict_keys}}},
    "seen":"at least 12 words: what each width showed, concretely",
+   "nav":[{{"trigger":"Products","kind":"dropdown|megamenu|drawer|submenu","state":"wired|missing|unwired","evidence":"what the source pane paints vs the rebuild"}}],
    "misses":[{{"width":768,"what":"cards stack 1-col, source paints 2-col","fix":"#{band} .grid: repeat(2, 1fr) at 768"}}],
-   "patch":"the exact CSS/HTML change scoped to #{band}, or empty when every width matches",
+   "patch":"the exact CSS/HTML change scoped to #{band} (chrome fix: Header.astro / page body selector), or empty when every width matches",
    "findings":[{{"key":"768","severity":"medium","source":"{pairs[0] if pairs else 'side.png'}","evidence":"what you saw","suggestion":"the fix"}}]}}
-  `findings` may be an empty list when every width matches.
+  `findings` may be an empty list when all three widths match.
 
-CONSTRAINTS  Read-only. Do not edit rebuild/, qa/, or any other file. No Paper MCP.
+CONSTRAINTS  Read-only. Do not edit rebuild/, astro/, qa/, or any other file. No Paper MCP.
   No re-shoot, no Playwright, no pixel-perfect refine loop. Never invent a
   breakpoint — only the widths in the pair paths above.
 
@@ -455,6 +517,8 @@ ACCEPTANCE  {check}   → exit 0
 {stop}
 {done}
 """
+    if phase == "page-loop":
+        return _page_loop_spec(root, task, sha, run_id, finding, agent, check, stop, done)
     slug = task["slug"]
     return f"""web2html 5.2 interior body — {slug}  (wave {run_id}, snapshot {sha[:12]})
 Project  {root}
@@ -481,12 +545,85 @@ ACCEPTANCE  python3 "{skills}/web2html/scripts/record-phase-5-pages.py" "{root}"
 """
 
 
-def prepare(root: Path, run_id: str, phase: str, max_workers: int | None = None) -> dict:
+def _page_loop_spec(root: Path, task: dict, sha: str, run_id: str, finding: str, agent: str,
+                    check: str, stop: str, done: str) -> str:
+    import page_loop
+
+    skills = skills_dir()
+    slug = task["slug"]
+    pl = f'python3 "{skills}/web2html/scripts/page_loop.py"'
+    raw = f"rebuild/{slug}-raw.html"
+    widths = ",".join(str(w) for w in _run_widths(root))
+    clips = "\n  ".join(
+        str(gold_dir) for gold_dir in (
+            f"capture/{slug}-desktop/source-sections/",
+            f"capture/{slug}-768/source-sections/",
+            f"capture/{slug}-390/source-sections/",
+        ) if (root / gold_dir).is_dir()
+    ) or "(no source clips on disk — stop, outcome failed)"
+    return f"""web2html 5.4+ PAGE LOOP — page {slug}  (wave {run_id}, snapshot {sha[:12]})
+Project  {root}
+
+YOU OWN THIS PAGE until it matches the source, section by section. Stage 5
+authors each interior from what stage 4 pulled — do not stop at a review.
+
+SOURCE OF TRUTH (read, never edit)
+  Paper dump of the {slug}-desktop artboard: {raw}   (structure + copy + image refs;
+    grep it per section, never Read it whole)
+  Source section clips, one PNG per section in capture order:
+  {clips}
+  Shared tokens / classes: astro/public/styles/*.css (read-only)
+
+YOU WRITE  astro/src/pages/{slug}.astro (its <main> only) and {finding}. Nothing else.
+  Page-local CSS: a `<style is:global>` block in that page, every selector under
+  `main[data-page="{slug}"]` (add data-page="{slug}" to your <main>). No new tokens.
+  Shared sections (`<XxxSection />` imports): keep importing them. If one is wrong
+  for THIS page, say so in `findings` (the controller owns src/components/*).
+
+LOOP  (≤{page_loop.MAX_ROUNDS} miss rounds per section)
+  1. {pl} shoot "{root}" --page {slug}
+     → builds (locked; other workers build too — wait, never kill it) and prints
+       `coverage` + the side-by-side PNGs per band (source left, built right, {widths}).
+  2. Coverage first. Every source clip needs its own `<section id>` in <main>, in
+     the same order; no extra bands. NEVER demote a section to <div> to dodge the
+     compare — the checker fails it. Missing section → author it from {raw}.
+  3. For each band: Read its pairs, then
+     {pl} record "{root}" --page {slug} --band <id> --verdict match|miss --seen "<what each width shows>"
+     `miss` = layout / column count / missing or extra element / image / heading
+     wrap / type size or weight / spacing > ~8px / radius class. Sub-8px drift,
+     hinting and crop are `match`.
+  4. Fix every miss in {slug}.astro, then `shoot` again (--id <band> for only the
+     bands you touched) and re-record those bands. After {page_loop.MAX_ROUNDS} miss rounds a
+     band may be recorded `residual` with what is still off.
+  5. Repeat until {pl} check "{root}" --page {slug}  → exit 0.
+
+NAV  On the top band, also note in `findings` any navbar item the source paints
+  that the built header lacks (dropdown / mega menu / drawer). The controller fixes
+  Header.astro — do not edit it.
+
+CHANGE  When the page check passes, write {finding}:
+  {{"generatedFrom":"web2html/agent-findings/v1","phase":"page-loop","agent":"{agent}",
+   "inputSha256":"{sha}","slug":"{slug}","files":["astro/src/pages/{slug}.astro"],
+   "rounds":<total shoot rounds>,"residual":["<band>: what is still off"],
+   "findings":[{{"key":"Header.astro","severity":"medium","source":"<side png>","evidence":"…","suggestion":"…"}}]}}
+
+CONSTRAINTS  No Paper MCP (the dump is on disk). No astro dev / server. Never touch
+  rebuild/, astro/src/components, astro/src/layouts, another page, or qa/ receipts
+  other than via page_loop.py. Never invent copy or images the source lacks.
+  Hrefs stay as authored — 5.5 wires routes.
+
+ACCEPTANCE  {pl} check "{root}" --page {slug} → exit 0, and {check} → exit 0
+{stop}
+{done}
+"""
+
+
+def prepare(root: Path, run_id: str, phase: str, max_workers: int | None = None, page: str = "home") -> dict:
     root = root.resolve()
     if phase not in PHASES:
         raise ValueError(f"unknown wave phase {phase!r}; use {PHASES}")
-    inputs = inputs_for(root, phase)
-    tasks = plan_tasks(root, phase)
+    inputs = inputs_for(root, phase, page)
+    tasks = plan_tasks(root, phase, page)
     snapshot = agent_loop.create_snapshot(root, phase, inputs)
     agent_loop.write_snapshot(root, run_id, snapshot)
     sha = str(snapshot["sha256"])
@@ -494,11 +631,13 @@ def prepare(root: Path, run_id: str, phase: str, max_workers: int | None = None)
         task["findings"] = agent_loop.findings_path(root, run_id, phase, task["id"]).relative_to(root).as_posix()
         if phase == "3.2":
             task["report"] = task["findings"][:-5] + ".md"
+        if phase == "compare":
+            task["page"] = page
         task["status"] = "planned"
         # A new wave supersedes an abandoned one (stale findings, killed workers);
         # its leftover lease must not block the next prepare.
         agent_loop.claim_reviewer(root, task["id"], snapshot, supersede=True)
-        task["spec"] = spec_text(root, phase, task, sha, run_id)
+        task["spec"] = spec_text(root, phase, task, sha, run_id, page)
     wave = {
         "generatedFrom": GENERATED_FROM,
         "runId": run_id,
@@ -512,6 +651,8 @@ def prepare(root: Path, run_id: str, phase: str, max_workers: int | None = None)
         "tasks": tasks,
         "createdAt": _now_iso(),
     }
+    if phase == "compare":
+        wave["page"] = page
     save_wave(root, wave)
     return wave
 
@@ -640,8 +781,9 @@ def validate_task(root: Path, wave: dict, task: dict) -> list[str]:
         if len(str(finding.get("seen") or "").split()) < 12:
             errors.append("seen must be at least 12 words")
     if wave["phase"] == "compare":
+        page = str(wave.get("page") or "home")
         verdict = finding.get("verdict") or {}
-        keys = _compare_widths(root)
+        keys = _compare_widths(root, page)
         if not all(str(verdict.get(k)) in {"match", "miss"} for k in keys):
             errors.append("verdict must name match|miss at " + ", ".join(keys))
         if len(str(finding.get("seen") or "").split()) < 12:
@@ -652,6 +794,32 @@ def validate_task(root: Path, wave: dict, task: dict) -> list[str]:
             errors.append("a finding with misses must carry a scoped patch proposal")
         if patch and str(finding.get("band") or "") and f"#{finding['band']}" not in patch:
             errors.append("patch must stay scoped to #<band> (selector mentions no #band)")
+        # NAV — the hidden-item inventory is mandatory evidence, never optional:
+        # every nav row names trigger/kind/state, and a missing/unwired affordance
+        # is a miss on every width (Pitfall #247).
+        nav = finding.get("nav")
+        if not isinstance(nav, list):
+            errors.append("nav must be a list — inspect the navbar for hidden items on every band that shows chrome (empty only when the pair shows no navbar)")
+        else:
+            for row in nav:
+                if not isinstance(row, dict) or not str(row.get("trigger") or "").strip():
+                    errors.append("each nav row needs a trigger label")
+                    continue
+                if str(row.get("state") or "") not in {"wired", "missing", "unwired"}:
+                    errors.append(f"nav row {row.get('trigger')!r}: state must be wired|missing|unwired")
+                if str(row.get("state") or "") in {"missing", "unwired"}:
+                    if not any(str(verdict.get(k)) == "miss" for k in keys):
+                        errors.append(
+                            f"nav row {row.get('trigger')!r} is {row.get('state')} — verdict must be miss on the widths that show it"
+                        )
+                    if not patch:
+                        errors.append(
+                            f"nav row {row.get('trigger')!r} is {row.get('state')} — the finding must carry a patch proposal"
+                        )
+    if wave["phase"] == "page-loop":
+        import page_loop
+
+        errors.extend(page_loop.page_errors(root, str(task.get("slug") or "")))
     if wave["phase"] == "3.2":
         report = root / str(finding.get("report") or task.get("report") or "")
         if not report.is_file() or not report.read_text(encoding="utf-8", errors="replace").strip():
@@ -788,16 +956,41 @@ def apply(root: Path, run_id: str, phase: str) -> dict:
                 "note": "apply `patch` to #%s (rebuild/index.html or rebuild/css), then run `record`. After every action: one --shoot-open (it refreshes bands this wave's patches staled), then a new wave only if a band is still open" % task["band"],
             })
         elif phase == "compare":
+            page = str(wave.get("page") or "home")
             patch = str(finding.get("patch") or "").strip()
+            nav_rows = finding.get("nav") or []
+            nav_broken = [
+                row for row in nav_rows
+                if isinstance(row, dict) and str(row.get("state") or "") in {"missing", "unwired"}
+            ]
+            ship_hint = (
+                "apply `patch` to astro/src (chrome: Header.astro / the page component — controller only; body: "
+                "src/pages/%s.astro), then rebuild (build-astro-dist.py) and re-shoot ONLY patched bands "
+                "(paper_23_side_by_side.py . --page %s --ship astro/dist/%s/index.html --id %s)"
+                % (page, page, page, task["band"])
+                if not _is_home(page)
+                else "apply `patch` to #%s under the current phase's write rules, then re-shoot ONLY patched bands "
+                     "(paper_23_side_by_side.py . --id %s)" % (task["band"], task["band"])
+            )
             out["actions"].append({
                 "band": task["band"],
+                "page": page,
                 "verdict": finding.get("verdict"),
                 "patch": patch,
-                "note": "apply `patch` to #%s under the current phase's write rules, then re-shoot ONLY patched bands "
-                        "(paper_23_side_by_side.py . --id %s) and prepare ONE confirm wave (new --run-id). "
+                "nav": nav_rows,
+                "note": ship_hint + " and prepare ONE confirm wave (new --run-id"
+                        + (f" --page {page}" if not _is_home(page) else "") + "). "
                         "Hard cap 2 rounds per band: a difference that survives the confirm wave is a residual — "
-                        "report it, do not wave again" % (task["band"], task["band"]),
+                        "report it, do not wave again",
             })
+            if nav_broken:
+                out["actions"].append({
+                    "band": task["band"],
+                    "nav": nav_broken,
+                    "note": "MISSING/UNWIRED nav affordance(s) — wire hover/click per references/nav-dropdown.md "
+                            "(desktop click only opens, touch toggles, ≤768 burger owns it — Pitfall #241). "
+                            "Never invent a nav label the source does not paint (Pitfall #247).",
+                })
         elif phase == "3.2":
             report = root / str(finding.get("report") or task["report"])
             dest = root / task["receipt"]
@@ -812,6 +1005,11 @@ def apply(root: Path, run_id: str, phase: str) -> dict:
         task["status"] = "applied"
     if phase == "5.2":
         out["actions"].append({"record": f'python3 "{skills_dir()}/web2html/scripts/record-phase-5-pages.py" "{root}"'})
+    if phase == "page-loop":
+        out["actions"].append({
+            "next": "controller: apply Header/Footer/shared-section requests from findings, rebuild, then "
+                    "page_loop.py status . — any page reopened by a shared edit gets a new page-loop wave",
+        })
     wave["appliedAt"] = _now_iso()
     save_wave(root, wave)
     agent_loop._atomic_json(wave_dir(root, run_id, phase) / "apply.json", out)
@@ -841,6 +1039,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("root", type=Path)
         p.add_argument("--phase", required=True, choices=PHASES)
         p.add_argument("--run-id", required=True)
+        p.add_argument("--page", default="home", help="compare only: interior slug (qa/side-by-side/{slug}/)")
 
     pr = sub.add_parser("prepare", help="plan tasks, snapshot inputs, claim a reviewer lease per task")
     common(pr)
@@ -862,9 +1061,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         if args.cmd == "prepare":
-            wave = prepare(args.root, args.run_id, args.phase, args.max_workers)
+            wave = prepare(args.root, args.run_id, args.phase, args.max_workers, args.page)
             print(json.dumps({"phase": wave["phase"], "runId": wave["runId"], "inputSha256": wave["inputSha256"],
-                              "tasks": [t["id"] for t in wave["tasks"]], "maxWorkers": wave["maxWorkers"]}))
+                              "tasks": [t["id"] for t in wave["tasks"]], "maxWorkers": wave["maxWorkers"],
+                              **({"page": wave["page"]} if wave.get("page") and not _is_home(str(wave["page"])) else {})}))
             return 0
         if args.cmd == "start":
             wave = start(args.root, args.run_id, args.phase, args.adapter)

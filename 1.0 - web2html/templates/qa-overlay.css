@@ -148,6 +148,28 @@ html[data-qa-outlines="tags"] [data-qa-hover] {
 .qa-tag-chip[data-tag="footer"] { background: #5b21b6; }
 .qa-tag-chip[data-tag="nav"] { background: #8b5cf6; }
 
+/* components mode = tags rings + Astro component boxes (Pitfall #248) */
+html[data-qa-components="on"] [data-astro-component] {
+  outline: 3px solid #a21caf !important;
+  outline-offset: -3px;
+}
+html[data-qa-components="on"] [data-qa-inline] {
+  outline: 3px dashed #ea580c !important;
+  outline-offset: -3px;
+}
+.qa-comp-chip {
+  position: fixed;
+  padding: 3px 6px;
+  border-radius: 0 0 4px 0;
+  background: #a21caf;
+  color: #fff;
+  font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+}
+.qa-comp-chip.is-inline { background: #ea580c; }
+
 html[data-qa-outlines="mono"] body *:not(.qa-overlay):not(.qa-overlay *):not(.qa-overlay-label):not(.qa-inspector):not(.qa-inspector *) {
   outline: 1px solid #036cdb;
 }

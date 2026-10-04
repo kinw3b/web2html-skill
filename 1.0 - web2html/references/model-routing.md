@@ -1,6 +1,6 @@
 # Model routing — three sessions, two handoffs
 
-**Orchestrator version (web2html):** **2.39.0**
+**Orchestrator version (web2html):** **2.42.0**
 
 A run spans three homepage sessions so the model can change per phase, plus optional all-pages Phase 4 (Paper) and Phase 5 (Astro site — chrome once, then page bodies).
 
@@ -26,7 +26,7 @@ ALL PAGES (optional on a URL run; required through 4.4 on a Webflow / HTML folde
 SESSION 4 · 4.1 → 4.4   extra Paper  operator tier (optional after 3.4 on a URL run)
    └── 4.4 opted ──► emits qa/handoff-5.0.md
 SESSION 5 · 5.1 → 5.6   Astro site   STRONG tier (optional after 4.4)
-   └── 5.6 done ──► tidy (keeps rebuild/ + astro/ + pipeline.html)
+   └── 5.6 done ──► tidy (keeps rebuild/ + astro/ + source-site/ + source-html/ + pipeline.html)
 ```
 
 ## The rule

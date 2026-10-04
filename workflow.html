@@ -101,11 +101,13 @@ python3 $SKILLS/web2html/scripts/run_config.py show /path/to/templates/&lt;proje
   <li><a href="#s43">4.3 Seed tokens (optional)</a></li>
   <li><a href="#s44">4.4 Human review (optional)</a></li>
   <li><a href="#s51">5.1 Scaffold Astro + shared chrome (optional)</a></li>
-  <li><a href="#s52">5.2 Author pages (optional)</a></li>
-  <li><a href="#s53">5.3 Desktop QA (optional)</a></li>
-  <li><a href="#s54">5.4 Responsive (optional)</a></li>
-  <li><a href="#s55">5.5 Wire routes + SEO (optional)</a></li>
-  <li><a href="#s56">5.6 Human checkpoint (optional)</a></li>
+  <li><a href="#s52">5.2 Draft pages (optional)</a></li>
+  <li><a href="#s53">5.3 Desktop clips (optional)</a></li>
+  <li><a href="#s54">5.4 Live 768/390 clips (optional)</a></li>
+  <li><a href="#s54l">5.4 Page loop — author until it matches (optional)</a></li>
+  <li><a href="#s54p">5.4+ Interior /compare + hidden-nav audit (optional)</a></li>
+  <li><a href="#s55">5.5 Links + SEO (optional)</a></li>
+  <li><a href="#s56">5.6 Review + scorecard (optional)</a></li>
   <li><a href="#folders">Folder contract</a></li>
 </ol>
 </nav>
@@ -446,7 +448,7 @@ python3 $SKILLS/website-to-html/scripts/bind_source_images.py .</code></pre>
 <p><strong>Mark done.</strong> <code>qa/phase-5-scaffold.json</code> + <code>qa/phase-5-components.json</code> + <code>qa/phase-5-home.json</code>.</p>
 <p>Recipe: <code>references/phase-5-astro.md</code>.</p>
 
-<h2 id="s52">5.2 · Author pages (optional)</h2>
+<h2 id="s52">5.2 · Draft pages (optional)</h2>
 <p><strong>Concept.</strong> Serial Paper dumps, then re-run the reuse plan. <strong>Build first:</strong> the controller writes each <code>buildFirst</code> band (one that repeats only on interior pages) as a component once, before any worker starts. Then at most two workers author <strong>only the <code>&lt;main&gt;</code> body</strong> of <code>astro/src/pages/{slug}.astro</code> from the Design System + the Paper desktop brief, importing BaseLayout + Header + Footer + the 5.1 components they use, plus every shared section listed for that page in <code>byPage</code>. A variant takes props, never a pasted copy. No inline header / footer. No new token names. Hrefs stay <code>#</code>. <code>rebuild/</code> only takes the raw dumps.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/rebuild_write_gate.py . --allow pages
 node $SKILLS/website-to-html/scripts/dump-interior-raw.mjs --project .
@@ -455,35 +457,49 @@ python3 $SKILLS/website-to-html/scripts/bind_source_images.py .
 python3 $SKILLS/website-to-html/scripts/record-phase-5-pages.py .</code></pre>
 <p><strong>Mark done.</strong> <code>qa/phase-5-pages.json</code>.</p>
 
-<h2 id="s53">5.3 · Desktop QA (optional)</h2>
+<h2 id="s53">5.3 · Desktop clips (optional)</h2>
 <p><strong>Concept.</strong> The ship is the built page. <code>astro build</code>, relativize <code>astro/dist</code> for <code>file://</code> — <code>qa/phase-5-build.json</code> fails when a built page references a stylesheet/script missing from <code>dist/</code> (Pitfall #240) — then the 2.3-style clip loop at 1600 against <code>capture/{slug}-desktop/source-sections/</code>. Fix in the <code>.astro</code> body, rebuild, reshoot. No Paper MCP.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/build-astro-dist.py .
 python3 $SKILLS/website-to-html/scripts/paper_23_rebuild_shots.py . --page {slug} --ship astro/dist/{slug}/index.html --widths 1600 --all
 python3 $SKILLS/website-to-html/scripts/phase_5_compare.py . --mode desktop</code></pre>
-<p><strong>Mark done.</strong> <code>qa/phase-5-clip-compare.json</code>.</p>
+<p><strong>Mark done.</strong> <code>qa/phase-5-clip-compare.json</code> with <code>ok:true</code> — a page that compared 0 bands or produced 0 side-by-sides fails (Pitfall #248).</p>
 
-<h2 id="s54">5.4 · Responsive (optional)</h2>
+<h2 id="s54">5.4 · Live 768/390 clips (optional)</h2>
 <p><strong>Concept.</strong> Live 768 / 390 section clips on disk. Never <code>create_page</code> / <code>write_html</code>. Reshoot the built page at those widths, then the same compare. Real media queries.</p>
 <pre><code>node $SKILLS/hover-reel/scripts/capture-interior-breakpoints.mjs --project .
 python3 $SKILLS/website-to-html/scripts/paper_23_rebuild_shots.py . --page {slug} --ship astro/dist/{slug}/index.html --widths 768,390 --all
 python3 $SKILLS/website-to-html/scripts/phase_5_compare.py . --mode responsive</code></pre>
-<p><strong>Mark done.</strong> <code>qa/phase-5-responsive.json</code>.</p>
+<p><strong>Mark done.</strong> <code>qa/phase-5-responsive.json</code> with <code>ok:true</code>, plus the 5.4+ loop below.</p>
 
-<h2 id="s55">5.5 · Wire routes + SEO (optional)</h2>
-<p><strong>Concept.</strong> Sitemap paths and nav / footer labels → Astro routes across <code>astro/src</code>: home → <code>/</code>, <code>/about</code> → <code>/about/</code>, leftover <code>.html</code> → routes, external / mailto / tel stay <code>#</code>. Then per-page scrape-only SEO into that page's frontmatter (title / description / lang / canonical / og:image from the page's own URL). Homepage takes its own <code>qa/scrape-meta.json</code>; never stamp homepage meta onto interiors. No heading or section retag. Then <code>astro build</code>. The agent never starts <code>astro dev</code>.</p>
+<h2 id="s54l">5.4 · Page loop — author each interior until it matches (optional)</h2>
+<p><strong>Concept.</strong> One Orca worker per interior page owns <code>astro/src/pages/{slug}.astro</code> and loops section by section — shoot the built page, compare each band to the stage-4 source clip, fix, reshoot — against <code>rebuild/{slug}-raw.html</code> (the Paper dump) until <code>page_loop.py check</code> passes. Demoting a section to <code>&lt;div&gt;</code> fails the check. The controller owns Header / Footer / shared sections. 5.4 done and 5.5 refuse while any page is open (Pitfall #249).</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/wave.py prepare . --phase page-loop --run-id p1   # start / wait / apply
+python3 $SKILLS/website-to-html/scripts/page_loop.py status .</code></pre>
+
+<h2 id="s54p">5.4+ · Interior /compare pass + hidden-nav audit (optional)</h2>
+<p><strong>Concept.</strong> Static clip QA cannot see hidden-until-interaction nav items — a closed dropdown and a MISSING dropdown look identical in a <code>&lt;main&gt;</code> crop. After 5.4, pair the BUILT pages against the captured source with the <code>compare</code> skill, wave the reads with a mandatory <code>nav</code> inventory per finding (<code>wired|missing|unwired</code>; a broken row forces <code>miss</code>), then run the machine audit. Fixes land once in <code>Header.astro</code> + <code>astro/public/styles|scripts/</code>, never <code>rebuild/</code>. Pitfall #247.</p>
+<pre><code>python3 $SKILLS/website-to-html/scripts/paper_23_side_by_side.py . --page {slug} --ship astro/dist/{slug}/index.html
+python3 $SKILLS/website-to-html/scripts/wave.py prepare . --phase compare --run-id c1 --page {slug}   # start / wait / ready / apply
+python3 $SKILLS/website-to-html/scripts/author-nav-dropdown.py --astro .
+python3 $SKILLS/website-to-html/scripts/phase_5_nav_audit.py .</code></pre>
+<p><strong>Receipt.</strong> <code>qa/phase-5-nav.json</code> (<code>ok:true</code> only when every inventoried hidden nav item is wired on every built page). Pairs land at <code>qa/side-by-side/{slug}/</code>. <strong>Gate (2.41.0):</strong> 5.4 done and 5.5 refuse until every slug has side-by-sides <em>and</em> an applied compare wave covering every band — one subagent per band (Pitfall #248).</p>
+
+<h2 id="s55">5.5 · Links + SEO (optional)</h2>
+<p><strong>Concept.</strong> <strong>Entry gate: refuses without a fresh ok <code>qa/phase-5-nav.json</code> covering every slug</strong> (Pitfall #247). Sitemap paths and nav / footer labels → Astro routes across <code>astro/src</code>: home → <code>/</code>, <code>/about</code> → <code>/about/</code>, leftover <code>.html</code> → routes, external / mailto / tel stay <code>#</code>. Then per-page scrape-only SEO into that page's frontmatter (title / description / lang / canonical / og:image from the page's own URL). Homepage takes its own <code>qa/scrape-meta.json</code>; never stamp homepage meta onto interiors. No heading or section retag. Then <code>astro build</code>. The agent never starts <code>astro dev</code>. Chrome links on <code>#…</code> anchors route by the source's own label; the logo links home; a chrome link the source routes but the build left on <code>#</code> fails (Pitfall #248).</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/wire-astro-routes.py .</code></pre>
 <p><strong>Mark done.</strong> <code>qa/phase-5-links.json</code>.</p>
 
-<h2 id="s56">5.6 · Human checkpoint (optional)</h2>
+<h2 id="s56">5.6 · Review + scorecard (optional)</h2>
 <p class="stop">HARD STOP.</p>
-<p><strong>Concept.</strong> Review the built routes on <code>file://</code> from <code>astro/dist</code> (shared chrome = 3.4 polish; bodies = Paper). Human preview server is optional: <code>cd astro && npm run preview</code>.</p>
+<p><strong>Concept.</strong> Review the built routes on <code>file://</code> from <code>astro/dist</code> (shared chrome = 3.4 polish; bodies = Paper). Pages open with <code>?qa-outlines=components</code>: Astro components boxed purple and named, orange dashed = markup pasted inline. <code>?qa-outlines=tags</code> shows the semantic tags; ⌥O cycles off → on → tags → components → mono. <code>qa/phase-5-scorecard.md</code> scores every route (fidelity, /compare loop, nav, links, components, one h1). Human preview server is optional: <code>cd astro && npm run preview</code>.</p>
 <pre><code>python3 $SKILLS/website-to-html/scripts/open-phase-5-review.py .</code></pre>
-<p><strong>Mark done</strong> requires <code>qa/phase-5-review.md</code> and tidies: keep <code>rebuild/</code>, <code>astro/</code>, and the finished <code>pipeline.html</code>.</p>
+<p><strong>Mark done</strong> requires <code>qa/phase-5-review.md</code> and tidies: keep <code>rebuild/</code>, <code>astro/</code>, <code>source-site/</code>, <code>source-html/</code>, and the finished <code>pipeline.html</code>.</p>
 
 <h2 id="folders">Folder contract</h2>
 <pre><code>capture/          Stage P · serialized DOM, fullpage.png, layer-ids, source-sections
 design-library/   Stage L · library.json, optional exports-inline/
-source-site/      1.1 scrape + 1.3 component state HTML
+source-site/      1.1 scrape + 1.3 component state HTML (survives tidy)
+source-html/      Adopted folder run — copied HTML export (survives tidy; the ship when Phase 2 is off)
 rebuild/          Ship · only after 1.4. tokens live in rebuild/css/tokens.css
 astro/            Optional Phase 5 · chrome from the signed homepage, one .astro body per page, built dist/
 qa/               Gates and receipts (gone after 3.4 tidy)</code></pre>

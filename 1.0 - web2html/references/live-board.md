@@ -142,12 +142,12 @@ One todo per child. IDs **are** the board IDs. Prefer `TodoWrite`.
 | 4.0 | 4.2 | Capture pages (optional) |
 | 4.0 | 4.3 | Seed tokens (optional) |
 | 4.0 | 4.4 | Human review (optional) |
-| 5.0 | 5.1 | Scaffold Astro (optional) |
-| 5.0 | 5.2 | Author pages (optional) |
-| 5.0 | 5.3 | Desktop QA (optional) |
-| 5.0 | 5.4 | Responsive (optional) |
-| 5.0 | 5.5 | Wire routes + SEO (optional) |
-| 5.0 | 5.6 | Human checkpoint (optional) |
+| 5.0 | 5.1 | Scaffold + chrome (optional) |
+| 5.0 | 5.2 | Draft pages (optional) |
+| 5.0 | 5.3 | Desktop clips (optional) |
+| 5.0 | 5.4 | Page loop (optional) |
+| 5.0 | 5.5 | Links + SEO (optional) |
+| 5.0 | 5.6 | Human review + scorecard (optional) |
 
 Exactly one foreground child `in_progress`. Enter → `mark --status active` +
 todo. Exit → `done` then next `in_progress`. Banner:
@@ -255,7 +255,7 @@ Walk the extra Paper pages, pin comments, write `qa/phase-4-review.md`. Then fir
 
 ### 5.6 — single Continue
 
-`open-phase-5-review.py` writes `qa/phase-5-review.md` and opens the built home + first interior from `astro/dist` on `file://`. Walk every route (shared chrome = 3.4 polish; bodies = Paper). Then **Continue** and `mark --step 5.6 --status done` (tidy). Keeps `rebuild/` + `astro/` + `pipeline.html`.
+`open-phase-5-review.py` writes `qa/phase-5-review.md` and opens the built home + first interior from `astro/dist` on `file://`. Walk every route (shared chrome = 3.4 polish; bodies = Paper). Then **Continue** and `mark --step 5.6 --status done` (tidy). Keeps `rebuild/` + `astro/` + `source-site/` + `source-html/` + `pipeline.html`.
 
 Stops:
 

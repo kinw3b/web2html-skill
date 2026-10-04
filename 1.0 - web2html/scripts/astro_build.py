@@ -115,12 +115,130 @@ def unresolved_assets(page: Path) -> list[str]:
     return missing
 
 
+# ---------------------------------------------------------------- review ----
+# Pitfall #248: the human could not tell what on a built page is an Astro
+# component vs markup pasted into the page as raw HTML. Every component's
+# top-level element(s) carry data-astro-component="{Name}" (stamped in src,
+# so it survives every rebuild), and the BUILT pages get the same QA overlay
+# as 2.4 / 3.4 — bare URL clean, ?qa-outlines=components boxes components,
+# ?qa-outlines=tags shows the semantic chips. Never shipped from src.
+COMPONENT_ATTR = "data-astro-component"
+FRAGMENT_LITERAL_RE = re.compile(r"(const html = `)(.*?)(`;\s*\n---)", re.S)
+OPEN_EL_RE = re.compile(r"<([a-zA-Z][a-zA-Z0-9-]*)\b")
+REVIEW_DIR = "qa-review"
+
+
+def _stamp_open(tag_src: str, name: str) -> str:
+    match = OPEN_EL_RE.match(tag_src)
+    if not match or COMPONENT_ATTR in tag_src[: tag_src.find(">") + 1]:
+        return tag_src
+    return tag_src[: match.end()] + f' {COMPONENT_ATTR}="{name}"' + tag_src[match.end():]
+
+
+def stamp_component_html(html: str, name: str) -> str:
+    """Stamp every TOP-LEVEL element of a fragment (a shared band component may
+    hold several sibling <section>s)."""
+    import shared_sections
+
+    out, cursor = [], 0
+    while True:
+        match = OPEN_EL_RE.search(html, cursor)
+        if not match:
+            out.append(html[cursor:])
+            break
+        element = shared_sections.balanced(html, match.start())
+        if not element:
+            out.append(html[cursor:])
+            break
+        out.append(html[cursor:match.start()])
+        out.append(_stamp_open(element, name))
+        cursor = match.start() + len(element)
+    return "".join(out)
+
+
+def stamp_components(astro: Path) -> list[str]:
+    """Idempotently mark each src/components/{Name}.astro root element(s)."""
+    comps = astro / "src" / "components"
+    stamped: list[str] = []
+    if not comps.is_dir():
+        return stamped
+    for path in sorted(comps.glob("*.astro")):
+        name = path.stem
+        text = path.read_text(encoding="utf-8", errors="replace")
+        frag = FRAGMENT_LITERAL_RE.search(text)
+        if frag:
+            body = stamp_component_html(frag.group(2), name)
+            new = text[: frag.start(2)] + body + text[frag.end(2):]
+        else:
+            parts = text.split("---", 2)
+            if len(parts) == 3:
+                tmpl = parts[2]
+                match = OPEN_EL_RE.search(tmpl)
+                if not match:
+                    continue
+                tmpl = tmpl[: match.start()] + _stamp_open(tmpl[match.start():], name)
+                new = parts[0] + "---" + parts[1] + "---" + tmpl
+            else:
+                continue
+        if new != text:
+            path.write_text(new, encoding="utf-8")
+            stamped.append(name)
+    return stamped
+
+
+def inject_review_overlay(dist: Path) -> list[str]:
+    """Copy the QA overlay into dist/qa-review/ and wire every built page
+    (relative paths, file://). data-qa-ship=final keeps the bare URL clean."""
+    import importlib.util
+
+    if not dist.is_dir():
+        return []
+    here = Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location("inject_qa_overlay", here / "inject-qa-overlay.py")
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    review = dist / REVIEW_DIR
+    review.mkdir(parents=True, exist_ok=True)
+    for name in (mod.CSS_NAME, mod.JS_NAME):
+        (review / name).write_bytes((mod.TEMPLATES / name).read_bytes())
+    wired: list[str] = []
+    for page in sorted(dist.rglob("*.html")):
+        if REVIEW_DIR in page.relative_to(dist).parts:
+            continue
+        depth = len(page.relative_to(dist).parts) - 1
+        prefix = "../" * depth + REVIEW_DIR + "/"
+        text = page.read_text(encoding="utf-8", errors="replace")
+        out = mod.inject(text, prefix + mod.CSS_NAME, prefix + mod.JS_NAME)
+        if "data-qa-ship=" not in out:
+            out = re.sub(r"<html\b", '<html data-qa-ship="final"', out, count=1)
+        if out != text:
+            page.write_text(out, encoding="utf-8")
+        wired.append(page.relative_to(dist).as_posix())
+    return wired
+
+
 def build(root: Path, *, timeout: int = 180) -> dict:
-    """npm install + astro build, then relativize dist. Never starts a server."""
+    """npm install + astro build, then relativize dist. Never starts a server.
+
+    Serialized with an exclusive lock on astro/.build.lock: page-loop workers
+    build in parallel and astro rewrites the whole dist/ each time (#249)."""
+    import fcntl
+
     root = root.resolve()
     astro = root / "astro"
     if not (astro / "package.json").is_file():
         raise FileNotFoundError("need astro/package.json from 5.1")
+    with open(astro / ".build.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            return _build_locked(root, astro, timeout)
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def _build_locked(root: Path, astro: Path, timeout: int) -> dict:
+    stamp_components(astro)
     log = ""
     try:
         install = subprocess.run(
@@ -148,6 +266,7 @@ def build(root: Path, *, timeout: int = 180) -> dict:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"built": False, "errors": [f"astro build skipped: {exc}"], "log": log, "relativized": []}
     changed = relativize_dist(astro / "dist")
+    inject_review_overlay(astro / "dist")
     return {"built": True, "errors": [], "log": log, "relativized": changed}
 
 
