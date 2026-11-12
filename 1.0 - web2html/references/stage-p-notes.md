@@ -19,7 +19,7 @@ leftover receipt.
 ### Homepage-only / lander path (first-class)
 
 **Pre-pesticide first (url-to-paper 1.2.29) + SOURCE clips (1.2.30).** On the live homepage, before
-`experiment-capture-home.mjs` / `assemble-lander.mjs`:
+the 1.2 collect (`capture-session.mjs`) / `assemble-lander.mjs`:
 
 ```bash
 node "$SKILLS/url-to-paper/scripts/pre-pesticide.mjs" \
@@ -54,7 +54,7 @@ Components sheet.
 Classify with pixel-perfect `responsive-scope-playbook.md`. A source template
 whose nav or layout changes at phone is `web-responsive`. Default set:
 **390×844, 768×1024, 1280×800, 1600 (or 1920)**. Primary Stage P remains
-1600; **768 and 390 are required Stage P captures** (`experiment-capture-home.mjs`
+1600; **768 and 390 are required Stage P captures** (the 1.2 collect `capture-session.mjs`
 + `assemble-lander.mjs`, separate out-dirs and artboards, same file). Tablet
 is a third source layout (hamburger + remaining two-column hero on prior responsive run),
 not a squeezed desktop. Do not defer 768 or 390 to Step 3.
@@ -161,24 +161,18 @@ first in the row, ahead of Source. Do **not** run `--screenshots-only` unless as
 **Default is the Chrome extension, not the auto runner.** One session runs Nav
 → Hover → Multi → Single → Tags, including responsive evidence and semantics.
 The agent **stops until Extension Done** (`human-hover-done.json`), then waits
-for the user to type **Continue** in chat before starting 1.4. `--auto` /
-`capture-site-component-states.mjs` is CI / leftover only.
+for the user to type **Continue** in chat before starting 1.4. The old `--auto` runner
+(`capture-site-component-states.mjs`) is deleted.
 
 Once A/4 has imported every contract page and its named sections, the
 coverage validator (A/7) still runs after Done:
 
 ```bash
-node "$SKILLS/hover-reel/scripts/capture-site-component-states.mjs" \
-  --pages-json source-site/pages.json --pages home,contact,about \
-  --capture-dir capture --out source-site/components --max 40
 node "$SKILLS/hover-reel/scripts/validate-component-captures.mjs" \
   --dir source-site/components --expected-pages home,contact,about \
   --json qa/component-state-coverage.json
-# Homepage-only — capture AND validate must name the same page. Leftover
+# Homepage-only — validate names the same page. Leftover
 # first-run about/pricing/contact/404 folders are warned, not walked.
-node "$SKILLS/hover-reel/scripts/capture-site-component-states.mjs" \
-  --pages-json source-site/pages.json --pages home \
-  --capture-dir capture --out source-site/components --max 40
 node "$SKILLS/hover-reel/scripts/validate-component-captures.mjs" \
   --dir source-site/components --expected-pages home \
   --json qa/component-state-coverage.json
@@ -191,7 +185,7 @@ node "$SKILLS/url-to-paper/scripts/qa-paper.mjs" \
 replacing path separators with `∕`, so A/6 titles such as `A/6 · home · Navbar
 states` always produce review evidence instead of an accidental nested path.
 
-The runner writes `<page>/<kind>/manifest.json`, preserving section labels and
+The retired runner wrote `<page>/<kind>/manifest.json`, preserving section labels and
 measured rectangles so buttons and text links are discovered across the full
 page rather than only the first route. A/7 has two independent read-only
 lenses: the coverage validator above, and Paper geometry review with
@@ -207,8 +201,8 @@ with a reason and is not treated as a missing manifest.
 
 Serializer often omits the parent band. Hero CTAs and footer links arrive as
 white type with no fill; a white Paper cell makes them invisible. Capture
-records `ancestorBackground`; `build-paper-states.mjs` paints the Slot and
-the imported root when the root is transparent and the type is light
+records `ancestorBackground`; the retired `build-paper-states.mjs` painted the Slot and
+the imported root when the root was transparent and the type light
 (Pitfall #27). FAQ grouping is by **width only** so an already-open first
 row still matches; “open” climbs to the **innermost** ancestor that grew
 ≥8px. Accordion titles also match `--kind buttons` with `changed: false` —

@@ -458,6 +458,7 @@ def shoot_open(root: Path, *, max_rounds: int = DEFAULT_MAX_ROUNDS, capture=None
     root = root.resolve()
     shot: list[str] = []
     skipped: list[str] = []
+    todo: list[str] = []
     for row in status_rows(root):
         if row["state"] in {"match", "residual"}:
             continue
@@ -467,7 +468,15 @@ def shoot_open(root: Path, *, max_rounds: int = DEFAULT_MAX_ROUNDS, capture=None
         if previous is not None and not round_recorded(previous):
             skipped.append(sid)
             continue
-        open_round(root, sid, max_rounds=max_rounds, capture=capture)
+        todo.append(sid)
+    if not todo:
+        return shot, skipped
+    # One browser launch, each width loaded once, every open band clipped from
+    # that page; open_round then reuses the result instead of re-launching.
+    real_capture = capture or shots.capture
+    result = real_capture(root, todo, widths=run_widths(root))
+    for sid in todo:
+        open_round(root, sid, max_rounds=max_rounds, capture=lambda *_a, **_k: result)
         shot.append(sid)
     return shot, skipped
 

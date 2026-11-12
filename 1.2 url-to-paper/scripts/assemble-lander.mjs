@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Assemble a captured homepage (or lander) into a Paper artboard.
 //
-// Unlike import-sections.mjs, this writes **layers only** — no source
+// This writes **layers only** — no source
 // screenshot artboard. Drop order under Ruler · desktop:
 // Source · {page} → landers → A/6 → Interactive components.
 // After all width assembles (1600 / 768 / 390), run
 // arrange-artboards.mjs so that row is the source of truth.
-// Section QA is done against on-disk JPEGs from experiment-capture-home.mjs.
+// Section QA is done against on-disk JPEGs from the 1.2 collect (capture-session.mjs).
 // After each section insert, hug that layer with height: min-content
 // (Pitfall #67) so a captured px box cannot clip titles.
 // Before write_html, reorderOverlayPaintOrder stacks image → dim overlay →

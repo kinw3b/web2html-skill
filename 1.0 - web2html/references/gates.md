@@ -61,8 +61,8 @@ Do **not** use `site/` or `v1/` as ship paths. Tokens land in **`rebuild/css/tok
 
 | # | Gate | Where |
 |---|---|---|
-| 1 | Stable two-observation capture | scrape / section-diff |
-| 2 | Provenance actuals | section-audit.mjs |
+| 1 | Stable two-observation capture | scrape |
+| 2 | Provenance actuals | `4.1 pixel-perfect/scripts/section-audit.mjs` |
 | 3 | Fidelity contract | Stage F → `qa/fidelity-contract.md` |
 | 4 | Interaction parity | Stage 5c → `qa/interaction-results.md` |
 | 5 | Regression IDs | `qa/regressions.json` |

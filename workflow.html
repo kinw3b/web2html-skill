@@ -216,7 +216,6 @@ python3 $SKILLS/website-to-html/scripts/verify-fonts.py --rebuild rebuild --scra
 </ol>
 <p><strong>Scripts.</strong></p>
 <pre><code>node $SKILLS/url-to-paper/scripts/draw-rulers.mjs --init …
-node $SKILLS/url-to-paper/scripts/pre-pesticide.mjs --url "$URL" --width 1600 --out capture/home-desktop/pre-pesticide.json
 node $SKILLS/hover-reel/scripts/capture-session.mjs \
   --url "$URL" --page home --out source-site/components --capture capture
 # omit --file — the session create_file a new Paper document
@@ -224,7 +223,7 @@ node $SKILLS/url-to-paper/scripts/run-geometry-postflight.mjs …
 node $SKILLS/url-to-paper/scripts/stretch-root.mjs --prove --artboard home-desktop
 node $SKILLS/url-to-paper/scripts/breakpoint-shot-qa.mjs --project . --file-id "$PAPER_FILE_ID"
 node $SKILLS/url-to-paper/scripts/apply-review-sequence.mjs …</code></pre>
-<p class="muted">Leftover / CI only: <code>experiment-capture-home.mjs</code>. A visible Playwright HUD is a failed 1.2.</p>
+<p class="muted">Manual tool: <code>pre-pesticide.mjs --url "$URL" --width 1600 --out capture/home-desktop/pre-pesticide.json</code> opens visible Chrome by default, so pass <code>--headless</code> during 1.2. A visible Playwright HUD is a failed 1.2.</p>
 <p><strong>Artifacts.</strong> Paper artboard <code>Screenshots</code> (1600 section clips), <code>capture/home-desktop|768|390/</code> (including <code>layer-ids.json</code>, <code>source-sections/NN-slug.png</code>, <code>fullpage.png</code>), <code>qa/paper-file.json</code>, <code>qa/stretch-root-evidence.md</code>, <code>qa/breakpoint-shot-qa.json</code>, <code>review-sequence.json</code>. FRAME <code>Navigation</code> carrying three takes; empty Buttons / Components frames.</p>
 <p><strong>Mark done.</strong> Paper <code>Screenshots</code> board + <code>capture/home-desktop/</code> + stretch postflight green + source-section shots at three widths + Navigation takes at three widths + green <code>qa/breakpoint-shot-qa.json</code>.</p>
 <p><strong>Forbidden.</strong> Opening Chrome / HUD / navbar picker. Creating Design Library. Importing a second route. <strong>Opening an existing Paper file because the name looks similar</strong> — 1.2 always <code>create_file</code> (Pitfall #187). <strong>Hand-authoring a 768 / 390 frame instead of capturing it</strong> — if a breakpoint frame is wrong, fix the capture. Capturing Navigation at desktop only. Skipping 768 or 390 shots. Full-page source shot as a Paper artboard (opt-in only). <code>paper-asset://</code> in <code>write_html</code>. Pitfall #168.</p>

@@ -1,11 +1,13 @@
 # Paper Snapshot — how the serializer works
 
 Teardown of the Paper Snapshot Chrome extension (`lidfahaahiogmnlccifabccgplofocck`,
-v0.4.4, store listing updated 2026-09-27), which is where `scripts/serializer.js`
+v0.4.13, store listing updated 2026-10-29), which is where `scripts/serializer.js`
 comes from. Paper-Bridge `content/paper-snapshot.js` @ `fda64f2` (v0.3.8) is the
 base implementation reference; the 0.3.10→0.3.12 deltas were re-extracted from
-the installed extension, and the 0.3.12→0.4.4 deltas from the store crx
-(sha256 `45fc07bb…58605261`). See the diff notes below. Read this before
+the installed extension, the 0.3.12→0.4.4 deltas from the store crx
+(sha256 `45fc07bb…58605261`), and the 0.4.4→0.4.10 deltas from the store crx
+(sha256 `c6d29ee1…302f5df4`), and the 0.4.10→0.4.13 delta from the store crx
+(sha256 `eb691aab…3669fe`). See the diff notes below. Read this before
 changing the serializer.
 
 ## What it is
@@ -19,7 +21,7 @@ no `fetch`. The extension makes **zero network calls** — it is entirely local.
 | File | Role |
 |---|---|
 | `manifest.json` | MV3. Permissions: `scripting`, `activeTab`, `clipboardWrite`, `offscreen`, `contextMenus`; `optional_host_permissions: <all_urls>` (0.4.4, for embedded frames). No declared content scripts. |
-| `background.js` | Everything. Picker overlay + serializer (`async function Fe(n)` in 0.4.4), injected on demand. |
+| `background.js` | Everything. Picker overlay + serializer (`async function Fe(n)` in 0.4.4, `async function Ne(i)` in 0.4.10, `async function n(e)` in 0.4.13), injected on demand. |
 | `offscreen.js` | Writes `text/html` to the clipboard; replies `{ status, error }`. |
 | `popup.js` | ~196 KB of React. UI shell only (shown for `file://` tabs) — nothing load-bearing. |
 
@@ -105,6 +107,63 @@ This is where the real work is, and why the code is lifted rather than rewritten
   (`settlePainted`) still runs first, so in-flow Framer appear leftovers have
   live opacity 1 by serialization time and are unaffected.
 
+## New in 0.4.13 (vs 0.4.10)
+
+0.4.11 and 0.4.12 were never seen on the store listing by the weekly check;
+this section diffs the 0.4.10 crx against the 0.4.13 crx directly.
+
+Serializer (`n`) — ported into `scripts/serializer.js`:
+
+- **`<svg>` root overflow** — for an `SVGSVGElement`, after width/height are
+  pinned, each of `overflow-x` / `overflow-y` whose computed value is
+  `visible` is written into the emitted style as `visible`. Paper otherwise
+  treats the svg like a clipping box, so geometry drawn past the viewBox
+  (icon strokes, offset dots) was cut off. Nested shapes are untouched, and
+  the `overflow` attribute stays excluded from the copied SVG attributes.
+  An svg with only one visible axis computes to `auto` on that axis per CSS,
+  so nothing is forced there.
+
+Everything else in `background.js` is minifier output (single quotes →
+template literals, `const` → `let`, inlined constants such as the block-tag
+list and `calc(infinity)` z-index, if/else → ternaries with identical
+results). Picker arrow-key handling was restructured with the same
+behavior. Extension shell: manifest only bumps the version (no permission
+changes); `popup.js`/`popup.css` are rebundled (manifest strings now inlined
+into the popup bundle) with no capture effect. Offscreen document and
+clipboard payload are unchanged.
+
+## New in 0.4.10 (vs 0.4.4)
+
+Serializer (`Ne`) — ported into `scripts/serializer.js`:
+
+- **Shadow-rooted style probe** — the throwaway `<link>` used as the
+  default-style baseline is now appended inside an open shadow root of a
+  hidden `<x-paper-style-reference>` host (`all: inherit !important;
+  display: none !important`), and the host is what gets inserted next to the
+  element and removed after. Page selectors that match `link` or adjacent
+  siblings can no longer skew the baseline, so they stop leaking phantom
+  diffs (e.g. `padding-left: 0px`) into emitted styles.
+- **`text-align` reset only on the root** — `text-align: initial` moved into
+  the `isRoot` block. Descendants now compare against the inherited value,
+  so an inherited `text-align` is emitted once on the root, not on every
+  element.
+- **Form-control sizes** — `<input>`, `<textarea>` and `<select>` get
+  `width ??= computed.width` / `height ??= computed.height`, so default-sized
+  controls keep their used px size.
+- **Empty `colspan` cells** — a `<td>`/`<th>` with `colSpan > 1`,
+  `display: table-cell` and no serialized children is followed by
+  `colSpan - 1` empty `<div paper-snapshot-original-tag="TD|TH"
+  style="display: table-cell;">` siblings so later columns keep their slots.
+- **Elementor** — before the walk, every `.elementor-invisible` element has
+  that class removed; afterwards it is put back on any element that did not
+  gain `.animated` in the meantime.
+
+Extension shell: manifest only bumps the version (no permission changes).
+`popup.js`/`popup.css` changes are minifier and bundler output only (React
+license banners dropped, switch→ternary rewrites); nothing load-bearing.
+The picker highlight padding (`2 * 2` → `4`) is a constant fold. Offscreen
+document and clipboard payload are unchanged.
+
 ## New in 0.4.4 (vs 0.3.12)
 
 Serializer (`Fe`) — ported into `scripts/serializer.js`:
@@ -161,9 +220,9 @@ but webfont files do not.
 
 ## Extraction
 
-`scripts/serializer.js` is Paper Snapshot 0.4.4 plus 1.2 layer-name / sidecar
+`scripts/serializer.js` is Paper Snapshot 0.4.13 plus 1.2 layer-name / sidecar
 behavior. The 0.3.8 base came from Paper-Bridge `content/paper-snapshot.js`;
-the 0.3.10→0.3.12 and 0.3.12→0.4.4 deltas were diffed out of the extension's minified
+the 0.3.10→0.3.12, 0.3.12→0.4.4, 0.4.4→0.4.10 and 0.4.10→0.4.13 deltas were diffed out of the extension's minified
 `background.js` (identifier names churn per release — diff string literals and
 structure, not raw text). Keep 1.2 adaptations in `fe()`. Do not call the file
 “lifted verbatim.”
@@ -174,5 +233,5 @@ To re-extract from a newer version:
 EXT="$HOME/Library/Application Support/BraveSoftware/Brave-Browser/Default/Extensions/lidfahaahiogmnlccifabccgplofocck"
 npx prettier@3 --parser babel "$EXT/<version>/background.js" > background.pretty.js
 # find the serializer boundaries (`async function fe(n)` in 0.3.12,
-# `async function Fe(n)` in 0.4.4) — they will have moved
+# `async function Fe(n)` in 0.4.4, `async function n(e)` in 0.4.13) — they will have moved
 ```

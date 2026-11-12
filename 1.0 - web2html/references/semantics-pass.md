@@ -50,4 +50,4 @@ python3 "$SKILLS/website-to-html/scripts/wire-astro-routes.py" .
 
 Retired: running this as a 2.2.b first sweep before a dump-era Chrome
 review. 2.2.b is not a live step. Retired: 3.3 type-align mutation
-(`census-type-align.py` as a fix pass) — type was signed at 2.3.
+(the `census-type-align.py` fix pass, now deleted) — type was signed at 2.3.

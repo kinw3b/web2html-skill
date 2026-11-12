@@ -1,7 +1,7 @@
 ---
 name: hover-reel
-description: Capture a live site's interactive COMPONENTS on the homepage (`/`) as default/hover state pairs of Paper-ready inline-styled HTML, then rebuild them in Paper as real editable layers. No GIFs. Default is one page. Extra routes require --allow-multi-page and an explicit user request. Uses visible Chrome so live whileHover fires. Inside website-to-html, 1.3 fills FRAME Buttons + Components from desktop (`pull-desktop-specimens.mjs`) and authors button hover from source CSS (`author-button-hover.mjs`); this Capture Tool is leftover 1.4 hover only. Public 4.1–4.4 are the later optional Phase 4 page import. Triggers - "hover reel", "capture hover states", "navbar hover states", "component states to paper", "A/6", "capture the navbar", "hover parity".
-version: 1.1.110
+description: Capture a live site's interactive COMPONENTS on the homepage (`/`) as default/hover state pairs of Paper-ready inline-styled HTML, then rebuild them in Paper as real editable layers. No GIFs. Default is one page. Extra routes need an explicit user request. Uses visible Chrome so live whileHover fires. Inside website-to-html, 1.3 fills FRAME Buttons + Components from desktop (`pull-desktop-specimens.mjs`) and authors button hover from source CSS (`author-button-hover.mjs`); this Capture Tool is leftover 1.4 hover only. Public 4.1–4.4 are the later optional Phase 4 page import. Triggers - "hover reel", "capture hover states", "navbar hover states", "component states to paper", "A/6", "capture the navbar", "hover parity".
+version: 1.1.111
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]
@@ -20,7 +20,7 @@ metadata:
 
 # Hover Reel — capture components as default/hover state pairs in Paper
 
-## Capture Tool extension (1.4 leftover · OPTIONAL · 1.1.106)
+## Capture Tool extension (1.4 leftover · OPTIONAL · 1.1.111)
 
 > **This is leftover 1.4 hover (web2html 2.12.0).** 1.3 already mines the
 > Design Library and pulls unique buttons + components from token-seeded
@@ -149,7 +149,7 @@ count as a check. Takes for the **current** Paper section
 get a red inset so they read as **here**; other rows dim. **Next** goes to the next content band. The person
 aims the red circle, toggles **Record**, and reviews the list. The
 agent does **not** hunt hover targets and does **not** spawn one Chrome
-per kind. `--auto` is CI / leftover only.
+per kind.
 Already captured live elements keep a red `x-paper-captured-outline`
 overlay as the person scrolls. The overlay is tool chrome, not a source
 style, so it cannot serialize into Paper.
@@ -232,9 +232,7 @@ and under a real pointer. Every state is serialized to **inline-styled HTML** an
 written into **Paper as real editable layers**, side by side, so the hover design
 is something you can look at, measure, and copy — not something you infer.
 
-**Homepage only.** Default `--pages home` and `--max-pages 1`. Extra routes
-require `--allow-multi-page` **and** an explicit user request. **Exit** if
-more than one page is selected without the flag.
+**Homepage only.** Extra routes need an explicit user request.
 
 **No Components sheet. No A/6 states board.** Buttons and footer pairs
 park on FRAME `Buttons` (stacked Component rows). Screenshots stay on their own board.
@@ -303,202 +301,45 @@ endpoints, measure the timing, and let CSS do the tween.
 WebGL pointer effects, marquees, staged multi-step reveals — capture compressed
 **WebP stills** at the interesting moments and say so in the notes. Never GIF.
 
-## Place in the pipeline — A/6 internals (not public 4.1–4.4)
+## Place in the pipeline (not public 4.1–4.4)
 
-These run **after Stage P has captured every contract page and named section**.
 In web2html, Design Library mine + seed is **1.3**, then the agent pulls unique
 buttons and cards from token-seeded `home-desktop` onto FRAME `Buttons` and
-FRAME `Components`. This Capture Tool path is leftover **1.4** live hover
-(`open-capture`). 1.4's required half is the human Paper walk.
+FRAME `Components` (`pull-desktop-specimens.mjs`, then
+`author-button-hover.mjs`). This Capture Tool path is leftover **1.4** live
+hover (`open-capture`). 1.4's required half is the human Paper walk.
 
-| Step | What |
-|---|---|
-| **A/6.0** | **Skip floating fixed chrome** — "builder watermark", "Remix for free", template purchase badges, cookie bars. Not part of the design being rebuilt. |
-| **A/6.1** | **Navbar links** → Paper, **max 2** default\|hover **link** pairs — not the whole bar. Hover-to-open dropdowns (opt-in) and click burgers (768 / 390) go to FRAME `Interactive components` — not this board. |
-| **A/6.2** | **Buttons, CTAs, text links with icons** → Paper, default + hover each. Walk Stage P sections one by one |
-| **A/6.3** | **Form fields + their buttons** (`--kind forms`) → Paper. **Do not hunt accordions.** A human says if a missing hover belongs on A/6. |
-| **A/6.4** | **Footer links** → Paper, **max 2** default\|hover **link** pairs — not the footer section |
+What the extension captures, and the rules a take follows:
 
-### Max 2 states for nav and footer
+- **Skip floating fixed chrome** — "builder watermark", "Remix for free",
+  template purchase badges, cookie bars are not part of the design.
+- **Navbar links and footer links: max 2** default | hover **link** pairs each
+  — not the whole bar or footer. Nav and footer links repeat one pattern, so
+  more states read as noise. Pill CTAs that sit in a header or footer band are
+  buttons.
+- **Buttons, CTAs, text links with icons** — default + hover each. Dedup is per
+  section (`section|label|size`), never page-wide: the same CTA copy in the
+  hero, a band and the footer is three components. Label rows by the
+  **desktop** section ID (`01 · Get 14 Days Free Trial`), from
+  `capture/home-desktop/layer-ids.json` / `section-ids.json`.
+- **Form fields + their buttons.** Do not hunt accordions; a human says if a
+  missing hover belongs on the board.
+- Hover-to-open dropdowns and click burgers (768 / 390) go to FRAME
+  `Interactive components`, never a navbar-container serialize.
 
-Nav and footer links repeat one pattern. Capturing all six produces near-identical
-states that cost time and read as noise — **two is the rule** (`--max-states`,
-default 2).
+## Why a real, visible Chrome
 
-Which two matters. Controls are grouped by visual pattern (tag, solid background,
-corner radius, height bucket) and the groups are ordered by **how often the
-pattern repeats**, then the first two controls are taken from the largest group
-inward. Picking in DOM order instead lands on the logo and the submit button —
-which usually have no hover state at all, producing two `changed: false` rows and
-zero information.
-
-### 4.1 is the nav LINKS, not the navbar
-
-Serializing the header container (logo + links + trial CTA) is the wrong
-component. 4.1 writes **element** pairs: two representative **links**, each
-`default | hover`. Pill CTAs that live in the header belong in 4.2.
-
-### 4.2 walks every Stage P section
-
-Do not sample buttons from the first matching label on the page. Walk the
-Stage P section manifest **in order**. The same CTA copy in two sections
-("Get 14 Days Free Trial" on the hero, the purple band, and the dark
-footer-CTA) is **three components**. Dedup is per-section (`section|label|size`),
-never page-wide. Do not classify list heads as accordions.
-Header pill CTAs stay in 4.2 even when they sit inside nav chrome.
-
-**Label by desktop section ID.** A/6 rows are `01 · Get 14 Days Free Trial`,
-not `… · header`. IDs come from the **desktop** Stage P manifest
-(`capture/home/section-ids.json`). Say “fix 08” and the purple-band CTA
-is the one. Tablet/phone slugs are not the review handle.
-
-### 4.4 is the footer LINKS, not the footer
-
-A whole `<footer>` carries a newsletter CTA, a blurb, a logo and a copyright line,
-none of which have hover states. 4.4 writes **element** pairs for two
-representative **text links**, not the footer block and not the link-column
-container. Pill CTAs in a nearby CTA band are 4.2. Anchoring on "a share of
-the footer's total links" fails when the columns are siblings; smallest-area
-wins when finding the footer root, then the **links** are what get serialized.
-
-## Why this uses visible Chrome
-
-Headed Chrome is required so a person can watch the run.
-
-- A **drawn cursor** MUST travel to each control. Playwright/CDP has no OS
-  pointer — `x-paper-cursor` is the arrow you see.
-- A **HUD** MUST show the pass, `n/N`, and the current label for the whole
-  run (e.g. `hover-reel · 3/18 · Navbar · Pricing`). That is `x-paper-cursor-hud`.
-- `--headless` skips both the pointer and the HUD. CI only.
-- If you cannot see the pointer move, the run is broken — fix the overlay, do
-  not keep capturing blind.
-
-A/6 uses the **same visible Chrome launch as Stage P**
-(`launchOptions({ visible: true })` → `channel: "chrome"`, `headless: false`).
-The overlay is skipped by the serializer (`x-paper-` prefix).
-
-Motion `whileHover` is **not** CSS `:hover`. Headless Chromium plus
-`prefers-reduced-motion: reduce` either no-ops the variant or applies a
-reduced one (kp-subba: purple-band white pill changed type to near-white and
-kept a white fill, instead of going black). CSS `:hover` can still flip
-`el.matches(':hover')` and a text color, so `hoverConfirmed: true` is not
-proof the designed fill landed.
-
-Settle entrance animations with `reducedMotion: 'reduce'` on load, then
-`emulateMedia({ reducedMotion: 'no-preference' })` **before** any hover.
-Drive a real pointer to the painted box centre (`mouse.move` with steps, not
-`locator.hover({ force: true })`) and call `__hrCursor.move()` so the drawn
-arrow travels with it. Measure the live pill fill (often an
-inner frame) and pass that as hover `backgroundColor` — never restore the
-default `sourceBackground` onto the hover file.
-
-## Run it
-
-```sh
-# A/6 — homepage only, serially; 4.3 is forms only
-node $SKILLS/hover-reel/scripts/capture-site-component-states.mjs \
-  --pages-json source-site/pages.json --pages home \
-  --capture-dir capture --out source-site/components --max 40
-
-# A/7 — mechanical coverage gate before any Paper state artboard is accepted
-node $SKILLS/hover-reel/scripts/validate-component-captures.mjs \
-  --dir source-site/components --expected-pages home \
-  --json qa/component-state-coverage.json
-
-# Build each page/kind into one A/6 · {page} · states board (sections, not new frames)
-node $SKILLS/hover-reel/scripts/build-paper-states.mjs \
-  --dir source-site/components/home/nav --file "$PAPER_FILE_ID"
-```
-
-| Flag | Default | Meaning |
-|---|---|---|
-| `--url` | — | Page to capture |
-| `--kind` | `nav` | `nav` \| `buttons` \| `forms` \| `footer` (`faq` only with `--allow-faq`; `dropdown` / `navbar-dropdown` only with `--allow-dropdown`; `nav-mobile-768` / `nav-mobile-390` run when the icon is painted) |
-| `--page` | — | Single-page override; writes `<out>/<page>/<kind>/` |
-| `--section-manifest` | — | Stage P `capture/<page>/manifest.json`; maps each state to a section |
-| `--out` | `source-site/components` | Output root; the page runner nests `<page>/<kind>/` |
-| `--max` | 40 | Cap on components/controls per kind; A/7 fails if the pool is truncated |
-| `--width` / `--height` | 1440 / 1000 (dropdown: **1600** / 1100) | Capture viewport. Dropdowns use the Stage P desktop lander, not A/6's 1440. |
-| `--headless` | off | CI-only. Default is visible Chrome, same as Stage P. |
-
-`build-paper-states.mjs` flags: `--dir`, `--file` (**required** Paper file id),
-`--board` (default `A/6 · {page} · states`; dropdowns and burgers default to
-`Interactive components`), `--section` (Navbar / Buttons /
-Accordion / Forms / Footer / Dropdown / Nav mobile from `kind`), `--title` (legacy; ignored for the
-artboard name), `--dark` for dark sites, `--cols N` for a wrapped grid —
-**container mode only**. A/6 kinds append as **sections of one board**.
-Dropdowns and burgers never append onto A/6 — they own the `Interactive components`
-frame. After that write, **token-pass is required**
-(`apply-theme-tokens.mjs --only "Interactive components"`). New review frames
-park in a **horizontal row** under `Ruler · desktop`.
-`capture-site-component-states.mjs` accepts `--pages-json`, `--pages`,
-`--capture-dir`, `--kinds`, `--max`, `--max-states`, `--width`, `--height`,
-`--allow-faq`, `--allow-dropdown`, and `--headless`.
-`validate-component-captures.mjs` is read-only and writes a gate report; it
-accepts `--dir`, `--expected-pages`, and `--json`. When `--expected-pages`
-is set (homepage-only: `home`), leftover first-run folders
-(`about/`, `pricing/`, …) are **ignored** and warned, not walked as extra
-pages. `--pages home` on capture does not delete those folders.
-
-### Do not hunt accordions
-
-Feature lists, insight cards, and date chips are not FAQs. Default A/6
-kinds are `nav,buttons,forms,footer`. `--kind faq` writes an empty
-manifest unless the human passed `--allow-faq`. If a hover is missing
-from the board, the human says so — the agent does not guess accordion
-rows.
-
-**One of a repeating pattern.** Identical CTAs, pills, and links share
-one token. A newly scraped visual pattern (size + paint + hover) gets a
-new name (`pill`, `text-link`, `navbar-dropdown`), never a reused
-`btn-primary`. On Source · {page}, show the type (`Button`, `Text
-link`), not that token. If a section has more than two of the same
-pattern, keep one specimen. One-of-a-pattern **FAQ / accordion cards
-are fluid** in the `A/6 · {page} · states` parent — same column as
-Navbar / Forms. Footer text links park on Source. Slot and imported root are `width: 100%`,
-`max-width: 100%`, `height: fit-content`. Never pin the captured rect
-(`width: 99px` or whatever the live row measured). Label wrap is fine.
-`--allow-faq` is still required.
-
-**Accordion top-align (1.1.21).** Collapsed vs open differ in height, so
-FAQ cards, Slots, and both inners use `align-items: flex-start` (and
-`align-self: flex-start`) — never `center`. Do not size the Slot from
-`heightAfter` / `openH`. After `write_html`, force the capture root to
-`height: fit-content` so a leftover open height (190px on a 99px
-collapsed row) cannot vertically center the title. Strip source
-plus→minus `translate` / `rotate` so the icon stays in the 35×35
-circle on the title row. Width stays `100%`.
-
-**Slots auto-fit.** Paper clips children to a fixed-px Slot even with
-`overflow: visible`. `build-paper-states.mjs` sets Slot `height:
-fit-content`, then re-asserts after `write_html`. FAQ slots stay
-`width: 100%` of the section column and are not sized from
-`heightAfter`. Screenshot the artboard;
-if anything still clips, `update_styles` the Slot and artboard to
-`height: "fit-content"` again.
-
-**Ancestor fill (kp-subba).** Serializer often omits the parent band. Hero
-CTA and footer links arrive as white type with no background; a white Paper
-cell makes them invisible. Capture records `ancestorBackground`;
-`build-paper-states.mjs` paints the Slot and the imported root when the
-root is transparent and the type is light. Do not strip that fill.
-
-**Native paint, no floating chrome (1.1.17 / 1.1.38).** Default and hover
-HTML must look like the Stage P lander buttons: native `border` /
-`background-color` / `background-image` on the pill. Never a
-`position:absolute` Frame, Rectangle, stroke, or gradient overlay sitting
-on the label (Pitfall #95). A Frame whose only child is a paint Rectangle
-is still a floater — hoist the fill onto the pill and drop it.
-`prepareStateHtml` runs `flattenDecorativeAbs` then `trim()` before the
-file is written and again in `build-paper-states.mjs`. A leftover overlay
-fails A/7 (`validate-component-captures.mjs`) and will leak into `get_jsx`.
-`trim()` also drops invisible source link outlines so A/6 does not grow
-`#2A2A2A` boxes the lander just had stripped.
-
-**One label, not a text-swap stack (1.1.17).** Source slide/swap label
-animations serialize both copies. Collapse consecutive siblings with the
-same text so Paper and the rebuild do not show a vertical double label.
-This is also an A/7 error.
+The extension runs in the person's own Chrome with trusted pointer input, so a
+live `whileHover` fires. Motion `whileHover` is **not** CSS `:hover`: headless
+Chromium plus `prefers-reduced-motion: reduce` either no-ops the variant or
+applies a reduced one (kp-subba: a purple-band white pill changed type to
+near-white and kept a white fill, instead of going black). CSS `:hover` can
+still flip `el.matches(':hover')` and a text color, so `hoverConfirmed: true`
+is not proof the designed fill landed. Settle entrance animations with
+`reducedMotion: 'reduce'` on load, then `no-preference` **before** any hover,
+and measure the live pill fill (often an inner frame) for the hover
+`backgroundColor` — never restore the default `sourceBackground` onto the
+hover file.
 
 **Hover-slot chrome must not ship (1.1.36).** Source · Hover States
 DEFAULT/HOVER cards, 780 column padding, `section-number`, and `list`
@@ -506,33 +347,17 @@ wrappers are documentation frames. `get_jsx` / rebuild HTML ships only
 the actual component (the painted `button`). The rebuild interactive
 node is that pill, not the card. Pitfall #90.
 
-**Even button inset (1.1.8).** The ancestor-color `button` layer hugs the
-control with **24px** padding on all sides (`width: fit-content`,
-`border-radius: 12px`). Never `position: absolute` / `inset: 0` to paint
-the fill.
-Never `width: 100%` + `flex-start` on nav / button / footer pills — that
-pins the control to the top-left and leaves a empty trail on the right
-(Pitfall #38). **FAQ is the exception (1.1.20):** accordion cards are
-full-width patterns and must stay `width: 100%` of the A/6 parent.
-Keep the section band color; only the inset changes.
-
-**Park states (P-0 first).** `Ruler · desktop` must exist first. Do **not**
-seed `A/6 · {page} · states`. **Buttons (4.2) and footer text links**
-park as stacked Component rows on FRAME `Buttons`. Screenshots
-stay on their own board. Nav / forms /
-FAQ / dropdowns / 768/390 burgers are **sections** on FRAME
-`Interactive components`. Open hamburger/dropdown HTML must be
-`position: relative` (drop captured `top`/`left`) so the board can hug
-the open panel. The `Screenshots` board is number + shot only.
-Hover pairs stack on FRAME `Buttons`. Do **not** repeat a "States + hover"
-title on every section. Label by object type only (`Button`, `Text
-link`, `Pill`, `Social icon`) — never a class or component name.
-Default | Hover. Same button **label** = one capture, not every
-instance. At 1.5 the human fails the file when a captured
-button or footer link has no pairs on that Source row. Other review
-frames park in a **horizontal row** **≥100px** under the ruler. Pin
-Source's right edge just left of `home-desktop` and grow left. Ignore
-`Interactive components` when computing lander `rightEdge`.
+**Park states (P-0 first).** `Ruler · desktop` must exist first. Buttons and
+footer text links park as stacked Component rows on FRAME `Buttons`.
+Screenshots stay on their own board and are number + shot only. Do **not**
+repeat a "States + hover" title on every section. Label by object type only
+(`Button`, `Text link`, `Pill`, `Social icon`) — never a class or component
+name. Default | Hover. Same button **label** = one capture, not every
+instance. At 1.5 the human fails the file when a captured button or footer
+link has no pairs on that Source row. Other review frames park in a
+**horizontal row** **≥100px** under the ruler. Pin Source's right edge just
+left of `home-desktop` and grow left. Ignore `Interactive components` when
+computing lander `rightEdge`.
 
 ### Rotated icons — Paper rotates about the top-left corner
 
@@ -557,125 +382,7 @@ px box, are left alone.
 which already rotates about the centre — the extra translate shifts the glyph.
 Same bargain as the `line-height` rewrite; these files exist to be imported.
 
-**Design-system eyebrows (1.1.13).** Cell labels are tokens a rebuild can
-keep: `navbar-link`, `navbar-link:hover`, `navbar-dropdown`, `btn-primary`,
-`btn-secondary`, `pill`, `text-link`, `footer-link`. Do not print the
-marketing string (`PRODUCT — DEFAULT`, `01 · GET 14 DAYS FREE TRIAL`).
-Variants follow the visual pattern (height + paint + hover delta), not
-the marketing label. Transparent gradient CTAs and date chips must not
-share `btn-primary`. Cell labels and Slots are Autoflex, center-aligned. Compact
-pill/button roots that serialize as `flex-start` are rewritten to
-`center` so A/6 matches the desktop lander (Paper top-left is not the
-page).
-The red section badge still maps the instance to a Stage P layer.
-Pitfalls #46 #56 #57 #58.
-
-**Buttons/CTAs/forms always lay out as `default | hover` pairs, two per row.**
-Each component gets its own row holding both of its states. An N-column grid is
-wrong here: with three columns a component's default lands at the end of one row
-and its hover at the start of the next, which breaks exactly the comparison the
-artboard exists to make. `--cols` is ignored in element mode for that reason.
-
-### 4.1 dropdowns → `Interactive components` (1.1.24)
-
-Navbar dropdowns and 768/390 burgers generate onto the **`Interactive
-components`** frame (not a section on `A/6 · {page} · states`). After
-`write_html`, catch-at-write binds `var(--token)` for type, color, space,
-and radius — do not land raw px/hex and hope 1.4 finds it. Accordion /
-dropdown / burger still emit `width: 100%` / `height: fit-content` /
-`align-items: flex-start`, then token-pass those nodes in the same write.
-
-Then run the census gate:
-
-```sh
-node $SKILLS/url-to-paper/scripts/apply-theme-tokens.mjs \
-  --file-id $PAPER_FILE_ID --library design-library/library.json \
-  --json qa/token-pass.json --qa qa/token-pass-qa.json
-```
-
-`apply-theme-tokens.mjs` must exist (fail if missing). Every node on
-landers, A/6, Interactive components, and Design Library is
-`rebound` | `leftover` (with why) | `skip-image` | `skip-scribble`.
-`coverage.missing.length > 0` or an unlisted raw hex/px **fails**.
-Pitfall #76.
-
-### Hover-triggered dropdown navs
-
-Navbar hover-to-open menus are **not** a section on `A/6 · {page} · states`.
-They get their own FRAME named exactly **`Interactive components`**. FAQ
-stays on A/6 (`--allow-faq`). Do **not** hunt dropdowns on every site.
-
-**Opt-in.** `--allow-dropdown` (alias kind `navbar-dropdown`). Without the
-flag, `--kind dropdown` writes an empty manifest. With the flag, capture
-runs only when a real hover-to-open panel of links appears at the
-**desktop lander (1600)** — not A/6's historic 1440. A page-jump link is
-not a dropdown. A hamburger at 768 / 390 is **4.1-M** on **this same
-frame** — not a second board, not A/6. Do not invent a burger on desktop
-when the icon is absent. Spec board (Yearning orchard `6IW-0`) is
-2800×684, right of A/6; do not write that live file from this package.
-
-**One of a pattern.** Closed | open, two cards, same fidelity as FAQ
-collapsed | open: Slot + cards + inners are `width: 100%` /
-`max-width: 100%` / `height: fit-content`, `align-items: flex-start`
-(closed vs open differ in height — never center). Never size the Slot
-from `openH` / captured px. After `write_html`, force the capture root
-to `height: fit-content`. Strip source chevron `translate` / `rotate`
-leftovers. Red `#E11D2E` 36px badge with the section id.
-
-**Park.** Under `Ruler · desktop`, horizontal row, ≥100px below the
-lintel, after Design Library (slot 6 A/6, slot 7 Interactive components).
-Ignore this board when computing lander `rightEdge` (same exemption as
-Design Library / A/6 — not Source · home).
-
-```sh
-node $SKILLS/hover-reel/scripts/capture-site-component-states.mjs \
-  --pages-json source-site/pages.json --pages home \
-  --capture-dir capture --out source-site/components \
-  --allow-dropdown
-node $SKILLS/hover-reel/scripts/build-paper-states.mjs \
-  --dir source-site/components/home/dropdown --file "$PAPER_FILE_ID"
-# → artboard "Interactive components" (refuses --board "A/6 · …")
-```
-
-The detector reuses `capture-menu-states.mjs` / `dropdown-capture.mjs`:
-diff visible labels closed vs open, scoped ancestor, hover that sticks.
-`capture-menu-states.mjs` writes the same **closed | open** HTML pair
-(default `--width 1600`). `--out foo.json` still dumps JSON, plus HTML
-in `foo/`. It is no longer JSON-only.
-
-### 4.1-M — click hamburger on the same `Interactive components` frame (1.1.24)
-
-`capture-menu-states.mjs` is **hover-to-open at 1600** (`01 · navbar-dropdown`).
-A burger is a **click**. Paper `get_jsx` of a collapsed header is the
-**closed** icon only. Run `capture-hamburger-states.mjs` at **each**
-artboard width that paints the icon (typically **768 and 390** — the 768
-tree is what you see at 1099). Closed | open, same FAQ fidelity (width
-100%, flex-start, fit-content, strip transforms, red badge). Rows:
-
-| Width | Label |
-|---|---|
-| 1600 hover mega-menu | `01 · navbar-dropdown` |
-| 768 click | `02 · nav-mobile-768` |
-| 390 click | `03 · nav-mobile-390` |
-
-`--allow-dropdown` stays for hover mega-menus. Burgers run when the icon
-is visible at that width — do **not** invent a burger on desktop. Do
-**not** dump burgers onto A/6 or a second board. After `write_html`,
-**token-pass** (`apply-theme-tokens.mjs`) walks this frame the same way
-it walks landers + A/6. Specimens and imported roots use `var(--token)`,
-not raw `16px` / `#0A073B`. generate → token-pass. Pitfall #74.
-
-```sh
-node $SKILLS/hover-reel/scripts/capture-hamburger-states.mjs \
-  --url "$URL" --width 768 --height 1024 --kind nav-mobile-768 \
-  --out source-site/components/home/nav-mobile-768
-node $SKILLS/hover-reel/scripts/capture-hamburger-states.mjs \
-  --url "$URL" --width 390 --height 844 --kind nav-mobile-390 \
-  --out source-site/components/home/nav-mobile-390
-node $SKILLS/hover-reel/scripts/build-paper-states.mjs \
-  --dir source-site/components/home/nav-mobile-768 --file "$PAPER_FILE_ID"
-# → FRAME "Interactive components" + token-pass (refuses --board "A/6 · …")
-```
+### Phone burger overlay (C/3)
 
 Walk parents of the first appeared link to measure the overlay (position,
 fill, padding, gap, radius). **Do not freeze `box[2]` / capture width** —
@@ -686,7 +393,12 @@ retag the **42×42** hit box as `<button>` before JS. Implement in
 `rebuild/` (`js/nav-mobile.js`) for **every** matching header.
 Pitfalls #43 #44 #45 #74.
 
-## Output contract
+## Output contract (runner manifests)
+
+The extension bridge writes a per-folder `manifest.json` of `{ version, takes[] }`
+under `source-site/components/<page>/<kind>/`. The richer `states[]` shape below
+was written by the deleted state-capture runners; `validate-component-captures.mjs`
+and `phase_5_nav_audit.py` still read it when it exists.
 
 ```
 source-site/components/
@@ -698,8 +410,7 @@ source-site/components/
 │   ├── forms/ · faq/ · footer/   # FAQ → Interactive; footer → Source
 │   ├── dropdown/                 # 01 · navbar-dropdown → Interactive components
 │   └── <kind>/manifest.json
-├── contact/ · about/ · …         # same five-page contract shape
-└── capture-run.json              # page/kind commands and exit codes
+└── contact/ · about/ · …         # extra routes (explicit user request only)
 ```
 
 `manifest.json` per kind:
@@ -757,12 +468,10 @@ Mechanism vocabulary for notes: `css-transition`, `css-hover`, `css-animation`,
 
 ## Feeding Paper
 
-`build-paper-states.mjs` reads the HTML **off disk** and writes it through the
-Paper MCP, so a large payload never passes through the agent's context.
-Catch-at-write binds `var(--token)` for type, color, space, and radius
-before `write_html`. Accordion / dropdown / burger stay `width: 100%` /
-`height: fit-content` / `align-items: flex-start`, then those nodes are
-token-passed in the same write. `apply-theme-tokens.mjs` must exist.
+The bridge (`capture-extension/bridge/host.mjs`) and `park-capture-boards.mjs`
+read the HTML **off disk** and write it through the Paper MCP, so a large
+payload never passes through the agent's context. Token-pass the written nodes
+with `apply-theme-tokens.mjs`.
 
 Four things the serializer output needs before Paper renders it correctly, all
 handled by `trim-styles.mjs`:
@@ -842,7 +551,7 @@ is often the Slot or ancestor (Pitfall #33, sibling of #30). Ignore
 link, not the design. Same CTA label in two Stage P sections is two recipes;
 do not emit one global `a[data-component=BtnDark]:hover`.
 
-Walk each `manifest.json` and implement every `changed: true` state in the
+Walk each take folder (and any `manifest.json` with `states[]`) and implement every `changed: true` state in the
 rebuild, using the measured values verbatim. Record the outcome per row in
 `qa/animation-parity.md`:
 

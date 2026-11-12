@@ -44,8 +44,6 @@ need_file "$(pkg web2html)/scripts/paper_23_validate.py"
 need_file "$(pkg web2html)/scripts/paper_23_side_by_side.py"
 need_file "$(pkg compare)/SKILL.md"
 need_file "$(pkg web2html)/references/section-23-paper-loop.md"
-need_file "$(pkg web2html)/scripts/promote-bg-fills-to-img.py"
-need_file "$(pkg web2html)/scripts/bg_fills.py"
 need_file "$(pkg web2html)/scripts/paper_layer_names.py"
 # 3.3 semantics_pass.py imports these three at module scope — deleting them
 # silently breaks the whole step (regression caught in 2.10.0).
@@ -64,11 +62,8 @@ need_file "$(pkg web2html)/scripts/section_promote.py"
 need_file "$(pkg web2html)/scripts/inject-qa-overlay.py"
 need_file "$(pkg web2html)/templates/qa-overlay.css"
 need_file "$(pkg web2html)/templates/qa-overlay.js"
-need_file "$(pkg web2html)/scripts/section-diff-loop.py"
 need_file "$(pkg web2html)/scripts/agent_loop.py"
 need_file "$(pkg web2html)/scripts/agent_findings_schema.json"
-need_file "$(pkg web2html)/scripts/run_component_qa_wave.py"
-need_file "$(pkg web2html)/scripts/run_responsive_review_wave.py"
 need_file "$(pkg web2html)/scripts/rebuild_write_gate.py"
 need_file "$(pkg web2html)/scripts/scrape-web.sh"
 need_file "$(pkg web2html)/scripts/scrape_light.py"
@@ -110,7 +105,6 @@ need_file "$(pkg apple-design)/SKILL.md"
 need_file "$(pkg web-design-guidelines)/SKILL.md"
 
 need_file "$(pkg hover-reel)/SKILL.md"
-need_file "$(pkg hover-reel)/scripts/visible-cursor.mjs"
 need_file "$(pkg hover-reel)/scripts/skill-paths.mjs"
 need_file "$(pkg hover-reel)/scripts/build-capture-extension.mjs"
 need_file "$(pkg hover-reel)/capture-extension/manifest.json"
@@ -132,12 +126,10 @@ need_file "$(pkg url-to-paper)/scripts/pre-pesticide.js"
 need_file "$(pkg url-to-paper)/scripts/pre-pesticide.mjs"
 need_file "$(pkg url-to-paper)/scripts/pre-pesticide-core.mjs"
 need_file "$(pkg url-to-paper)/scripts/source-sections.mjs"
-need_file "$(pkg url-to-paper)/scripts/capture-source-sections.mjs"
 need_file "$(pkg url-to-paper)/scripts/seed-source-board.mjs"
 need_file "$(pkg url-to-paper)/scripts/review-sequence.mjs"
 need_file "$(pkg url-to-paper)/scripts/apply-review-sequence.mjs"
 need_file "$(pkg url-to-paper)/scripts/detect-sections.js"
-need_file "$(pkg url-to-paper)/scripts/experiment-capture-home.mjs"
 need_file "$(pkg url-to-paper)/scripts/layer-ids-census.mjs"
 need_file "$(pkg url-to-paper)/scripts/chrome-bars.mjs"
 need_file "$(pkg url-to-paper)/scripts/breakpoint-shot-qa.mjs"
@@ -163,7 +155,6 @@ need_file "$(pkg web2html)/references/nav-dropdown.md"
 need_file "$(pkg url-to-paper)/scripts/emit-design-system.mjs"
 need_file "$(pkg url-to-paper)/scripts/create-paper-file.mjs"
 need_file "$(pkg url-to-paper)/scripts/assemble-lander.mjs"
-need_file "$(pkg url-to-paper)/scripts/import-sections.mjs"
 need_file "$(pkg url-to-paper)/scripts/stretch-root.mjs"
 need_file "$(pkg url-to-paper)/scripts/run-geometry-postflight.mjs"
 need_file "$(pkg url-to-paper)/scripts/arrange-artboards.mjs"
@@ -184,7 +175,6 @@ need_file "$(pkg url-to-paper)/scripts/fix-overlay-paint-order.mjs"
 need_file "$(pkg url-to-paper)/scripts/qa-paper.mjs"
 need_file "$(pkg url-to-paper)/scripts/missing-elements-lib.mjs"
 need_file "$(pkg url-to-paper)/scripts/missing-elements-qa.mjs"
-need_file "$(pkg url-to-paper)/scripts/apply-missing-elements-fix.mjs"
 need_file "$(pkg url-to-paper)/scripts/run-missing-elements.mjs"
 need_file "$(pkg url-to-paper)/references/missing-elements-playbook.md"
 need_file "$(pkg url-to-paper)/scripts/merge-split-headings.mjs"
@@ -205,17 +195,8 @@ need_file "$(pkg hover-reel)/scripts/run-paper-phase.mjs"
 need_file "$(pkg url-to-paper)/scripts/park-nav.mjs"
 need_file "$(pkg url-to-paper)/scripts/paper-walk.mjs"
 need_file "$(pkg url-to-paper)/scripts/write-paper-section.mjs"
-need_file "$(pkg hover-reel)/scripts/source-semantics.mjs"
-need_file "$(pkg hover-reel)/scripts/apply-source-semantics.mjs"
 need_file "$(pkg hover-reel)/scripts/prepare-state-html.mjs"
-need_file "$(pkg hover-reel)/scripts/dropdown-capture.mjs"
-need_file "$(pkg hover-reel)/scripts/write-dropdown-pair.mjs"
 need_file "$(pkg hover-reel)/scripts/park-capture-boards.mjs"
-need_file "$(pkg hover-reel)/scripts/park-source-hover.mjs"
-need_file "$(pkg hover-reel)/scripts/hamburger-capture.mjs"
-need_file "$(pkg hover-reel)/scripts/capture-hamburger-states.mjs"
-need_file "$(pkg hover-reel)/scripts/capture-menu-states.mjs"
-need_file "$(pkg hover-reel)/scripts/build-paper-states.mjs"
 need_file "$(pkg url-to-paper)/scripts/apply-theme-tokens.mjs"
 need_file "$(pkg url-to-paper)/scripts/token-pass-targets.mjs"
 
@@ -239,13 +220,11 @@ if grep -q 'frame-to-html' "$(pkg design-tokens)/SKILL.md" 2>/dev/null; then
 fi
 
 # No machine-specific paths may ship. A skill that hardcodes one breaks the
-# moment the checkout moves or someone else installs it. goflow is machine-local
-# by design (private skill, never in the numbered public packages).
+# moment the checkout moves or someone else installs it.
 leaks=$(grep -rIn   --exclude-dir=.git --exclude=.git --exclude-dir=node_modules \
   --exclude-dir=.venv --exclude-dir=.context --exclude-dir=.impeccable \
   --exclude-dir=.conductor --exclude-dir=archive \
   --exclude-dir=.claude --exclude-dir=.terminalgraph --exclude-dir=.hermes \
-  --exclude-dir=goflow \
   --exclude="check-skill-artifacts.sh" \
   -e '/Users/' -e 'conductor/repos' -e '\.agents/skills/' \
   "$SKILLS_ROOT" 2>/dev/null || true)

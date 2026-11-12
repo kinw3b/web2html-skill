@@ -28,24 +28,6 @@ capture through `tail`) are fixed inside `capture-session.mjs` itself; if a
 run still looks stuck past ~20s of silence, kill the PID and rerun with live
 logs rather than waiting (Pitfall #112).
 
-### `website-to-html/scripts/capture-build.py`
-
-Mangles the URL (collapses `//`, then reports `index.html not found`). Use a local
-Python Playwright shot script instead — see `qa/shot.py` in any completed project
-for a working one. Note the pipeline no longer uses a server at all: pass an
-absolute `file://…/rebuild/index.html` path.
-
-### `website-to-html/scripts/section-diff-loop.py`
-
-Pairs build blocks to source screenshots **in document order**. If the build has
-a `<header>` as its first block and the scrape's `section-01.png` is the Hero,
-every pair is shifted by one. Always pass explicit pairs:
-
-```sh
-python3 .../section-diff-loop.py "file://$PWD/rebuild/index.html" source-site/screenshots qa/diffs \
-  --pair best-food-for:1 --pair browse-our-menu:2 ...
-```
-
 ---
 
 ## Context discipline (this is what actually blows the budget)

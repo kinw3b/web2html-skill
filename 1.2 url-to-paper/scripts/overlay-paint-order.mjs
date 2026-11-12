@@ -13,7 +13,7 @@
 //   reorderOverlayPaintOrder(html)
 //   findOverlayPaintOrderIssues(nodes, { artboard })
 //
-// Catch-at-write: assemble-lander / import-sections call
+// Catch-at-write: assemble-lander calls
 // reorderOverlayPaintOrder after flatten+trim, before write_html.
 // Already-written landers: fix-overlay-paint-order.mjs (supports an optional blocklist).
 

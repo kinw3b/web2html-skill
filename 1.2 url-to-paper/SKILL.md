@@ -1,7 +1,7 @@
 ---
 name: url-to-paper
-description: Pull any live URL (or one section of it) into Paper (paper.design) as real editable layers — not a screenshot. Renders the page in headless Chromium, serializes the settled DOM to inline-styled HTML using the serializer lifted from the Paper Snapshot extension, then writes it into the open Paper file via the Paper MCP `write_html`. Triggers: "pull <url> into paper", "url to paper", "import site into paper", "snapshot this page into paper", "add this section to my paper file".
-version: 1.2.88
+description: "Pull any live URL (or one section of it) into Paper (paper.design) as real editable layers — not a screenshot. Renders the page in headless Chromium, serializes the settled DOM to inline-styled HTML using the serializer lifted from the Paper Snapshot extension, then writes it into the open Paper file via the Paper MCP `write_html`. Triggers: 'pull <url> into paper', 'url to paper', 'import site into paper', 'snapshot this page into paper', 'add this section to my paper file'."
+version: 1.2.89
 author: Hermes Agent
 license: MIT
 platforms: [macos, linux]
@@ -103,7 +103,7 @@ band, not a generated path id.
 
 Downstream: `design-library/` feeds **1.3** tokens (signed at **1.4**) and **2.2** bind.
 
-**Pre-pesticide (1.2.29) + per-section SOURCE shots (1.2.82).** Before `experiment-capture-home.mjs` / `assemble-lander.mjs`, run the live overlay on `/` (homepage only by default). It is the smart sibling of rebuild `qa-overlay` (end-of-build Pesticide outlines): pre = live DOM contract; post = rebuild outlines. HUD root is `x-paper-prepesticide` so the serializer skips it. Writes `pre-pesticide.json` (sections / images / forms / landmarks) so 1.2 can diff “live had N imgs in a named section, Paper has 0”. Pitfall #70. At **1600 / 768 / 390** the same session clips each detected section **with pesticide outlines on** into `capture/home-{desktop,768,390}/source-sections/01-hero.png` + `01-hero.json` (same `section-ids.mjs` ids; files stay `NN-slug` at every width). `seed-source-board.mjs` stacks the **1600** rows on one `Screenshots` review board under `Ruler · desktop`: **no Headings/title row** (the artboard name already reads Screenshots, so `01` is the first child), each `NN · slug` as a **red section-number** + **1px solid** 1600 shot. Clips are taken with `scale: "css"` and every row is capped at `SOURCE_SHOT_MAX_WIDTH` **1600** (downscale only, ratio kept), so the board lands ~1744 wide next to `home-desktop` — visible Chrome on a Retina Mac ignores `deviceScaleFactor: 1` and would otherwise write 3200px clips and a 3344-wide board. Pitfall #119. **No Hover States column, no grey well, no red divider.** Hover pairs stack on FRAME `Hover States`. Board and rows are `height: fit-content` / `overflow: visible` (board gap 16 / row gap 16 / pad 24). **Never** a single full-page source shot. **No 768/390 source boards on Paper** — those clips stay on disk. Destroy the HUD before any serializer write. Pitfall #65. This is **not** the P-0 canvas ruler.
+**Pre-pesticide (1.2.29) + per-section SOURCE shots (1.2.82).** Before the 1.2 collect (`capture-session.mjs`) / `assemble-lander.mjs`, run the live overlay on `/` (homepage only by default). It is the smart sibling of rebuild `qa-overlay` (end-of-build Pesticide outlines): pre = live DOM contract; post = rebuild outlines. HUD root is `x-paper-prepesticide` so the serializer skips it. Writes `pre-pesticide.json` (sections / images / forms / landmarks) so 1.2 can diff “live had N imgs in a named section, Paper has 0”. Pitfall #70. At **1600 / 768 / 390** the same session clips each detected section **with pesticide outlines on** into `capture/home-{desktop,768,390}/source-sections/01-hero.png` + `01-hero.json` (same `section-ids.mjs` ids; files stay `NN-slug` at every width). `seed-source-board.mjs` stacks the **1600** rows on one `Screenshots` review board under `Ruler · desktop`: **no Headings/title row** (the artboard name already reads Screenshots, so `01` is the first child), each `NN · slug` as a **red section-number** + **1px solid** 1600 shot. Clips are taken with `scale: "css"` and every row is capped at `SOURCE_SHOT_MAX_WIDTH` **1600** (downscale only, ratio kept), so the board lands ~1744 wide next to `home-desktop` — visible Chrome on a Retina Mac ignores `deviceScaleFactor: 1` and would otherwise write 3200px clips and a 3344-wide board. Pitfall #119. **No Hover States column, no grey well, no red divider.** Hover pairs stack on FRAME `Hover States`. Board and rows are `height: fit-content` / `overflow: visible` (board gap 16 / row gap 16 / pad 24). **Never** a single full-page source shot. **No 768/390 source boards on Paper** — those clips stay on disk. Destroy the HUD before any serializer write. Pitfall #65. This is **not** the P-0 canvas ruler.
 
 **Review sequence (1.2.64).** After the shots exist, number Paper
 `01, 02, 03…` for the **content** bands — not capture-time chrome.
@@ -136,7 +136,7 @@ under that bar, left to right:
 7. `Navigation` (serializer chrome parks here during collect — all three widths)
 
 Do **not** seed `1.3 hover pairs · {page} · states`. Draw the ruler **before** any page or source shot.
-`assemble-lander.mjs` / `import-sections.mjs` do this.
+`assemble-lander.mjs` does this.
 On an empty file: `node scripts/draw-rulers.mjs --file $PAPER_FILE_ID --init`.
 That `--init` creates the ruler only. Content hangs **≥100px below** the
 line. The lintel is **20000px** wide so later pages and review frames
@@ -694,7 +694,7 @@ This is not a substitute for 768/390 captures.
 menu as `<header><header><nav>`. Detecting every `header`/`nav` and stacking
 them in Paper produces 2–3 identical navbars and a short 1224px content
 band. `detect-sections.js` keeps the **outermost** chrome only.
-`import-sections.mjs` drops descendant chrome (`header-2`, inner `nav`)
+`assemble-lander.mjs` drops descendant chrome (`header-2`, inner `nav`)
 and sets each written section to `width: 100%`. First content Y must
 match capture `top` (source gap, not height-sum). `qa-paper` fails
 `nested-chrome` and `narrow-section`.
@@ -721,7 +721,7 @@ PAPER_FILE_ID=$PAPER_FILE_ID node scripts/merge-split-headings.mjs --artboard <i
 Then re-run `qa-paper` — merged titles must not report `split-heading`.
 
 **Import flatten (HARD GATE, 1.2.18) + phantom-border trim (1.2.27).**
-`import-sections.mjs` and `assemble-lander.mjs` run `flattenDecorativeAbs`
+`assemble-lander.mjs` runs `flattenDecorativeAbs`
 then `trimPaperStyles` after image localize and before `write_html`. That
 is the clean QA pass — Paper never receives the Rectangle or the source page's
 invisible link outlines. Repair an already-imported file with
@@ -782,7 +782,7 @@ All three fail *silently* — the call succeeds and nothing happens.
 ## 1.2 capture is headless, not "visible section-by-section"
 
 The visible-Chrome, per-section flow this section used to document
-(`capture-sections.mjs` → `import-sections.mjs` → `getshot.mjs`) is retired
+(`capture-sections.mjs` → `import-sections.mjs` → `getshot.mjs`, all deleted) is retired
 along with those scripts. Orchestrator 1.2 is `hover-reel/scripts/capture-session.mjs`
 — headless, one hidden Chrome, desktop assemble + 768/390 screenshots + serializer
 chrome + postflight. See `AGENTS.md` and the 1.0 `SKILL.md` §1.2 for the current spec.
@@ -830,10 +830,6 @@ the **page** artboard. It does not read the JPEG.
 If nav/menu is in the PNG but not in Paper layers, rebuild chrome from the
 **disk PNG + live site**. Log `qa/capture-interventions.md`.
 
-**Opt-in:** `import-sections.mjs … --screenshots-only` embeds `fullpage-paper.jpg`
-on a sibling artboard. Pin explicit width/height (never `height:auto`). Pair
-with `arrange-artboards.mjs`. A missing sibling is not an A/5 fail.
-
 After import, run `scripts/qa-paper.mjs` on the **homepage artboard only**.
 Height Fit is not a waiver if a photo or dashboard is sheared (Pitfall #55).
 Misplaced/overlapping/clipped sections **fail** — do not start 2.1.
@@ -855,7 +851,7 @@ Overnight source homepage import experiment, plus a lander failure
 **homepage-only / lander**, or when doing one-page section QA:
 
 1. **Pre-pesticide on the live homepage (1.2.29) + SOURCE clips (1.2.30).** Before any
-   `experiment-capture-home.mjs` / `assemble-lander.mjs` write:
+   the 1.2 collect (`capture-session.mjs`) and `assemble-lander.mjs` write:
    ```bash
    node scripts/pre-pesticide.mjs --url "<url>" --width 1600 \
      --out capture/home-desktop/pre-pesticide.json
@@ -904,7 +900,7 @@ Overnight source homepage import experiment, plus a lander failure
    `Source · {page}` first, then the lander. No earlier command may create,
    seed, mine, or render Design Library.
    ```bash
-   node scripts/experiment-capture-home.mjs --url "<url>" --out-dir capture/home-desktop --width 1600
+   # capture/home-desktop/ is written by the 1.2 collect (hover-reel `capture-session.mjs`)
    PAPER_FILE_ID=<project-file-id> node scripts/assemble-lander.mjs \
      --manifest capture/home-desktop/manifest.json \
      --name "home-desktop" --width 1600
@@ -983,7 +979,7 @@ is `x-paper-prepesticide` (tag + id).
 
 **Never fire `write_html` calls back to back.** Paper fetches every remote image
 while parsing. Ten rapid writes outrun that fetcher and images land as broken
-placeholders — *silently*, with all calls reporting success. `import-sections.mjs`
+placeholders — *silently*, with all calls reporting success. `assemble-lander.mjs`
 paces writes (`--pace`, default 2500ms, plus 250ms per image in the section).
 Verified: identical HTML that failed inside a 10-write burst imported perfectly
 when written alone; with pacing, 27/27 images landed.
@@ -1093,7 +1089,7 @@ before capture. Absolute/fixed overlays stay dropped.
 **Images must be local before Paper write.** The serializer still emits
 `<img src="https://…">` and CSS data-URI wordmarks as
 `background-image: url('data:image/svg+xml…')`. `assemble-lander.mjs` (every `writeLayer`, including `--prepend`) /
-`import-sections.mjs` run `localize-html-images.mjs`: remote URLs become
+run `localize-html-images.mjs`: remote URLs become
 `paper-asset:///abs/path`, and empty data-URI boxes (footer logo) become
 an inline SVG or `<img>`. Repair with `repair-paper-images.mjs`. Remote
 CDN writes and CSS data-URI fills both go blank while the write still
@@ -1222,7 +1218,7 @@ CRITICAL — gold is image → dim overlay → type last. After `write_html`, `m
 
 Serializer emits absolute full-bleed overlays AFTER in-flow content. Gold on every breakpoint is image → overlay (abs 100%, dim) → type last. Clone-on-top is for covered *content* (CTA forms), not for burying the headline.
 
-Catch-at-write: `reorderOverlayPaintOrder` in `assemble-lander` / `import-sections` after flatten+trim, before `write_html`. `qa-paper` flags leftovers as `overlay-covers-type`. Repair already-written landers with `fix-overlay-paint-order.mjs` (`--dry-run`; `--apply` on the current file). Do not merge with overlay-nav (#87), fixed-nav stack (#97), or opacity-0 settle (#85 / `settle-page.mjs`).
+Catch-at-write: `reorderOverlayPaintOrder` in `assemble-lander` after flatten+trim, before `write_html`. `qa-paper` flags leftovers as `overlay-covers-type`. Repair already-written landers with `fix-overlay-paint-order.mjs` (`--dry-run`; `--apply` on the current file). Do not merge with overlay-nav (#87), fixed-nav stack (#97), or opacity-0 settle (#85 / `settle-page.mjs`).
 
 **Pitfall #88 · Paper fontFamily token is a CSS stack.** `create_tokens`
 must not send `"Face", system-ui, sans-serif`. Paper font variables are not CSS
@@ -1271,7 +1267,7 @@ Then the **user** presses Cmd+V in Paper. Do not try to send the keystroke —
 
 ## Provenance
 
-`scripts/serializer.js` is Paper Snapshot **v0.4.4** (`lidfahaahiogmnlccifabccgplofocck`),
+`scripts/serializer.js` is Paper Snapshot **v0.4.13** (`lidfahaahiogmnlccifabccgplofocck`),
 ported from Paper-Bridge `content/paper-snapshot.js` @ `fda64f2` (0.3.8 base)
 plus the 0.3.12 upstream deltas (throttled frame yield, positioned-element
 baseline resets, canvas/video PNG rasterization, in-page reduced-motion
@@ -1280,7 +1276,14 @@ emulation, `::before`/`::after` `content: url()` images) and the 0.4.4 deltas
 emit as `<span>` with `paper-snapshot-original-tag`; percentage `<img>`
 sizes pinned to px when the parent shrink-wraps them; `appearance: none`
 checkbox/radio with pseudo children emit as `<div>`; a thrown walk returns
-`{ status: "error" }`). 1.2 keeps its
+`{ status: "error" }`) and the 0.4.10 deltas (the default-style probe lives
+in a shadow root under `<x-paper-style-reference>` so page CSS cannot skew
+it; `text-align: initial` only on the root probe; `<input>`/`<textarea>`/
+`<select>` pin their used width/height; an empty `colspan > 1` cell pads its
+row with `display: table-cell` siblings; Elementor `.elementor-invisible` is
+lifted during capture and restored after) and the 0.4.13 delta (an `<svg>`
+root whose computed `overflow-x`/`overflow-y` is `visible` emits it
+explicitly so Paper does not clip spill past the viewBox). 1.2 keeps its
 SVG `<use>` fragment ids, shadow-root lookup, HTML host promotion,
 `checkVisibility` fallbacks, and layer-name / sidecar / dryRun adaptations
 on top. See `references/paper-snapshot-architecture.md`.

@@ -40,7 +40,7 @@ Type scale stays Tailwind `--text-xs` … `--text-12xl`. No `--text-display`.
 After `create_tokens` and after `write_html` of library or landers:
 
 1. Catch-at-write: `bindInlinePaperFonts` in
-   `assemble-lander` / `import-sections` collapses stacks to the first
+   `assemble-lander` collapses stacks to the first
    named catalog face.
 2. Token-pass: `themeTokenPass` / `bind-paper-fonts.mjs` maps empty,
    System Sans-Serif, `system-ui`, `sans-serif` / `serif` / `monospace`,

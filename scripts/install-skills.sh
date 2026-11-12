@@ -31,6 +31,8 @@ linked=0
 skipped=0
 for dir in "$ROOT"/*/; do
   base="$(basename "$dir")"
+  # External skill bridges are not owned or installed by this repository.
+  [[ -L "${dir%/}" ]] && continue
   # Parked trees are not installed. Move archive/ out of the repo to split later.
   [[ "$base" == "archive" ]] && continue
   [[ -f "$dir/SKILL.md" ]] || continue

@@ -11,7 +11,7 @@
 //
 // Real strokes (`border: 1px solid #090C1C`) are kept.
 //
-// Stage P (`assemble-lander` / `import-sections`) must run this before every
+// Stage P (`assemble-lander`) must run this before every
 // write_html. Hover-reel `trim()` applies the same rules plus line-height /
 // transform-origin fixes.
 

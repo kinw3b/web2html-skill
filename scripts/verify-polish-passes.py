@@ -85,6 +85,20 @@ def fail(msg: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("root", type=Path)
+    ap.add_argument(
+        "--gsap-rc",
+        type=int,
+        default=None,
+        help="exit code of verify-gsap-reveal.py the caller already ran on this "
+        "root (open-human-review.py); skips the duplicate run, same failure message",
+    )
+    ap.add_argument(
+        "--semantics-rc",
+        type=int,
+        default=None,
+        help="exit code of verify-semantics.py the caller already ran on "
+        "rebuild/index.html; skips the duplicate run, same failure message",
+    )
     args = ap.parse_args(argv)
     root = args.root.resolve()
     folder = root / "qa" / "polish-passes"
@@ -184,7 +198,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if polish.is_file():
         verify = Path(__file__).resolve().parent / "verify-gsap-reveal.py"
-        rc = subprocess.call([sys.executable, str(verify), str(root)])
+        if args.gsap_rc is not None:
+            rc = args.gsap_rc
+        else:
+            rc = subprocess.call([sys.executable, str(verify), str(root)])
         if rc != 0:
             fail(
                 "GSAP in-view is mandatory at 3.2. Run "
@@ -367,7 +384,10 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 errors += 1
         sem = Path(__file__).resolve().parent / "verify-semantics.py"
-        rc = subprocess.call([sys.executable, str(sem), str(polish)])
+        if args.semantics_rc is not None:
+            rc = args.semantics_rc
+        else:
+            rc = subprocess.call([sys.executable, str(sem), str(polish)])
         if rc != 0:
             fail(
                 "semantics contract failed — run semantics_pass.py (3.3) "

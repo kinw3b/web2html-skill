@@ -128,6 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     rc = subprocess.call(
         [sys.executable, str(_SCRIPTS / "verify-gsap-reveal.py"), str(root)]
     )
+    gsap_rc = rc
     if rc != 0 and not args.requested:
         print(
             "FAIL: GSAP in-view is not on the ship. "
@@ -145,20 +146,9 @@ def main(argv: list[str] | None = None) -> int:
         print("GSAP in-view → rebuild/index.html  do not inject by hand")
 
     rc = subprocess.call(
-        [sys.executable, str(_SCRIPTS / "verify-polish-passes.py"), str(root)]
-    )
-    if rc != 0 and not args.requested:
-        return rc
-    if rc != 0:
-        print(
-            "WARN: quality gate red (polish / semantics / fidelity / type) — "
-            "requested advance, not a stop. Opening the review anyway. Pitfall #235.",
-            file=sys.stderr,
-        )
-
-    rc = subprocess.call(
         [sys.executable, str(_SCRIPTS / "verify-semantics.py"), str(ship)]
     )
+    semantics_rc = rc
     if rc != 0 and not args.requested:
         print(
             "FAIL: semantics gate (3.4). Run semantics_pass.py (3.3) on "
@@ -166,10 +156,26 @@ def main(argv: list[str] | None = None) -> int:
             "See references/semantics-pass.md.",
             file=sys.stderr,
         )
-        return rc
-    if rc != 0:
+        # Not returned yet: the polish gate below still reports its own failures
+        # first, as before; the semantics rc is returned after it.
+    elif rc != 0:
         print(
             "WARN: semantics gate red — requested advance, not a stop. Pitfall #235.",
+            file=sys.stderr,
+        )
+
+    rc = subprocess.call(
+        [sys.executable, str(_SCRIPTS / "verify-polish-passes.py"), str(root),
+         "--gsap-rc", str(gsap_rc), "--semantics-rc", str(semantics_rc)]
+    )
+    if rc != 0 and not args.requested:
+        return rc
+    if semantics_rc != 0 and not args.requested:
+        return semantics_rc
+    if rc != 0:
+        print(
+            "WARN: quality gate red (polish / semantics / fidelity / type) — "
+            "requested advance, not a stop. Opening the review anyway. Pitfall #235.",
             file=sys.stderr,
         )
 

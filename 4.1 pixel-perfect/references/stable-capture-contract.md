@@ -17,7 +17,7 @@ Never label a screenshot from the requested scroll target alone. Capture is vali
 
 - Full-page captures that repeat, freeze, smear, or shift content are discarded; use viewport or element clips instead.
 - A nearby viewport size is not evidence for a target viewport — match sizes exactly.
-- Scripts: `scrape-web.sh` Phase 3 and `section-diff-loop.py` implement this contract and write `verified` + `stable_capture: true` into manifests.
+- Capture scripts that implement this contract write `verified` + `stable_capture: true` into manifests.
 
 ## Freeze interventions (mandatory when stability fails)
 

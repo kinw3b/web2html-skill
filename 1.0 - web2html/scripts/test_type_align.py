@@ -26,16 +26,6 @@ from type_align import (
     write_census,
 )
 
-import importlib.util
-
-_cspec = importlib.util.spec_from_file_location(
-    "census_type_align_cli", _SCRIPTS / "census-type-align.py"
-)
-_census_cli = importlib.util.module_from_spec(_cspec)
-assert _cspec.loader
-_cspec.loader.exec_module(_census_cli)
-
-
 def _page(*sections: str) -> str:
     return (
         '<!DOCTYPE html><html lang="en"><body>'
@@ -124,34 +114,6 @@ class CensusGoldTest(unittest.TestCase):
             self.assertNotIn("#mission-heading", rows_blob)
             self.assertNotIn("fontFace", rows_blob)
             self.assertTrue(any("baked font" in r for r in payload["refused"]))
-
-    def test_census_cli_prefers_lock(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            lock_dir = root / "qa" / "fixtures"
-            lock_dir.mkdir(parents=True)
-            ship_dir = root / "rebuild"
-            ship_dir.mkdir()
-            lock = lock_dir / "geometry-lock-home.html"
-            lock.write_text(
-                _page(
-                    '<section><h1 class="text-5xl text-center">Lock title</h1></section>'
-                ),
-                encoding="utf-8",
-            )
-            (ship_dir / "index.html").write_text(
-                _page('<section><h1 class="text-5xl">Ship title</h1></section>'),
-                encoding="utf-8",
-            )
-            qa = root / "qa" / "type-align-census.json"
-            rc = _census_cli.main(
-                ["--root", str(root), "--html", str(ship_dir / "index.html"), "--qa", str(qa)]
-            )
-            self.assertEqual(rc, 0)
-            payload = json.loads(qa.read_text(encoding="utf-8"))
-            texts = [r["text"] for r in payload["rows"]]
-            self.assertIn("Lock title", texts)
-            self.assertNotIn("Ship title", texts)
 
 
 class VerifyLogicTest(unittest.TestCase):

@@ -292,6 +292,57 @@ class PolishReviewTest(unittest.TestCase):
             )
             self.assertEqual(rc, 2)
 
+    def test_open_human_review_runs_each_verify_once(self) -> None:
+        import importlib.util
+        from unittest import mock
+
+        spec = importlib.util.spec_from_file_location(
+            "open_human_review", _SCRIPTS / "open-human-review.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _project(root)
+            seen: list[list[str]] = []
+            real = subprocess.call
+
+            def spy(cmd, *a, **kw):
+                seen.append([Path(cmd[1]).name] + [str(x) for x in cmd[2:]])
+                return real(cmd, *a, **kw)
+
+            with mock.patch.object(mod.subprocess, "call", spy):
+                rc = mod.main([str(root), "--no-open"])
+            self.assertEqual(rc, 0)
+            names = [c[0] for c in seen]
+            self.assertEqual(names.count("verify-gsap-reveal.py"), 1)
+            self.assertEqual(names.count("verify-semantics.py"), 1)
+            self.assertEqual(names.count("verify-polish-passes.py"), 1)
+            polish = next(c for c in seen if c[0] == "verify-polish-passes.py")
+            self.assertIn("--gsap-rc", polish)
+            self.assertIn("--semantics-rc", polish)
+
+    def test_polish_passes_reuses_callers_verify_results(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _project(root)
+            subprocess.check_call(
+                [sys.executable, str(_SCRIPTS / "render-polish-report.py"), str(root)]
+            )
+            subprocess.check_call(
+                [sys.executable, str(_SCRIPTS / "open-human-review.py"), str(root), "--no-open"]
+            )
+            gate = [sys.executable, str(_SCRIPTS / "verify-polish-passes.py"), str(root)]
+            self.assertEqual(subprocess.call(gate), 0)
+            # a red result handed in by the caller still fails the gate with its message
+            for flag in ("--gsap-rc", "--semantics-rc"):
+                out = subprocess.run(gate + [flag, "1"], capture_output=True, text=True)
+                self.assertEqual(out.returncode, 2, flag)
+            out = subprocess.run(gate + ["--gsap-rc", "1"], capture_output=True, text=True)
+            self.assertIn("GSAP in-view is mandatory at 3.2", out.stderr)
+            out = subprocess.run(gate + ["--semantics-rc", "1"], capture_output=True, text=True)
+            self.assertIn("semantics contract failed", out.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

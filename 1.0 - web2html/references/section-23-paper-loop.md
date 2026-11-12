@@ -450,7 +450,6 @@ round was shot). Pitfall #216 #221.
 - Any Paper MCP call from a 2.3 worker, including `get_guide`
 - More than one pixel-perfect pass on a section
 - Workers writing `rebuild/`
-- 3.x `section-diff-loop.py` vs `source-site/screenshots/` (live PNG, after 2.4)
 - 3.x polish (`impeccable` / taste). Do not reload `/pixel-perfect` after 2.4.
 - Opening TAGS (that is 2.4)
 - A mega-pass that restyles tokens globally

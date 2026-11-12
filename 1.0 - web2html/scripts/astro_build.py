@@ -8,6 +8,7 @@ starts `astro dev`; the human may run `npm run preview`.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 from pathlib import Path
@@ -237,21 +238,52 @@ def build(root: Path, *, timeout: int = 180) -> dict:
             fcntl.flock(lock, fcntl.LOCK_UN)
 
 
+DEPS_STAMP = ".w2h-deps-stamp"
+
+
+def deps_fingerprint(astro: Path) -> str:
+    """Hash of package.json + the lockfile(s): what `npm install` resolves from."""
+    digest = hashlib.sha256()
+    for name in ("package.json", "package-lock.json", "npm-shrinkwrap.json"):
+        path = astro / name
+        digest.update(name.encode() + b"\0")
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def deps_current(astro: Path) -> bool:
+    """True when node_modules exists and was installed from the current manifest."""
+    stamp = astro / "node_modules" / DEPS_STAMP
+    try:
+        return stamp.read_text(encoding="utf-8").strip() == deps_fingerprint(astro)
+    except OSError:
+        return False
+
+
+def write_deps_stamp(astro: Path) -> None:
+    modules = astro / "node_modules"
+    if modules.is_dir():
+        (modules / DEPS_STAMP).write_text(deps_fingerprint(astro), encoding="utf-8")
+
+
 def _build_locked(root: Path, astro: Path, timeout: int) -> dict:
     stamp_components(astro)
     log = ""
     try:
-        install = subprocess.run(
-            ["npm", "install", "--no-fund", "--no-audit"],
-            cwd=astro,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-        log += (install.stdout or "") + (install.stderr or "")
-        if install.returncode != 0:
-            return {"built": False, "errors": ["npm install failed"], "log": log, "relativized": []}
+        if not deps_current(astro):
+            install = subprocess.run(
+                ["npm", "install", "--no-fund", "--no-audit"],
+                cwd=astro,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+            log += (install.stdout or "") + (install.stderr or "")
+            if install.returncode != 0:
+                return {"built": False, "errors": ["npm install failed"], "log": log, "relativized": []}
+            write_deps_stamp(astro)
         built = subprocess.run(
             ["npx", "--yes", "astro", "build"],
             cwd=astro,

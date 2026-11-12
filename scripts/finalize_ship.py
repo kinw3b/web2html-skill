@@ -11,8 +11,8 @@ a ship feature (Pitfall #234). Idempotent.
 Legacy bridge (2.34.0): a run started under the old three-file model may
 still carry rebuild/index-polish.html, index-semantic.html, or index-raw.html.
 finalize promotes the polish copy to index.html, moves the variants to
-rebuild/archive/, then strips the overlay — the same outcome the old
-promote_ship.py produced, so a resumed run cannot ship two entry points
+rebuild/archive/, then strips the overlay — the same outcome the retired
+ship-promote script produced, so a resumed run cannot ship two entry points
 (Pitfall #223). New runs never create those files; the write gate refuses
 them.
 

@@ -81,7 +81,7 @@ export const KINDS = {
     title: "Hoverable missing on Hover States",
     cause: "Buttons, text links, or footer links were captured (or live on the section) but FRAME Hover States has no matching take.",
     auto: "leave",
-    fix: "Re-run hover-reel build-paper-states for buttons and footer. Park Default | Hover on the Source row, not a new A/6 frame.",
+    fix: "Re-run hover-reel pull-desktop-specimens + author-button-hover for buttons and footer. Park Default | Hover on the Source row, not a new A/6 frame.",
   },
   "displaced-section": {
     severity: "P0",

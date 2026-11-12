@@ -1,4 +1,4 @@
-// Paper Snapshot 0.4.4 serializer deltas: valid-nesting scope, percentage
+// Paper Snapshot 0.4.4 serializer deltas (still in 0.4.13): valid-nesting scope, percentage
 // <img> pinning, and appearance:none checkbox/radio boxes.
 import test from "node:test";
 import assert from "node:assert/strict";

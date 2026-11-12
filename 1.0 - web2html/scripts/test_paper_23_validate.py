@@ -90,7 +90,16 @@ class ValidateWalkTest(unittest.TestCase):
             (root / "qa" / "paper-measure" / "disk-gold.json").write_text(json.dumps(gold))
             for folder in gate.SOURCE_DIRS:
                 (root / folder / "10-footer.png").write_bytes(gate.TINY_PNG)
-            shot, skipped = validate.shoot_open(root, capture=_fake_capture)
+            calls: list[list[str]] = []
+
+            def counting(root_: Path, ids: list[str], **kw: object) -> dict:
+                calls.append(list(ids))
+                return _fake_capture(root_, ids, **kw)
+
+            shot, skipped = validate.shoot_open(root, capture=counting)
+            # one capture (= one browser launch) for the whole round, not one per band
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(sorted(calls[0]), ["footer", "hero"])
             self.assertEqual(sorted(shot), ["footer", "hero"])
             self.assertEqual(skipped, [])
             again, skipped2 = validate.shoot_open(root, capture=_fake_capture)

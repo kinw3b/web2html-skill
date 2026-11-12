@@ -61,7 +61,6 @@ Gates and helpers. Paths are `$SKILLS/web2html/scripts/` unless noted.
 | `phase_5_nav_audit.py` | 5.4+ | Hidden-nav inventory per page (hover-reel `dropdown` / `nav-mobile-*` manifests, scrape submenus, painted triggers) checked against the BUILT pages + `Header.astro` → `qa/phase-5-nav.json`; `ok:true` only when every item is wired. Gate (5.4 done + 5.5) also requires an applied compare wave per slug (Pitfall #247 #248) |
 | `wire-astro-routes.py` / `interior_seo.py` | 5.5 | Refuses without a fresh ok `qa/phase-5-nav.json` covering every slug. Sitemap path / label → `/slug/`; `/` home; per-page scrape-only SEO into frontmatter; `astro build` → `qa/phase-5-links.json` |
 | `open-phase-5-review.py` | 5.6 | Writes `qa/phase-5-review.md` + the scorecard; opens built home + first interior on `file://` with `?qa-outlines=components` |
-| `watch_agent_ping.py` | 1.4 | Optional: wake into Paper sign-off after Capture Tool Done |
 
 Sibling packages (load the skill, then its scripts):
 

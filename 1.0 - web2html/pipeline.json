@@ -38,12 +38,12 @@
     {
       "path": "1.2 url-to-paper",
       "role": "capture",
-      "declaredSkillVersion": "1.2.88"
+      "declaredSkillVersion": "1.2.89"
     },
     {
       "path": "1.3 hover-reel",
       "role": "components",
-      "declaredSkillVersion": "1.1.110",
+      "declaredSkillVersion": "1.1.111",
       "note": "SKILL.md, package.json (1.2.15), and the extension manifest are legitimately different artifacts (Review R1); only the SKILL.md frontmatter is linted here."
     }
   ],

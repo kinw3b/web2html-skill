@@ -1,4 +1,4 @@
-// Paper Snapshot 0.4.4 (lidfahaahiogmnlccifabccgplofocck), ported from
+// Paper Snapshot 0.4.13 (lidfahaahiogmnlccifabccgplofocck), ported from
 // Paper-Bridge content/paper-snapshot.js @ fda64f2 (0.3.8 base) plus the
 // 0.3.12 upstream deltas: throttled frame yield, positioned-element baseline
 // resets, canvas/video PNG rasterization, in-page reduced-motion emulation,
@@ -6,7 +6,14 @@
 // scope (block tags inside <p>, nested <a>/<button> emit as <span>), <img>
 // percentage sizes pinned to px when the parent depends on them,
 // appearance:none checkbox/radio with pseudo kids emit as <div>, and a thrown
-// walk returns { status: "error" }. Keep the computed-style diff.
+// walk returns { status: "error" }. 0.4.10 deltas: the default-style probe
+// lives in a shadow root under <x-paper-style-reference> (all: inherit) so
+// page selectors cannot restyle it, text-align: initial only on the root
+// probe, input/textarea/select pin computed width/height, empty colspan>1
+// table cells pad with display:table-cell siblings, and Elementor
+// .elementor-invisible is lifted during capture. 0.4.13 delta: an <svg> root
+// with used overflow-x/overflow-y visible emits them explicitly. Keep the
+// computed-style diff.
 // 1.2-only layer-name / sidecar / dryRun / AbortController stay in fe().
 function svgHrefId(href) {
   const raw = String(href || "").trim();
@@ -519,6 +526,18 @@ async function fe(n, opts = {}) {
     }
     return null;
   }
+  // 0.4.10: Elementor parks entrance-animated widgets behind
+  // .elementor-invisible until they scroll in; lift it for the capture and
+  // put it back afterwards on anything that did not animate in meanwhile.
+  function liftElementorInvisible() {
+    const hidden = Array.from(document.querySelectorAll(".elementor-invisible"));
+    for (const el of hidden) el.classList.remove("elementor-invisible");
+    return () => {
+      for (const el of hidden)
+        el.classList.contains("animated") ||
+          el.classList.add("elementor-invisible");
+    };
+  }
   function $(e, { isRoot: t = !1, pseudo: o } = {}) {
     const r = {},
       g = new Map();
@@ -537,10 +556,17 @@ async function fe(n, opts = {}) {
         }
       }
     }
+    // 0.4.10: the probe <link> sits in an open shadow root of a hidden
+    // <x-paper-style-reference> host (all: inherit) so page selectors that
+    // match <link> or siblings cannot skew the baseline.
     const L = new Map(),
-      s = document.createElement("link");
+      host = document.createElement("x-paper-style-reference");
+    (host.style.setProperty("all", "inherit", "important"),
+      host.style.setProperty("display", "none", "important"));
+    const s = document.createElement("link");
     if (
-      ((s.textContent = e.textContent),
+      (host.attachShadow({ mode: "open" }).append(s),
+      (s.textContent = e.textContent),
       s.style.setProperty("background-color", "transparent", "important"),
       s.style.setProperty("border-color", "hotpink", "important"),
       s.style.setProperty("border-radius", "0", "important"),
@@ -566,17 +592,19 @@ async function fe(n, opts = {}) {
       s.style.setProperty("rotate", "none", "important"),
       s.style.setProperty("scale", "none", "important"),
       s.style.setProperty("padding", "0", "important"),
-      s.style.setProperty("text-align", "initial", "important"),
       s.style.setProperty("width", "auto", "important"),
       s.style.setProperty("z-index", "auto", "important"),
       t &&
         ((s.style.color = "hotpink"),
         (s.style.lineHeight = "0.1234"),
         (s.style.fontFamily = '"Papyrus"'),
+        // 0.4.10: text-align reset only on the root probe; descendants
+        // compare against the inherited value.
+        s.style.setProperty("text-align", "initial", "important"),
         (s.style.listStyleType = "initial")),
       e.parentElement?.lastElementChild === e
-        ? e.insertAdjacentElement("afterend", s)
-        : e.insertAdjacentElement("beforebegin", s),
+        ? e.insertAdjacentElement("afterend", host)
+        : e.insertAdjacentElement("beforebegin", host),
       o)
     ) {
       const y = window.getComputedStyle(s, o);
@@ -593,7 +621,7 @@ async function fe(n, opts = {}) {
         }
       }
     }
-    s.remove();
+    host.remove();
     for (const y of f) {
       const c = g.get(y),
         S = L.get(y);
@@ -808,6 +836,15 @@ async function fe(n, opts = {}) {
       }
       (pinPercentSize(e, k, "width"), pinPercentSize(e, k, "height"));
     }
+    // 0.4.10: form controls keep their used size.
+    if (
+      e instanceof HTMLInputElement ||
+      e instanceof HTMLTextAreaElement ||
+      e instanceof HTMLSelectElement
+    ) {
+      k.width ??= s.width;
+      k.height ??= s.height;
+    }
     if (e instanceof HTMLInputElement) {
       if (
         (e.value && M.push(["value", e.value]),
@@ -849,9 +886,14 @@ async function fe(n, opts = {}) {
       e instanceof SVGElement)
     ) {
       const v = window.getComputedStyle(e);
-      ((k.width === void 0 || k.width === "auto") && (k.width = v.width),
-        (k.height === void 0 || k.height === "auto") && (k.height = v.height),
-        U.forEach(([A, N]) => {
+      (k.width === void 0 || k.width === "auto") && (k.width = v.width);
+      (k.height === void 0 || k.height === "auto") && (k.height = v.height);
+      // 0.4.13: an <svg> root whose used overflow is visible says so explicitly
+      // (per axis), so Paper does not clip paths that spill past the viewBox.
+      if (e instanceof SVGSVGElement)
+        for (const ov of ["overflow-x", "overflow-y"])
+          v.getPropertyValue(ov) === "visible" && (k[ov] = "visible");
+      (U.forEach(([A, N]) => {
           if (!(["class", "style", "display", "overflow"].includes(A) || !N)) {
             if (["fill", "stroke", "color"].includes(A)) {
               let D = k[A];
@@ -870,6 +912,19 @@ async function fe(n, opts = {}) {
         M.push(["style", m(k)])),
       kept)
     ) {
+      // 0.4.10: an empty colspan>1 table cell pads its row with
+      // display:table-cell siblings so later columns keep their slots.
+      let colPad = "";
+      const kids = z.join("");
+      if (
+        e instanceof HTMLTableCellElement &&
+        e.colSpan > 1 &&
+        s.display === "table-cell" &&
+        kids === ""
+      )
+        colPad = `<div paper-snapshot-original-tag="${e.tagName}" style="display: table-cell;"></div>`.repeat(
+          e.colSpan - 1,
+        );
       // Do not grow a pc-id tree in Paper. Drop generated path ids; keep a
       // scrape name when the HTML already has one; otherwise let Paper name it.
       for (let di = M.length - 1; di >= 0; di--) {
@@ -911,7 +966,7 @@ async function fe(n, opts = {}) {
       }
       const v = `<${X} ${M.map(([D, W]) => `${D}="${I(W)}"`).join(" ")}>`,
         A = h.has(X) ? "" : `</${X}>`;
-      return { html: `${v}${z.join("")}${A}`, processedNodes: K };
+      return { html: `${v}${kids}${A}${colPad}`, processedNodes: K };
     }
     return { html: z.join(""), processedNodes: K };
   }
@@ -924,6 +979,8 @@ async function fe(n, opts = {}) {
     const t = new AbortController();
     window.addEventListener("keydown", e, { capture: !0 });
     let undoReducedMotion = null;
+    // 0.4.10: Elementor entrance-animation hides; lifted for the capture.
+    const undoElementor = liftElementorInvisible();
     try {
       try {
         undoReducedMotion = emulateReducedMotion();
@@ -962,6 +1019,7 @@ async function fe(n, opts = {}) {
     } finally {
       (window.removeEventListener("keydown", e, { capture: !0 }),
         undoReducedMotion && undoReducedMotion(),
+        undoElementor(),
         p.removeAttribute("data-paper-element-picker"));
     }
   }

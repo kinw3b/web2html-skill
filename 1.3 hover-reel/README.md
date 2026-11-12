@@ -36,11 +36,9 @@ Tags are not a 1.3 rail step. `capture/home-desktop/layer-ids.json` from 1.2
 is the pc-id + tag census; 2.2.a applies that map. Capture Tool does not Scan,
 write `qa/layer-ids-enrich.json`, or rename `home-desktop`.
 
-`scripts/capture-site-component-states.mjs` is the **automated / CI** hunter for
-A/6 state pairs. It refuses to run without `--auto` or `--headless`, because
-human-led capture is 1.3 in the extension. When it does run headed, a drawn
-pointer travels to each control so you can watch; if the pointer never moves,
-the run is broken — fix the overlay rather than capture blind.
+The old visible-Chrome state hunters (`capture-site-component-states.mjs` and
+its menu / hamburger / dropdown helpers) are deleted. Human-led capture in the
+extension is the only live-hover path.
 
 ## Repo layout
 
@@ -56,7 +54,6 @@ the run is broken — fix the overlay rather than capture blind.
   scripts/
     capture-session.mjs   step 1.2: headless collect + board seed + postflight
     run-paper-phase.mjs   the 1.2 collect itself (no window, no HUD; clips 1600/768/390)
-    capture-*-states.mjs  automated / CI component hunters
   test/
     validate.mjs          manifest/file/syntax/message-drift checks
     capture-extension*.test.mjs

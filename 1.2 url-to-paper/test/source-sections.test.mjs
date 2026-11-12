@@ -41,7 +41,6 @@ import { detectMissingHover } from "../scripts/missing-elements-lib.mjs";
 const __dir = dirname(fileURLToPath(import.meta.url));
 const fixture = readFileSync(join(__dir, "fixtures/pre-pesticide.html"), "utf8");
 const serializerSrc = readFileSync(join(__dir, "../scripts/serializer.js"), "utf8");
-const a6 = readFileSync(join(__dir, "../../1.3 hover-reel/scripts/build-paper-states.mjs"), "utf8");
 
 const PNG_1X1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -133,8 +132,6 @@ test("Paper HTML stack has two badges, two images, paperSectionName layers", () 
   assert.match(html, /padding: 24px/);
   assert.match(html, /opacity: 0.5/);
   assert.doesNotMatch(html, /layer-name="01 · nav"/);
-  assert.match(a6, /background-color: #E11D2E/);
-  assert.match(a6, /width: 36px; height: 36px; border-radius: 999px/);
 });
 
 test("a 2x shot lays out at the 1600 desktop frame width, ratio kept", () => {

@@ -1,28 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   DESKTOP_DROPDOWN_WIDTH,
   INTERACTIVE_COMPONENTS_BOARD,
   INTERACTIVE_COMPONENTS_WIDTH,
-  a6StatesBoardName,
   dropdownCaptureWidth,
-  emptyKindManifest,
   fluidFitStyles,
-  hamburgerKindWidth,
-  interactiveRowMeta,
   isDropdownKind,
   isFaqKind,
-  isHamburgerKind,
-  isInteractiveKind,
   isFluidPairKind,
   isGeometryLockedRoot,
   kindCaptureWidth,
-  looksLikeHamburger,
   paperBoardName,
   paperBoardWidth,
   paperCellWidth,
@@ -33,19 +24,11 @@ import {
   paperSlotBox,
   paperStateCellShell,
   prepareFluidPairHtml,
-  resolveCaptureKinds,
-  resolveDropdownOutDir,
-  shouldCaptureDropdown,
   stripChevronTransforms,
 } from '../scripts/component-state-utils.mjs';
 import { prepareStateHtml } from '../scripts/prepare-state-html.mjs';
-import { writeDropdownPairFiles, writeDropdownPairs, writeFluidPairFiles } from '../scripts/write-dropdown-pair.mjs';
-import { parseMenuCaptureArgs } from '../scripts/capture-menu-states.mjs';
-import { parseHamburgerCaptureArgs } from '../scripts/capture-hamburger-states.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CAPTURE = path.join(ROOT, 'scripts', 'capture-component-states.mjs');
-const MENU = path.join(ROOT, 'scripts', 'capture-menu-states.mjs');
 
 test('dropdown kind is fluid 100% / flex-start / fit-content — never captured px', () => {
   const html = '<div style="width: 220px; height: 48px; display: flex; align-items: center; transform: rotate(180deg); translate: 4px 2px">Products</div>';
@@ -126,55 +109,6 @@ test('dropdown writes Navigation — objects on Components, hover on Buttons', (
   assert.match(paperSectionBadgeHtml('01'), /01/);
 });
 
-test('no dropdown emit when --allow-dropdown is off', () => {
-  assert.equal(shouldCaptureDropdown({ allowDropdown: false, kind: 'dropdown' }), false);
-  assert.equal(shouldCaptureDropdown({ allowDropdown: true, kind: 'dropdown' }), true);
-  assert.deepEqual(
-    resolveCaptureKinds({ kinds: ['nav', 'buttons', 'forms', 'footer'], allowHamburger: false }),
-    ['nav', 'buttons', 'forms', 'footer'],
-  );
-  assert.deepEqual(
-    resolveCaptureKinds({ kinds: ['nav', 'buttons', 'forms', 'footer'] }),
-    ['nav', 'buttons', 'forms', 'footer', 'nav-mobile-768', 'nav-mobile-390'],
-  );
-  assert.deepEqual(
-    resolveCaptureKinds({ kinds: ['nav', 'buttons', 'forms', 'footer'], allowDropdown: true }),
-    ['nav', 'buttons', 'forms', 'footer', 'dropdown', 'nav-mobile-768', 'nav-mobile-390'],
-  );
-  assert.deepEqual(
-    resolveCaptureKinds({ kinds: ['nav', 'buttons', 'forms', 'footer', 'faq'], allowFaq: true, allowHamburger: false }),
-    ['nav', 'buttons', 'forms', 'footer', 'faq'],
-  );
-
-  const empty = emptyKindManifest({
-    kind: 'dropdown',
-    reason: 'dropdown capture is off — do not hunt; pass --allow-dropdown when a hover-to-open panel exists',
-  });
-  assert.equal(empty.status, 'empty');
-  assert.equal(empty.kind, 'dropdown');
-  assert.equal(empty.states.length, 0);
-
-  const out = mkdtempSync(path.join(tmpdir(), 'hr-dropdown-'));
-  const res = spawnSync(process.execPath, [
-    CAPTURE,
-    '--url', 'https://example.test/',
-    '--kind', 'dropdown',
-    '--page', 'home',
-    '--out', out,
-  ], { encoding: 'utf8' });
-  assert.equal(res.status, 0, res.stderr || res.stdout);
-  const manifestPath = path.join(out, 'home', 'dropdown', 'manifest.json');
-  assert.equal(existsSync(manifestPath), true);
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  assert.equal(manifest.status, 'empty');
-  assert.equal(manifest.kind, 'dropdown');
-  assert.equal(manifest.paperBoard, INTERACTIVE_COMPONENTS_BOARD);
-  assert.equal(manifest.states.length, 0);
-  assert.match(manifest.reason, /allow-dropdown/);
-  assert.equal(existsSync(path.join(out, 'home', 'dropdown', '00-closed.html')), false);
-  assert.equal(existsSync(path.join(out, 'home', 'dropdown', '00-open.html')), false);
-});
-
 test('dropdown captures at 1600, not the A/6 1440 default', () => {
   assert.equal(DESKTOP_DROPDOWN_WIDTH, 1600);
   assert.equal(dropdownCaptureWidth(), 1600);
@@ -189,191 +123,6 @@ test('dropdown captures at 1600, not the A/6 1440 default', () => {
   assert.equal(kindCaptureWidth('faq', 1440), 1440);
   assert.equal(paperBoardWidth({ kind: 'dropdown' }), `${INTERACTIVE_COMPONENTS_WIDTH}px`);
   assert.equal(paperBoardWidth({ kind: 'faq', mode: 'accordion' }), null);
-});
-
-test('capture-menu-states defaults to 1600 and writes HTML, not JSON-only', () => {
-  const src = readFileSync(MENU, 'utf8');
-  assert.doesNotMatch(src, /viewport:\s*\{\s*width:\s*1440/);
-  assert.doesNotMatch(src, /viewportWidth:\s*1440/);
-  assert.match(src, /DESKTOP_DROPDOWN_WIDTH|1600/);
-  assert.match(src, /writeDropdownPairFiles/);
-
-  const defaults = parseMenuCaptureArgs(['node', MENU]);
-  assert.equal(defaults.width, 1600);
-  assert.equal(defaults.paperBoard, INTERACTIVE_COMPONENTS_BOARD);
-  assert.match(defaults.dir, /home\/dropdown$/);
-  assert.equal(defaults.json, null);
-
-  const jsonOut = parseMenuCaptureArgs(['node', MENU, '--out', '/tmp/taro-menu.json', '--width', '1440']);
-  assert.equal(jsonOut.width, 1600);
-  assert.equal(jsonOut.json, '/tmp/taro-menu.json');
-  assert.equal(jsonOut.dir, '/tmp/taro-menu');
-
-  const explicit = parseMenuCaptureArgs(['node', MENU, '--width', '1920', '--page', 'home', '--out', '/tmp/components']);
-  assert.equal(explicit.width, 1920);
-  assert.equal(explicit.dir, '/tmp/components/home/dropdown');
-
-  const nested = resolveDropdownOutDir('/tmp/site/home/dropdown', 'home');
-  assert.equal(nested.dir, '/tmp/site/home/dropdown');
-
-  const out = mkdtempSync(path.join(tmpdir(), 'hr-menu-html-'));
-  const pair = {
-    triggerLabel: 'All Pages',
-    triggerBox: [80, 20, 93, 27],
-    navBox: [40, 20, 720, 360],
-    rootSel: '[data-hr-nav]',
-    hoverConfirmed: true,
-    items: [{ label: 'Explore Demos' }, { label: 'About' }],
-    closed: { html: '<div style="width: 93px; height: 27px">All Pages</div>' },
-    open: { html: '<div style="width: 720px; height: 360px">All Pages Explore Demos About</div>' },
-  };
-  const manifest = writeDropdownPairFiles({
-    dir: out,
-    pair,
-    url: 'https://example.test/',
-    page: 'home',
-    pageSlug: 'home',
-    viewportWidth: 1600,
-    viewportHeight: 1100,
-  });
-  assert.equal(manifest.paperBoard, INTERACTIVE_COMPONENTS_BOARD);
-  assert.doesNotMatch(manifest.paperBoard, /A\/6/);
-  assert.equal(manifest.viewport.width, 1600);
-  assert.equal(manifest.kind, 'dropdown');
-  assert.equal(existsSync(path.join(out, '00-closed.html')), true);
-  assert.equal(existsSync(path.join(out, '00-open.html')), true);
-  assert.equal(existsSync(path.join(out, 'manifest.json')), true);
-  const closed = readFileSync(path.join(out, '00-closed.html'), 'utf8');
-  assert.match(closed, /width: 100%/);
-  assert.match(closed, /height: fit-content/);
-  assert.match(closed, /align-items: flex-start/);
-
-  const missing = spawnSync(process.execPath, [MENU], { encoding: 'utf8' });
-  assert.equal(missing.status, 1);
-  assert.match(missing.stderr, /need --url/);
-});
-
-test('writeDropdownPairs stores multiple human picks on Interactive components', () => {
-  const out = mkdtempSync(path.join(tmpdir(), 'hr-dd-multi-'));
-  const manifest = writeDropdownPairs({
-    dir: out,
-    page: 'home',
-    pageSlug: 'home',
-    pairs: [
-      {
-        triggerLabel: 'All Pages',
-        triggerBox: [80, 20, 93, 27],
-        navBox: [40, 20, 720, 360],
-        rootSel: '[data-hr-nav]',
-        hoverConfirmed: true,
-        closed: { html: '<div>All Pages</div>' },
-        open: { html: '<div>All Pages Homepage</div>' },
-      },
-      {
-        triggerLabel: 'Shop By Category',
-        triggerBox: [10, 20, 120, 27],
-        navBox: [10, 20, 400, 280],
-        rootSel: '[data-hr-nav]',
-        hoverConfirmed: true,
-        closed: { html: '<div>Shop</div>' },
-        open: { html: '<div>Shop Hats</div>' },
-      },
-    ],
-  });
-  assert.equal(manifest.paperBoard, INTERACTIVE_COMPONENTS_BOARD);
-  assert.equal(manifest.states.length, 2);
-  assert.equal(manifest.states[0].component, '01 · all-pages');
-  assert.equal(existsSync(path.join(out, '00-all-pages-closed.html')), true);
-  assert.equal(existsSync(path.join(out, '01-shop-by-category-open.html')), true);
-});
-
-test('navbar-dropdown alias is dropdown; hamburgers stay 4.1-M', () => {
-  const alias = mkdtempSync(path.join(tmpdir(), 'hr-dd-alias-'));
-  const res = spawnSync(process.execPath, [
-    CAPTURE,
-    '--url', 'https://example.test/',
-    '--kind', 'navbar-dropdown',
-    '--page', 'home',
-    '--out', alias,
-  ], { encoding: 'utf8' });
-  assert.equal(res.status, 0, res.stderr || res.stdout);
-  const manifest = JSON.parse(readFileSync(path.join(alias, 'home', 'dropdown', 'manifest.json'), 'utf8'));
-  assert.equal(manifest.kind, 'dropdown');
-  assert.equal(manifest.status, 'empty');
-
-  assert.equal(looksLikeHamburger({
-    width: 42, height: 42, label: 'Menu', aria: 'Open menu', viewportWidth: 390,
-  }), true);
-  assert.equal(looksLikeHamburger({
-    width: 93, height: 27, label: 'Products', viewportWidth: 1440,
-  }), false);
-});
-
-test('burger rows emit onto Interactive components — not A/6', () => {
-  assert.equal(isHamburgerKind('nav-mobile-768'), true);
-  assert.equal(isHamburgerKind('nav-mobile-390'), true);
-  assert.equal(isInteractiveKind('hamburger', 'hamburger'), true);
-  assert.equal(paperBoardName({ kind: 'nav-mobile-768' }), INTERACTIVE_COMPONENTS_BOARD);
-  assert.equal(paperBoardName({ kind: 'nav-mobile-390', mode: 'hamburger' }), 'Navigation');
-  assert.doesNotMatch(paperBoardName({ kind: 'nav-mobile-390' }), /A\/6/);
-  assert.equal(paperBoardName({ kind: 'faq', pageSlug: 'home' }), 'Components');
-
-  assert.deepEqual(interactiveRowMeta({ kind: 'dropdown' }), {
-    sid: '01', token: 'navbar-dropdown', section: 'Dropdown',
-  });
-  assert.deepEqual(interactiveRowMeta({ kind: 'nav-mobile-768', viewportWidth: 768 }), {
-    sid: '02', token: 'nav-mobile-768', section: 'Nav mobile',
-  });
-  assert.deepEqual(interactiveRowMeta({ kind: 'nav-mobile-390', viewportWidth: 390 }), {
-    sid: '03', token: 'nav-mobile-390', section: 'Nav mobile',
-  });
-  assert.equal(hamburgerKindWidth('nav-mobile-768'), 768);
-  assert.equal(hamburgerKindWidth('nav-mobile-390'), 390);
-  assert.equal(kindCaptureWidth('nav-mobile-768', 1440), 768);
-
-  const parsed = parseHamburgerCaptureArgs(['node', 'x', '--width', '768', '--page', 'home', '--out', '/tmp/components']);
-  assert.equal(parsed.paperBoard, INTERACTIVE_COMPONENTS_BOARD);
-  assert.equal(parsed.width, 768);
-  assert.equal(parsed.row.sid, '02');
-  assert.equal(parsed.row.token, 'nav-mobile-768');
-  assert.match(parsed.dir, /nav-mobile-768$/);
-
-  const out = mkdtempSync(path.join(tmpdir(), 'hr-burger-'));
-  const manifest = writeFluidPairFiles({
-    dir: out,
-    kind: 'nav-mobile-390',
-    mode: 'hamburger',
-    viewportWidth: 390,
-    viewportHeight: 844,
-    pair: {
-      triggerLabel: 'Menu',
-      triggerBox: [340, 16, 42, 42],
-      navBox: [0, 0, 390, 400],
-      rootSel: '[data-hr-panel]',
-      hoverConfirmed: true,
-      opened: true,
-      items: [{ t: 'About' }],
-      closed: { html: '<div style="width: 42px; height: 42px">Menu</div>' },
-      open: { html: '<div style="width: 390px; height: 400px">About Contact</div>' },
-    },
-  });
-  assert.equal(manifest.paperBoard, INTERACTIVE_COMPONENTS_BOARD);
-  assert.doesNotMatch(manifest.paperBoard, /A\/6/);
-  assert.equal(manifest.states[0].component, '03 · nav-mobile-390');
-  assert.equal(manifest.states[0].token, 'nav-mobile-390');
-  const html = readFileSync(path.join(out, '00-closed.html'), 'utf8');
-  assert.match(html, /width: fit-content|width: 42px/);
-  assert.match(html, /max-width: 390px/);
-  assert.match(html, /align-items: flex-start/);
-  assert.match(html, /height: fit-content/);
-  assert.doesNotMatch(html, /width: 100%/);
-
-  const emptyBurger = emptyKindManifest({
-    kind: 'nav-mobile-768',
-    reason: 'no hamburger at this width — do not invent',
-  });
-  assert.equal(emptyBurger.paperBoard, INTERACTIVE_COMPONENTS_BOARD);
-  assert.doesNotMatch(emptyBurger.paperBoard, /A\/6/);
 });
 
 test("Navigation dropdown groups park top-to-bottom", async () => {
